@@ -5,7 +5,7 @@
   "goal": "把 dream 升级成 ~/Repositories/Repo/Dream 独立项目（general 方法 = 主技能）+ AgentSkill-UsingHermes 里的 dream-hermes-routing 路由技能；把用户 2026-10-11 提的 8 条新要求落进方法；03:00 起跑、04:00 前完成，验收必须包含 dream 已正确安装。计划持久化在本项目里（plans/dream-upgrade/）。",
   "status": "active",
   "created_at": "2026-10-11T01:13:35+08:00",
-  "updated_at": "2026-10-11T01:37:02+08:00",
+  "updated_at": "2026-10-11T03:00:48+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -36,7 +36,7 @@
           "id": "T-001#B-001",
           "title": "勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点",
           "kind": "impl",
-          "status": "pending",
+          "status": "running",
           "owner": "dream-upgrade-runner",
           "doc": "在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktree list、git branch -a --sort=-committerdate。01:00 那个 cron 正在 dream-nostay 分支/worktree 上改同一个包，02:00 还有一单要动 AgentSkill-AgentEvolution：这些在途改动是要合并的东西，不是噪音，不许覆盖。② 对 dream 现状三处建逐文件 sha256 台账，落 /Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/evidence/sha256-before.tsv：clone 的 skills/dream、profile 安装副本 ~/.hermes/skills/hermes/dream、~/.hermes/skills/.hub/lock.json 里 installed.dream 的 files 与 source_revision。③ 读 ~/.hermes/.env 里外部技能目录的登记行，用 grep -c 计数、不回显值。本机 shell 输出经包装层（rtk）过滤，逐文件清单/计数一律用 Python（os.walk）做。",
           "input": "",
@@ -49,9 +49,20 @@
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {},
-          "status_since": "2026-10-11T01:13:49+08:00",
-          "runs": []
+          "exec": {
+            "by": "dream-upgrade-runner",
+            "started": "2026-10-11T03:00:48+08:00"
+          },
+          "status_since": "2026-10-11T03:00:48+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:00:48+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "running",
+              "note": "勘察：三处 sha256 台账 + 在途改进盘点"
+            }
+          ]
         }
       ],
       "note": "",
@@ -784,7 +795,14 @@
       "kind": "block",
       "text": "新增块 T-010#B-002「跑一轮 designer：hard case → 改技能 → 推送 → 重装 → 回读」",
       "ref": "T-010#B-002"
+    },
+    {
+      "at": "2026-10-11T03:00:48+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-001: pending → running（勘察：三处 sha256 台账 + 在途改进盘点）",
+      "ref": "T-001#B-001"
     }
   ],
-  "rev": "0977a8fdf1e8"
+  "rev": "70552903dbf8"
 }

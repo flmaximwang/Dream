@@ -7,8 +7,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-001#B-001\n勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点\n\n`claimed` · @dream-upgrade-runner\n\n在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktre"
+   "color": "5",
+   "text": "### T-001#B-001\n勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点\n\n`running` · @dream-upgrade-runner · 在做 @dream-upgrade-runner\n\n在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktre"
   },
   {
    "id": "T-002#B-001",

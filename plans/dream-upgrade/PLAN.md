@@ -2,13 +2,13 @@
 
 > 把 dream 升级成 ~/Repositories/Repo/Dream 独立项目（general 方法 = 主技能）+ AgentSkill-UsingHermes 里的 dream-hermes-routing 路由技能；把用户 2026-10-11 提的 8 条新要求落进方法；03:00 起跑、04:00 前完成，验收必须包含 dream 已正确安装。计划持久化在本项目里（plans/dream-upgrade/）。
 
-**进度** 0/16 块（0%） · 状态 `active` · 更新于 2026-10-11 01:37
+**进度** 0/16 块（0%） · 状态 `active` · 更新于 2026-10-11 03:00
 
 **参与方** Stronghold3369(human) · 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
-- `T-001#B-001` **勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点** — 已认领 · @dream-upgrade-runner
+- `T-001#B-001` **勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点** — 进行中 · @dream-upgrade-runner · 在做 @dream-upgrade-runner
 
 ## 图
 
@@ -49,8 +49,8 @@ flowchart LR
   T-009_B-001 --> T-009_B-002
   T-006_B-002 --> T-010_B-001
   T-010_B-001 --> T-010_B-002
-  classDef claimed stroke-width:1px;
-  class T-001_B-001 claimed;
+  classDef running stroke-width:1px;
+  class T-001_B-001 running;
   classDef waiting stroke-width:1px;
   class T-002_B-001,T-003_B-001,T-003_B-002,T-004_B-001,T-004_B-002,T-005_B-001,T-006_B-001,T-006_B-002,T-007_B-001,T-008_B-001,T-008_B-002,T-009_B-001,T-009_B-002,T-010_B-001,T-010_B-002 waiting;
 ```
@@ -58,9 +58,11 @@ flowchart LR
 ## 任务
 
 ### T-001 勘察与现场冻结 — 进行中
-- [ ] `T-001#B-001` **勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点** _impl_ — 已认领 @dream-upgrade-runner
+- [ ] `T-001#B-001` **勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点** _impl_ — 进行中 @dream-upgrade-runner
     - 做什么：在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktree list、git branch -a --sort=-committerdate。01:00 那个 cron 正在 dream-nostay 分支/worktree 上改同一个包，02:00 还有一单要动 AgentSkill-AgentEvolution：这些在途改动是要合并的东西，不是噪音，不许覆盖。② 对 dream 现状三处建逐文件 sha256 台账，落 /Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/evidence/sha256-before.tsv：clone 的 skills/dream、profile 安装副本 ~/.hermes/skills/hermes/dream、~/.hermes/skills/.hub/lock.json 里 installed.dream 的 files 与 source_revision。③ 读 ~/.hermes/.env 里外部技能目录的登记行，用 grep -c 计数、不回显值。本机 shell 输出经包装层（rtk）过滤，逐文件清单/计数一律用 Python（os.walk）做。
     - 判据：sha256-before.tsv 存在且三处逐文件对照（列：相对路径 + clone + profile + lock 的 sha256）；origin/main HEAD 与 worktree/branch 列表原文贴出；.env 登记行的键名与 grep -c 计数贴出。
+    - 在做：@dream-upgrade-runner
+    - run 2026-10-11 03:00 dream-upgrade-runner pending→running 勘察：三处 sha256 台账 + 在途改进盘点
 
 ### T-002 Dream 项目骨架 + 首推 — 待排
 - [ ] `T-002#B-001` **Dream 项目骨架 + gh repo create + 首推（计划随项目提交）** _impl_ — 等前置 @dream-upgrade-runner
@@ -152,7 +154,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 01:14` **agent** [block] 新增块 T-006#B-001「推送两处仓库（Dream + UsingHermes），先 fetch/rebase」
 - `2026-10-11 01:14` **agent** [block] 新增块 T-006#B-002「装回 profile 并回读三件」
 - `2026-10-11 01:14` **agent** [block] 新增块 T-007#B-001「把 4 点那次 dream 的 cron prompt 换成新方法」
 - `2026-10-11 01:14` **agent** [block] 新增块 T-008#B-001「独立只读验证（与所有 writer 不同的子代理）」
@@ -172,6 +173,7 @@ flowchart LR
 - `2026-10-11 01:37` **agent** [task] 新增任务 T-010「06:00 用 MemSkill 的方法优化 Dream 并重装（monk 模型）」
 - `2026-10-11 01:37` **agent** [block] 新增块 T-010#B-001「读 MemSkill 并把方法映射到 Dream（落 docs/memskill-loop.md）」
 - `2026-10-11 01:37` **agent** [block] 新增块 T-010#B-002「跑一轮 designer：hard case → 改技能 → 推送 → 重装 → 回读」
+- `2026-10-11 03:00` **agent** [status] T-001#B-001: pending → running（勘察：三处 sha256 台账 + 在途改进盘点）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-upgrade` 生成。
