@@ -88,7 +88,7 @@ flowchart LR
     - 判据：dedupe --dry-run 的删除清单逐条（路径 / sha256 / 保留处）；真跑后 not_in_pack=0 且 local=0（原文）；两个上限常量的名字 + 当前实测值（每个 profile 的技能数、每个 pack 的第一层技能数）；备份 tar 的绝对路径。
     - 依赖：T-004#B-001
 
-### T-005 为 Hermes 写路由 skill（AgentSkill-UsingHermes） — 待排
+### T-005 为各 agent 写适配路由 skill（Hermes 先行，都住 Dream 项目） — 待排
 - [ ] `T-005#B-001` **在 Dream 项目里写 agent 适配路由 skill（Hermes 先行），并从 AgentSkill-UsingHermes 删掉 skills/dream** _impl_ — 等前置 @dream-upgrade-runner
     - 做什么：落实用户 2026-10-11 的改口径：「都住 dream 里，相当于 dream 可以为各个 agent 提供适配」。所以路由/适配技能也住在 Dream 项目里（skills/dream-hermes-routing），不放 AgentSkill-UsingHermes；Dream = general 方法主技能 + 一个 agent 一个适配技能（Hermes 先行，别的 agent 以后按同一形状加）。做法：在 Dream 项目的 worktree 里新建 skills/dream-hermes-routing/SKILL.md，frontmatter 只留 name + description，description 头 57 字符是自包含触发（要收编 Hermes 某个 profile 里没有仓库归属的本地技能时用）；正文承载全部 Hermes 专有机制：profile 与 .env 路径、.hub/lock.json / .bundled_manifest / local 三容器判据、AgentSkill-* 答案空间与工具/主题两轴、hermes skills install/update/uninstall 的形状与坑、扫描闸（safe/dangerous）、JEV 判官队伍与降级路径、以及「general 方法本体在同仓库 skills/dream，本技能只做 Hermes 适配与安装」的转指；再写一行「新 agent 的适配技能照本文件形状加」把扩展点钉住。另在 AgentSkill-UsingHermes 的 worktree 里删掉该包的 skills/dream（内容已进 Dream 项目，别在两处维护两份），并更新该包 README 的索引。不碰别人在途文件。
     - 判据：Dream 项目里 skills/dream-hermes-routing/SKILL.md 存在

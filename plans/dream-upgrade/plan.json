@@ -207,7 +207,7 @@
     },
     {
       "id": "T-005",
-      "title": "为 Hermes 写路由 skill（AgentSkill-UsingHermes）",
+      "title": "为各 agent 写适配路由 skill（Hermes 先行，都住 Dream 项目）",
       "owner": "",
       "status": "pending",
       "deps": [],

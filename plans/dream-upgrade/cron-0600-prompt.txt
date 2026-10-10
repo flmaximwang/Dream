@@ -1,0 +1,43 @@
+【任务】06:00 那一单：读 MemSkill（论文 + 官方代码），用它的方法优化 Dream 项目并重装。中文回复、结论先行。
+
+计划是唯一真相：/Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/plan.json
+操作 CLI：`loomerto --plans-root /Users/maxim/Repositories/Repo/Dream/plans <子命令> dream-upgrade`
+先 `current dream-upgrade` 看该动哪块，本单要做的两块是 **T-010#B-001**（读 MemSkill + 映射，落 docs/memskill-loop.md）与 **T-010#B-002**（跑一轮 designer：hard case → 改技能 → 推送 → 重装 → 回读），逐块照它自己的 doc/done_when 做，收工 `block set_status dream-upgrade <ref> done --owner dream-upgrade-runner --artifact <绝对路径> --note "<举证>"`。先 skill_view `loomerto-plan`、`dream`、`install-hermes-skills`、`author-a-skill-in-a-pack-repo` 再动手。
+
+## 1 要读的东西（MemSkill）
+- 论文 arXiv 2602.02474《MemSkill: Learning and Evolving Memory Skills for Self-Evolving Agents》（NeurIPS'26，作者 Haozhen Zhang 等）：HTML https://arxiv.org/html/2602.02474v2 、PDF https://arxiv.org/pdf/2602.02474
+- 官方代码 https://github.com/ViktorAxelsen/MemSkill —— **重点看 `skills/`、`prompts/`、`docs/` 三个目录**，别只看 README。
+- 方法骨架：**skill bank**（可复用、可演化的技能库）· **controller**（为每段上下文挑一小撮 top-K 相关技能）· **executor**（按选中的技能产出结果）· **designer**（周期性回看 **hard cases** —— 选中的技能产出错误或不完整结果的那些例子 —— 提出对现有技能的改进与全新技能）· **闭环**（选择策略与技能库同时变好）。
+- 论文自己的告警要照抄进映射：演化出来的是 **meta 层技能**（怎么记 / 记什么 / 丢什么），不是被记住的内容本身。映射到 Dream 时同样写清「改的是**方法技能**，不是某一次收编的数据」。
+
+## 2 映射到 Dream（写进 docs/memskill-loop.md）
+给一张 5 行映射表，每行落到 Dream 的**具体文件/命令**，不许写抽象说法：
+skill bank → Dream 的技能集（skills/dream 主技能 + skills/dream-hermes-routing 等各 agent 适配技能）
+controller → 技能的路由/触发（frontmatter description 头 57 字符 + 路由盲测记分）
+executor → dream 的一轮批次流程（sweep-plan.py 的 scan→merge→dedupe 与 S1–S9）
+designer → 用真实 hard case 改技能（就是本单 B-002 做的事）
+hard-case 池 → 落在仓库里、下一轮能接着跑的那份记录（`docs/memskill-round<N>.md`，对应论文里可 checkpoint 的 rolling failure-case pool）
+
+## 3 hard case 只许来自真实证据
+每条：**现象 → 哪条 skill 没兜住 → 原文证据（file:line 或命令输出）**。候选来源：Dream plan 里 FAIL 的块 / 收尾报告里「没判完」的行 / 路由盲测被抢的条目 / merge 拒收的 verdict / 安装时扫描 verdict 非 safe 的 revision / 文档超限自检真报错的输出 / 3 点那一轮的收尾报告。**没有证据的猜测一律不许写成 case。**
+
+## 4 改法（designer 一轮）
+对每条 hard case 给出「改哪条 skill 的哪一句」或「新增哪条 skill / 哪份 reference」，**一条 case 一个提交**（提交信息带 case 编号），改完 push（worktree 里改、`git add` 只按 pathspec、`git push origin <sha>:main`）→ 重装 Dream 的两个技能（`hermes skills install/update flmaximwang/Dream/skills/<名> --category hermes -y`，重定向到日志再读回，别用 head/tail 截长命令）→ 回读三件（`diff -rq` 空 / 逐文件 sha256 MATCH / lock 的 identifier 指向 flmaximwang/Dream/skills/<名>）→ 把这一轮的 case 表与改法写进 `docs/memskill-round1.md`（下一轮接着用）。
+
+## 5 硬约束
+- 无人值守：不问人、不等人、不发要点选的表单。做不下去就在报告里写清卡在哪。
+- **不许删任何闸门 / 判据 / 检查点，不许改技能的用途，不许为凑分加废话**；改动的净效果要能逐条对上 hard case。
+- 只在 worktree 里改包；只按 pathspec `git add`；不推别人的在途提交；push 被拒先 fetch + rebase 再推。
+- 子代理只许前台命令、跑完即结束；**禁止 background=true**（子代理的后台完成通知会把会话路由 pin 到子代理）。
+- 判据一律用**文件内容 sha256 / `diff -rq`**；不许用 `source_revision` / commit sha 代替内容判据。
+- 本机 shell 输出经包装层（rtk）过滤（find/ls/grep 的行会被折叠、结果拼接错乱）：逐文件清单、计数、按目录聚合一律用 Python（os.walk / execute_code）。
+- **若 T-006 没完成**（Dream 未推送、或旧来源的 dream 还装在 profile 里）：只做 T-010#B-001，把方法文档与 case 表落进 docs/ 并如实报告，**不许**去重装一个还不存在的技能、也不许改 profile 里那份旧 dream。
+
+## 6 验收（报告里逐条给真实命令输出，不许只写「已完成」）
+- docs/memskill-loop.md 已在 origin/main 里（`git show --stat` 原文），5 行映射表每行落到具体文件/命令；
+- docs/memskill-round1.md 的 case 表逐条（现象 / 证据 / 改动 / 提交 sha），每个提交只含它那条 case 的改动；
+- 重装后回读三件逐条原文；改完的 skill 第一层文档长度仍在上限内（行数 + 字节数）；
+- 闸门 / 判据条数**只增不减**（给改前改后的计数）。
+
+## 7 汇报
+回本 thread（discord:1558527431831326751）：结论先行（这轮改了哪几条、重装是否回读通过、hard case 有几条）→ 该谁动（剩余块 id）→ 一行 file:// URL：/Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/plan.html → 块进度 <已完成>/<总数>；≤3 条要人拍板的事。不发附件、不起服务。最后一条消息不要只写「已收工」。
