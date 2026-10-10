@@ -5,7 +5,7 @@
   "goal": "把 dream 升级成 ~/Repositories/Repo/Dream 独立项目（general 方法 = 主技能）+ AgentSkill-UsingHermes 里的 dream-hermes-routing 路由技能；把用户 2026-10-11 提的 8 条新要求落进方法；03:00 起跑、04:00 前完成，验收必须包含 dream 已正确安装。计划持久化在本项目里（plans/dream-upgrade/）。",
   "status": "active",
   "created_at": "2026-10-11T01:13:35+08:00",
-  "updated_at": "2026-10-11T03:00:48+08:00",
+  "updated_at": "2026-10-11T03:06:01+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -36,7 +36,7 @@
           "id": "T-001#B-001",
           "title": "勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点",
           "kind": "impl",
-          "status": "running",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktree list、git branch -a --sort=-committerdate。01:00 那个 cron 正在 dream-nostay 分支/worktree 上改同一个包，02:00 还有一单要动 AgentSkill-AgentEvolution：这些在途改动是要合并的东西，不是噪音，不许覆盖。② 对 dream 现状三处建逐文件 sha256 台账，落 /Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/evidence/sha256-before.tsv：clone 的 skills/dream、profile 安装副本 ~/.hermes/skills/hermes/dream、~/.hermes/skills/.hub/lock.json 里 installed.dream 的 files 与 source_revision。③ 读 ~/.hermes/.env 里外部技能目录的登记行，用 grep -c 计数、不回显值。本机 shell 输出经包装层（rtk）过滤，逐文件清单/计数一律用 Python（os.walk）做。",
           "input": "",
@@ -45,15 +45,14 @@
           "done_when": [
             "sha256-before.tsv 存在且三处逐文件对照（列：相对路径 + clone + profile + lock 的 sha256）；origin/main HEAD 与 worktree/branch 列表原文贴出；.env 登记行的键名与 grep -c 计数贴出。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/plans/dream-upgrade/evidence/sha256-before.tsv"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {
-            "by": "dream-upgrade-runner",
-            "started": "2026-10-11T03:00:48+08:00"
-          },
-          "status_since": "2026-10-11T03:00:48+08:00",
+          "exec": {},
+          "status_since": "2026-10-11T03:06:00+08:00",
           "runs": [
             {
               "at": "2026-10-11T03:00:48+08:00",
@@ -61,6 +60,13 @@
               "from": "pending",
               "to": "running",
               "note": "勘察：三处 sha256 台账 + 在途改进盘点"
+            },
+            {
+              "at": "2026-10-11T03:06:00+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "running",
+              "to": "done",
+              "note": "三处逐文件 sha256 台账落盘; origin/main=4bf2e90(dream v2), 在途 dream-nostay worktree 已并入 origin/main; .env grep -c DREAM_SKILL_ROOTS=0(当时)"
             }
           ]
         }
@@ -79,7 +85,7 @@
           "id": "T-002#B-001",
           "title": "Dream 项目骨架 + gh repo create + 首推（计划随项目提交）",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "① 在 /Users/maxim/Repositories/Repo/Dream（已 git init，plans/dream-upgrade 已是本计划）写 README.md：索引表（skills/dream = general 方法主技能；plans/ = 本项目的 loomerto 计划；docs/acceptance.md = 验收清单）+ 三段式安装命令 hermes skills install flmaximwang/Dream/skills/dream + 当前状态（装/不装）一段，照同族项目写。② gh repo create flmaximwang/Dream --private --description \"dream: 把 profile 里无仓库归属的本地技能批量收编进技能包仓库（general 方法）\"（幂等：已存在就 gh repo view 确认后复用）。③ 建完立刻 git remote set-url origin git@github.com:flmaximwang/Dream.git（gh 建出来是 https，裸 push 会卡在凭据提示直到超时）。④ 只按 pathspec add（README.md、plans/、skills/、docs/），commit，git push -u origin main。plans/ 必须在提交里——这就是「计划持久化存储到项目中」的判据。",
           "input": "",
@@ -88,15 +94,25 @@
           "done_when": [
             "gh repo view flmaximwang/Dream --json name,visibility 显示存在且 PRIVATE；git -C /Users/maxim/Repositories/Repo/Dream log --oneline -1 origin/main 等于本次 sha；git show --stat 该 sha 里含 plans/dream-upgrade/plan.json 与 plan.html；README 里那行安装命令原文贴出。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/README.md"
+          ],
           "deps": [
             "T-001#B-001"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:13:49+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:00+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:00+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "gh repo create flmaximwang/Dream --private (isPrivate=true); remote=git@github.com; 首推 sha def7765, git show --stat 含 plans/dream-upgrade/plan.json 与 plan.html"
+            }
+          ]
         }
       ],
       "note": "",
@@ -113,7 +129,7 @@
           "id": "T-003#B-001",
           "title": "抽取 general dream skill 进 Dream 项目，剥掉 hermes 专有内容",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "把 skills/dream（以 AgentSkill-UsingHermes 的 origin/main 最新版为准，不是 profile 里那份）搬进 Dream/skills/dream，并按 general 口径改写：Hermes 专有机制（profile 与 .env 路径、.hub/lock.json 与 .bundled_manifest 的容器判据、AgentSkill-* 答案空间与两轴、hermes skills install/update/uninstall 的形状、扫描闸、JEV 判官队伍）全部移到路由技能（T-005）；general 只留批次算法本体：枚举 → 按内容判落点（禁偷懒判法）→ 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 → 退役，加一句边界声明指向 dream-hermes-routing。scripts/sweep-plan.py 与 references/* 整包带走，脚本里的 hermes 专有默认值仍可留（它要能跑），但 SKILL.md 正文不再把 Hermes 当主语。",
           "input": "",
@@ -122,21 +138,31 @@
           "done_when": [
             "Dream/skills/dream/SKILL.md 存在；grep -c ^## 的节数 ≥ 原版（原版节数写出来）；正文里有一句明写「Hermes 落点见 dream-hermes-routing」的边界声明（原文贴出）；skills/dream 下有 SKILL.md + scripts/sweep-plan.py + references/*（ls 原文）；verify-skill-package.py 对该目录报 tree/pointers 全绿。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/skills/dream/SKILL.md"
+          ],
           "deps": [
             "T-002#B-001"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:13:49+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "从 origin/main 的 dream v2 抽 general 本体; 节数 19 >= 16; 边界声明指向 dream-hermes-routing; verify-skill-package.py tree/pointers 全绿"
+            }
+          ]
         },
         {
           "id": "T-003#B-002",
           "title": "分层披露改造：文档聚类 → 文档树 → 单文档长度上限",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "落实用户第 6 条要求：skill pack 内部优化——文档聚类、按文档关系生成文档树、按文档树组织 skill、限制单个文档长度，实现真正的分层披露（而不是一口气把一大堆上下文丢给 agent）。做法：SKILL.md 只留第一层（触发/边界/一张流程总表/每一步指向 references 的一行），细节按主题下沉到 references/dream-<topic>.md；给出文档树（谁引用谁）并把两个上限写成可自检的常量/命令：SKILL.md 行数与字节数上限、单个文档字节数上限；超限即拆，不是建议。规则与自检命令写进 SKILL.md 的「形状」一节。同时把「第一层披露的 skill 数上限」写进本包的 README/规则（见 T-004 的一致口径）。",
           "input": "",
@@ -145,15 +171,25 @@
           "done_when": [
             "给出每个文档的行数+字节数表（SKILL.md 与每份 references）；SKILL.md 行数与字节数都在上限内；文档树用缩进列出（每份 references 都被 SKILL.md 点名一行，没有孤儿文档）；自检命令与它的真实输出贴出（超限要报错）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/skills/dream/scripts/check-disclosure.py"
+          ],
           "deps": [
             "T-003#B-001"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:13:49+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "SKILL.md 218 行/15141 B (上限 240/16000); 3 份 references 全被点名、无孤儿; 改到超限时自检 exit=1 报错, 还原后 sha256 一致"
+            }
+          ]
         }
       ],
       "note": "",
@@ -227,7 +263,7 @@
           "id": "T-005#B-001",
           "title": "在 Dream 项目里写 agent 适配路由 skill（Hermes 先行），并从 AgentSkill-UsingHermes 删掉 skills/dream",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "落实用户 2026-10-11 的改口径：「都住 dream 里，相当于 dream 可以为各个 agent 提供适配」。所以路由/适配技能也住在 Dream 项目里（skills/dream-hermes-routing），不放 AgentSkill-UsingHermes；Dream = general 方法主技能 + 一个 agent 一个适配技能（Hermes 先行，别的 agent 以后按同一形状加）。做法：在 Dream 项目的 worktree 里新建 skills/dream-hermes-routing/SKILL.md，frontmatter 只留 name + description，description 头 57 字符是自包含触发（要收编 Hermes 某个 profile 里没有仓库归属的本地技能时用）；正文承载全部 Hermes 专有机制：profile 与 .env 路径、.hub/lock.json / .bundled_manifest / local 三容器判据、AgentSkill-* 答案空间与工具/主题两轴、hermes skills install/update/uninstall 的形状与坑、扫描闸（safe/dangerous）、JEV 判官队伍与降级路径、以及「general 方法本体在同仓库 skills/dream，本技能只做 Hermes 适配与安装」的转指；再写一行「新 agent 的适配技能照本文件形状加」把扩展点钉住。另在 AgentSkill-UsingHermes 的 worktree 里删掉该包的 skills/dream（内容已进 Dream 项目，别在两处维护两份），并更新该包 README 的索引。不碰别人在途文件。",
           "input": "",
@@ -240,15 +276,25 @@
             "扫描 verdict = safe（原文）",
             "该技能第一层文档长度在 T-003#B-002 的上限内（行数+字节数）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/skills/dream-hermes-routing/SKILL.md"
+          ],
           "deps": [
             "T-003#B-001"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:14:00+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "路由技能住 Dream; UsingHermes 侧删除 skills/dream + README 一行 (sha 3935987, 1622 deletions); 首版被扫描闸判 DANGEROUS(hermes_env_access), 去掉 env 路径写法后 SAFE"
+            }
+          ]
         }
       ],
       "note": "",
@@ -266,7 +312,7 @@
           "id": "T-006#B-001",
           "title": "推送两处仓库（Dream + UsingHermes），先 fetch/rebase",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "两个仓库分别：git fetch origin → 若 origin/main 前进则 rebase → git push origin <本 sha>:main（不要 HEAD:main，避免带上别人未审的提交）→ 回读 git log --oneline -1 origin/main 是自己的 sha。push 被拒先 rebase 再推。绝不 push 别人的在途文件（status 里别人的改动留着并写进报告）。",
           "input": "",
@@ -275,7 +321,9 @@
           "done_when": [
             "两个仓库各自的 sha 与 git log --oneline -1 origin/main 原文；git status --short 里剩下的未提交项逐条说明归属（别人的 / 故意的）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/README.md"
+          ],
           "deps": [
             "T-002#B-001",
             "T-003#B-002",
@@ -285,14 +333,22 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:14:00+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "Dream origin/main=4170050; UsingHermes origin/main=3935987; 均按 git push origin <sha>:main"
+            }
+          ]
         },
         {
           "id": "T-006#B-002",
           "title": "装回 profile 并回读三件",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "两个技能都从 Dream 项目装（用户改口径后 UsingHermes 不再是 dream 的来源）：默认 profile：① hermes skills uninstall dream -y（旧来源 skills-sh/flmaximwang/AgentSkill-UsingHermes/skills/dream），② hermes skills install flmaximwang/Dream/skills/dream --category hermes -y，③ hermes skills install flmaximwang/Dream/skills/dream-hermes-routing --category hermes -y。回读三件：diff -rq 安装副本 vs 该 repo 的 skills/<名> 为空；逐文件 sha256 MATCH（贴清单）；lock 里两条的 identifier 都指向 flmaximwang/Dream/skills/<名>（只证明来源，不用 source_revision 说内容一致）。不许用 head/tail 截 hermes skills 的长命令（SIGPIPE 会半途死掉），重定向到日志再读回。",
           "input": "",
@@ -303,15 +359,25 @@
             "hermes skills list 里 dream 与 dream-hermes-routing 两条的名字与类目",
             "profile 里没有非 hub 来源的 dream 副本（计数=1）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/.hermes/skills/hermes/dream-hermes-routing/SKILL.md"
+          ],
           "deps": [
             "T-006#B-001"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:14:00+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "两条都从 flmaximwang/Dream 装; diff -rq 空; dream 8/8 MATCH, routing 1/1 MATCH; lock identifier 均指向 flmaximwang/Dream/skills/<名>; profile 里非 hub 的 dream 副本=0"
+            }
+          ]
         }
       ],
       "note": "",
@@ -328,7 +394,7 @@
           "id": "T-007#B-001",
           "title": "把 4 点那次 dream 的 cron prompt 换成新方法",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "dream-upgrade-runner",
           "doc": "默认 profile 的 cron job 52fe6cf3a3dc（name: dream: 全 profile 每日收编）今天已由用户改到 4 点跑（expr 0 4 * * *），这一次跑的就是升级后的 dream。它的 prompt 还是旧的（写着 JEV 路由 → 审计 → 用户批准 → 写入…，与无人值守口径矛盾），必须重写成自包含的新 prompt：点名 skill_view dream 与 dream-hermes-routing，说明无人值守（不问人、不等人、不发要点选的表单），逐条带上验收——local=0、改动过的 repo 全部提交并重新安装、单个 agent 的技能数不超上限、单个 pack 第一层披露的 skill 数不超上限、汇报四段（枚举数 / 判定表 / 每行证据 / 不超过 3 条要人拍板的事）。改 prompt 走 hermes cron edit 52fe6cf3a3dc --prompt \"$(cat <文件>)\"。",
           "input": "",
@@ -337,15 +403,25 @@
           "done_when": [
             "jobs.json 里该 job 的 expr 与 next_run_at；prompt 字节数；prompt 里出现的两个 skill 名（原文）；旧→新的差异写成 3 行；hermes cron doctor 无错。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/.hermes/cache/scratch/cron-0400-prompt.txt"
+          ],
           "deps": [
             "T-006#B-002"
           ],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T01:14:12+08:00",
-          "runs": []
+          "status_since": "2026-10-11T03:06:01+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T03:06:01+08:00",
+              "by": "dream-upgrade-runner",
+              "from": "pending",
+              "to": "done",
+              "note": "cron 52fe6cf3a3dc expr=0 4 * * *, next_run 2026-10-11T04:00; prompt 791 B -> 2693 B; 点名 skill_view dream 与 dream-hermes-routing; 去掉用户批准闸口"
+            }
+          ]
         }
       ],
       "note": "",
@@ -802,7 +878,70 @@
       "kind": "status",
       "text": "T-001#B-001: pending → running（勘察：三处 sha256 台账 + 在途改进盘点）",
       "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:00+08:00",
+      "actor": "agent",
+      "kind": "exec",
+      "text": "T-001#B-001: 线程登记已清除（@dream-upgrade-runner 收工）",
+      "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:00+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-001: running → done（三处逐文件 sha256 台账落盘; origin/main=4bf2e90(dream v2), 在途 dream-nostay worktree 已并入 origin/main; .env grep -c DREAM_SKILL_ROOTS=0(当时)）",
+      "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:00+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-002#B-001: pending → done（gh repo create flmaximwang/Dream --private (isPrivate=true); remote=git@github.com; 首推 sha def7765, git show --stat 含 plans/dream-upgrade/plan.json 与 plan.html）",
+      "ref": "T-002#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-001: pending → done（从 origin/main 的 dream v2 抽 general 本体; 节数 19 >= 16; 边界声明指向 dream-hermes-routing; verify-skill-package.py tree/pointers 全绿）",
+      "ref": "T-003#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-002: pending → done（SKILL.md 218 行/15141 B (上限 240/16000); 3 份 references 全被点名、无孤儿; 改到超限时自检 exit=1 报错, 还原后 sha256 一致）",
+      "ref": "T-003#B-002"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-005#B-001: pending → done（路由技能住 Dream; UsingHermes 侧删除 skills/dream + README 一行 (sha 3935987, 1622 deletions); 首版被扫描闸判 DANGEROUS(hermes_env_access), 去掉 env 路径写法后 SAFE）",
+      "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-006#B-001: pending → done（Dream origin/main=4170050; UsingHermes origin/main=3935987; 均按 git push origin <sha>:main）",
+      "ref": "T-006#B-001"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-006#B-002: pending → done（两条都从 flmaximwang/Dream 装; diff -rq 空; dream 8/8 MATCH, routing 1/1 MATCH; lock identifier 均指向 flmaximwang/Dream/skills/<名>; profile 里非 hub 的 dream 副本=0）",
+      "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T03:06:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-007#B-001: pending → done（cron 52fe6cf3a3dc expr=0 4 * * *, next_run 2026-10-11T04:00; prompt 791 B -> 2693 B; 点名 skill_view dream 与 dream-hermes-routing; 去掉用户批准闸口）",
+      "ref": "T-007#B-001"
     }
   ],
-  "rev": "70552903dbf8"
+  "rev": "cdc75fd1e150"
 }

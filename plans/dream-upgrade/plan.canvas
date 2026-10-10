@@ -7,8 +7,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "5",
-   "text": "### T-001#B-001\n勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点\n\n`running` · @dream-upgrade-runner · 在做 @dream-upgrade-runner\n\n在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktre"
+   "color": "4",
+   "text": "### T-001#B-001\n勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点\n\n`done` · @dream-upgrade-runner\n\n在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktre"
   },
   {
    "id": "T-002#B-001",
@@ -17,8 +17,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-002#B-001\nDream 项目骨架 + gh repo create + 首推（计划随项目提交）\n\n`waiting` · @dream-upgrade-runner\n\n① 在 /Users/maxim/Repositories/Repo/Dream（已 git init，plans/dream-upgrade 已是本计划）写 README.md：索引表（skills/dream = general 方法主技能；plans/ = 本项目的 loomerto 计划；docs/accept"
+   "color": "4",
+   "text": "### T-002#B-001\nDream 项目骨架 + gh repo create + 首推（计划随项目提交）\n\n`done` · @dream-upgrade-runner\n\n① 在 /Users/maxim/Repositories/Repo/Dream（已 git init，plans/dream-upgrade 已是本计划）写 README.md：索引表（skills/dream = general 方法主技能；plans/ = 本项目的 loomerto 计划；docs/accept"
   },
   {
    "id": "T-003#B-001",
@@ -27,8 +27,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-003#B-001\n抽取 general dream skill 进 Dream 项目，剥掉 hermes 专有内容\n\n`waiting` · @dream-upgrade-runner\n\n把 skills/dream（以 AgentSkill-UsingHermes 的 origin/main 最新版为准，不是 profile 里那份）搬进 Dream/skills/dream，并按 general 口径改写：Hermes 专有机制（profile 与 .env 路径、.hub/lock.json 与 "
+   "color": "4",
+   "text": "### T-003#B-001\n抽取 general dream skill 进 Dream 项目，剥掉 hermes 专有内容\n\n`done` · @dream-upgrade-runner\n\n把 skills/dream（以 AgentSkill-UsingHermes 的 origin/main 最新版为准，不是 profile 里那份）搬进 Dream/skills/dream，并按 general 口径改写：Hermes 专有机制（profile 与 .env 路径、.hub/lock.json 与 "
   },
   {
    "id": "T-003#B-002",
@@ -37,8 +37,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-003#B-002\n分层披露改造：文档聚类 → 文档树 → 单文档长度上限\n\n`waiting` · @dream-upgrade-runner\n\n落实用户第 6 条要求：skill pack 内部优化——文档聚类、按文档关系生成文档树、按文档树组织 skill、限制单个文档长度，实现真正的分层披露（而不是一口气把一大堆上下文丢给 agent）。做法：SKILL.md 只留第一层（触发/边界/一张流程总表/每一步指向 references 的一行），细节按主题下沉"
+   "color": "4",
+   "text": "### T-003#B-002\n分层披露改造：文档聚类 → 文档树 → 单文档长度上限\n\n`done` · @dream-upgrade-runner\n\n落实用户第 6 条要求：skill pack 内部优化——文档聚类、按文档关系生成文档树、按文档树组织 skill、限制单个文档长度，实现真正的分层披露（而不是一口气把一大堆上下文丢给 agent）。做法：SKILL.md 只留第一层（触发/边界/一张流程总表/每一步指向 references 的一行），细节按主题下沉"
   },
   {
    "id": "T-004#B-001",
@@ -48,7 +48,7 @@
    "width": 300,
    "height": 110,
    "color": "0",
-   "text": "### T-004#B-001\n多根外部技能源（含 ~/Repositories/Repo）+ 两张清单 + .env 登记\n\n`waiting` · @dream-upgrade-runner\n\n落实用户第 1、3 条：外部技能目录 = /Users/maxim/Documents/AgentSkill 与 /Users/maxim/Repositories/Repo（后者是项目仓库，里面能有 skills/<名>/SKILL.md），并把这两个根写进 ~/.hermes/.env（新增一行键名 DREAM_S"
+   "text": "### T-004#B-001\n多根外部技能源（含 ~/Repositories/Repo）+ 两张清单 + .env 登记\n\n`claimed` · @dream-upgrade-runner\n\n落实用户第 1、3 条：外部技能目录 = /Users/maxim/Documents/AgentSkill 与 /Users/maxim/Repositories/Repo（后者是项目仓库，里面能有 skills/<名>/SKILL.md），并把这两个根写进 ~/.hermes/.env（新增一行键名 DREAM_S"
   },
   {
    "id": "T-004#B-002",
@@ -67,8 +67,8 @@
    "y": 170,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-005#B-001\n在 Dream 项目里写 agent 适配路由 skill（Hermes 先行），并从 AgentSkill-UsingHermes 删掉 skills/dream\n\n`waiting` · @dream-upgrade-runner\n\n落实用户 2026-10-11 的改口径：「都住 dream 里，相当于 dream 可以为各个 agent 提供适配」。所以路由/适配技能也住在 Dream 项目里（skills/dream-hermes-routing），不放 AgentSkill-UsingHermes；Dream = general 方法主技能"
+   "color": "4",
+   "text": "### T-005#B-001\n在 Dream 项目里写 agent 适配路由 skill（Hermes 先行），并从 AgentSkill-UsingHermes 删掉 skills/dream\n\n`done` · @dream-upgrade-runner\n\n落实用户 2026-10-11 的改口径：「都住 dream 里，相当于 dream 可以为各个 agent 提供适配」。所以路由/适配技能也住在 Dream 项目里（skills/dream-hermes-routing），不放 AgentSkill-UsingHermes；Dream = general 方法主技能"
   },
   {
    "id": "T-006#B-001",
@@ -77,8 +77,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-006#B-001\n推送两处仓库（Dream + UsingHermes），先 fetch/rebase\n\n`waiting` · @dream-upgrade-runner\n\n两个仓库分别：git fetch origin → 若 origin/main 前进则 rebase → git push origin <本 sha>:main（不要 HEAD:main，避免带上别人未审的提交）→ 回读 git log --oneline -1 origin/main 是自己的 sha。push 被"
+   "color": "4",
+   "text": "### T-006#B-001\n推送两处仓库（Dream + UsingHermes），先 fetch/rebase\n\n`done` · @dream-upgrade-runner\n\n两个仓库分别：git fetch origin → 若 origin/main 前进则 rebase → git push origin <本 sha>:main（不要 HEAD:main，避免带上别人未审的提交）→ 回读 git log --oneline -1 origin/main 是自己的 sha。push 被"
   },
   {
    "id": "T-006#B-002",
@@ -87,8 +87,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-006#B-002\n装回 profile 并回读三件\n\n`waiting` · @dream-upgrade-runner\n\n两个技能都从 Dream 项目装（用户改口径后 UsingHermes 不再是 dream 的来源）：默认 profile：① hermes skills uninstall dream -y（旧来源 skills-sh/flmaximwang/AgentSkill-UsingHermes/skills/dream），"
+   "color": "4",
+   "text": "### T-006#B-002\n装回 profile 并回读三件\n\n`done` · @dream-upgrade-runner\n\n两个技能都从 Dream 项目装（用户改口径后 UsingHermes 不再是 dream 的来源）：默认 profile：① hermes skills uninstall dream -y（旧来源 skills-sh/flmaximwang/AgentSkill-UsingHermes/skills/dream），"
   },
   {
    "id": "T-007#B-001",
@@ -97,8 +97,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-007#B-001\n把 4 点那次 dream 的 cron prompt 换成新方法\n\n`waiting` · @dream-upgrade-runner\n\n默认 profile 的 cron job 52fe6cf3a3dc（name: dream: 全 profile 每日收编）今天已由用户改到 4 点跑（expr 0 4 * * *），这一次跑的就是升级后的 dream。它的 prompt 还是旧的（写着 JEV 路由 → 审计 → 用户批准 → 写入…，与无人值守口"
+   "color": "4",
+   "text": "### T-007#B-001\n把 4 点那次 dream 的 cron prompt 换成新方法\n\n`done` · @dream-upgrade-runner\n\n默认 profile 的 cron job 52fe6cf3a3dc（name: dream: 全 profile 每日收编）今天已由用户改到 4 点跑（expr 0 4 * * *），这一次跑的就是升级后的 dream。它的 prompt 还是旧的（写着 JEV 路由 → 审计 → 用户批准 → 写入…，与无人值守口"
   },
   {
    "id": "T-008#B-001",
@@ -108,7 +108,7 @@
    "width": 300,
    "height": 110,
    "color": "0",
-   "text": "### T-008#B-001\n独立只读验证（与所有 writer 不同的子代理）\n\n`waiting` · @dream-upgrade-verifier\n\n派一条只读子代理（与所有 writer 都不同），对 T-001..T-007 每一块的 done_when 逐条核，逐行给 PASS/FAIL：dist 文件存在且与计划一致 · origin/main 的 sha 是 writer 报的那个 · diff -rq 安装副本 vs 仓库为空 · 逐文件 sha256 "
+   "text": "### T-008#B-001\n独立只读验证（与所有 writer 不同的子代理）\n\n`claimed` · @dream-upgrade-verifier\n\n派一条只读子代理（与所有 writer 都不同），对 T-001..T-007 每一块的 done_when 逐条核，逐行给 PASS/FAIL：dist 文件存在且与计划一致 · origin/main 的 sha 是 writer 报的那个 · diff -rq 安装副本 vs 仓库为空 · 逐文件 sha256 "
   },
   {
    "id": "T-008#B-002",
@@ -147,8 +147,8 @@
    "y": 170,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-010#B-001\n读 MemSkill 并把方法映射到 Dream（落 docs/memskill-loop.md）\n\n`waiting` · @-\n\n用户 2026-10-11 要求：6 点这一单读 MemSkill，用这套论文的方法优化 Dream 并重装。MemSkill = arXiv 2602.02474（NeurIPS 26，作者 Haozhen Zhang 等；HTML https://arxiv.org/html/2602.02474v2 、PDF h"
+   "color": "3",
+   "text": "### T-010#B-001\n读 MemSkill 并把方法映射到 Dream（落 docs/memskill-loop.md）\n\n`ready` · @-\n\n用户 2026-10-11 要求：6 点这一单读 MemSkill，用这套论文的方法优化 Dream 并重装。MemSkill = arXiv 2602.02474（NeurIPS 26，作者 Haozhen Zhang 等；HTML https://arxiv.org/html/2602.02474v2 、PDF h"
   },
   {
    "id": "T-010#B-002",
