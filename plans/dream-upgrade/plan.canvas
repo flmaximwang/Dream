@@ -1,0 +1,299 @@
+{
+ "nodes": [
+  {
+   "id": "T-001#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-001#B-001\n勘察台账：三处 dream 现状逐文件 sha256 + 在途改进盘点\n\n`claimed` · @dream-upgrade-runner\n\n在 worktree 上作业前先读清现场。① git -C /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes fetch，然后读 git log --oneline -3 origin/main、git status --short、git worktre"
+  },
+  {
+   "id": "T-002#B-001",
+   "type": "text",
+   "x": 380,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-001\nDream 项目骨架 + gh repo create + 首推（计划随项目提交）\n\n`waiting` · @dream-upgrade-runner\n\n① 在 /Users/maxim/Repositories/Repo/Dream（已 git init，plans/dream-upgrade 已是本计划）写 README.md：索引表（skills/dream = general 方法主技能；plans/ = 本项目的 loomerto 计划；docs/accept"
+  },
+  {
+   "id": "T-003#B-001",
+   "type": "text",
+   "x": 720,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-001\n抽取 general dream skill 进 Dream 项目，剥掉 hermes 专有内容\n\n`waiting` · @dream-upgrade-runner\n\n把 skills/dream（以 AgentSkill-UsingHermes 的 origin/main 最新版为准，不是 profile 里那份）搬进 Dream/skills/dream，并按 general 口径改写：Hermes 专有机制（profile 与 .env 路径、.hub/lock.json 与 "
+  },
+  {
+   "id": "T-003#B-002",
+   "type": "text",
+   "x": 1060,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-002\n分层披露改造：文档聚类 → 文档树 → 单文档长度上限\n\n`waiting` · @dream-upgrade-runner\n\n落实用户第 6 条要求：skill pack 内部优化——文档聚类、按文档关系生成文档树、按文档树组织 skill、限制单个文档长度，实现真正的分层披露（而不是一口气把一大堆上下文丢给 agent）。做法：SKILL.md 只留第一层（触发/边界/一张流程总表/每一步指向 references 的一行），细节按主题下沉"
+  },
+  {
+   "id": "T-004#B-001",
+   "type": "text",
+   "x": 1400,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-001\n多根外部技能源（含 ~/Repositories/Repo）+ 两张清单 + .env 登记\n\n`waiting` · @dream-upgrade-runner\n\n落实用户第 1、3 条：外部技能目录 = /Users/maxim/Documents/AgentSkill 与 /Users/maxim/Repositories/Repo（后者是项目仓库，里面能有 skills/<名>/SKILL.md），并把这两个根写进 ~/.hermes/.env（新增一行键名 DREAM_S"
+  },
+  {
+   "id": "T-004#B-002",
+   "type": "text",
+   "x": 1740,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-002\n跨 repo 去重（仅保留在最相关的 repo）+ 两个上限常量\n\n`waiting` · @dream-upgrade-runner\n\n落实用户第 2、8 条。去重两种：① 外部多个 repo 里同名/同内容 skill——只在最相关的那个 repo 保留一份，按内容判（sha256 相同 → 保留主轴最相关那个 repo；不同 → 按 T-003 的落点判据选一个，另一个列为待迁移）；② profile 里的 local 副本与包同名的清掉（S9 已"
+  },
+  {
+   "id": "T-005#B-001",
+   "type": "text",
+   "x": 1060,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-005#B-001\n在 AgentSkill-UsingHermes 写 dream-hermes-routing，并删掉该包的 skills/dream\n\n`waiting` · @dream-upgrade-runner\n\n落实用户「为 hermes 单独写一个路由 skill，而 general 的方法则成为最主要的 dream skill」。在 worktree（如 /Users/maxim/Documents/AgentSkill/AgentSkill-UsingHermes.dream-routing，从 origin/main "
+  },
+  {
+   "id": "T-006#B-001",
+   "type": "text",
+   "x": 2080,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-006#B-001\n推送两处仓库（Dream + UsingHermes），先 fetch/rebase\n\n`waiting` · @dream-upgrade-runner\n\n两个仓库分别：git fetch origin → 若 origin/main 前进则 rebase → git push origin <本 sha>:main（不要 HEAD:main，避免带上别人未审的提交）→ 回读 git log --oneline -1 origin/main 是自己的 sha。push 被"
+  },
+  {
+   "id": "T-006#B-002",
+   "type": "text",
+   "x": 2420,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-006#B-002\n装回 profile 并回读三件\n\n`waiting` · @dream-upgrade-runner\n\ndefault profile：① hermes skills uninstall dream -y（旧来源是 skills-sh/flmaximwang/AgentSkill-UsingHermes/skills/dream），② hermes skills install flmaximwang/Dream/ski"
+  },
+  {
+   "id": "T-007#B-001",
+   "type": "text",
+   "x": 2760,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-007#B-001\n把 4 点那次 dream 的 cron prompt 换成新方法\n\n`waiting` · @dream-upgrade-runner\n\n默认 profile 的 cron job 52fe6cf3a3dc（name: dream: 全 profile 每日收编）今天已由用户改到 4 点跑（expr 0 4 * * *），这一次跑的就是升级后的 dream。它的 prompt 还是旧的（写着 JEV 路由 → 审计 → 用户批准 → 写入…，与无人值守口"
+  },
+  {
+   "id": "T-008#B-001",
+   "type": "text",
+   "x": 3100,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-008#B-001\n独立只读验证（与所有 writer 不同的子代理）\n\n`waiting` · @dream-upgrade-verifier\n\n派一条只读子代理（与所有 writer 都不同），对 T-001..T-007 每一块的 done_when 逐条核，逐行给 PASS/FAIL：dist 文件存在且与计划一致 · origin/main 的 sha 是 writer 报的那个 · diff -rq 安装副本 vs 仓库为空 · 逐文件 sha256 "
+  },
+  {
+   "id": "T-008#B-002",
+   "type": "text",
+   "x": 3440,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-008#B-002\n验收清单 docs/acceptance.md 落进项目并提交\n\n`waiting` · @dream-upgrade-runner\n\n用户说验收标准他还没想法、要自行探索，但硬要求是「验收必须包含 dream 已经正确安装」。把验收清单写进 /Users/maxim/Repositories/Repo/Dream/docs/acceptance.md：① 用户 2026-10-11 的 8 条要求逐条 → 判据 → 实测（命令 + 输出原文）；② d"
+  },
+  {
+   "id": "T-009#B-001",
+   "type": "text",
+   "x": 3780,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-009#B-001\n收尾：清 worktree/临时产物 + 跑 check-commands 与 check-temps\n\n`waiting` · @dream-upgrade-runner\n\n把这次开过的 worktree 用 git worktree remove 收掉（注意它会把终端 cwd 一起做掉，之后命令显式带 workdir）；本次产生的临时目录（~/Documents/AgentSkill-wt/*、scratch 下 sweep-*）逐个写明「临时文件：<路径> — 已删 / 保留（理由）」"
+  },
+  {
+   "id": "T-009#B-002",
+   "type": "text",
+   "x": 4120,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-009#B-002\n汇报到 Discord thread（结论 + 该谁动 + plan.html URL + 块进度）\n\n`waiting` · @dream-upgrade-runner\n\n回到来源 thread（discord:1558527431831326751）汇报：结论先行 —— dream 是否已升级成 Repo 里的独立项目、是否已正确安装（一条命令级证据）、今天 4 点那次跑的是哪一版；再写该谁动（剩下的块 id）；末尾带一行 file:// URL 指向本项目里的看板 /Users/ma"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e0",
+   "fromNode": "T-001#B-001",
+   "toNode": "T-002#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e1",
+   "fromNode": "T-002#B-001",
+   "toNode": "T-003#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e2",
+   "fromNode": "T-003#B-001",
+   "toNode": "T-003#B-002",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e3",
+   "fromNode": "T-003#B-002",
+   "toNode": "T-004#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e4",
+   "fromNode": "T-004#B-001",
+   "toNode": "T-004#B-002",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e5",
+   "fromNode": "T-003#B-001",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e6",
+   "fromNode": "T-002#B-001",
+   "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e7",
+   "fromNode": "T-003#B-002",
+   "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e8",
+   "fromNode": "T-004#B-002",
+   "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e9",
+   "fromNode": "T-005#B-001",
+   "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e10",
+   "fromNode": "T-006#B-001",
+   "toNode": "T-006#B-002",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e11",
+   "fromNode": "T-006#B-002",
+   "toNode": "T-007#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e12",
+   "fromNode": "T-007#B-001",
+   "toNode": "T-008#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e13",
+   "fromNode": "T-003#B-002",
+   "toNode": "T-008#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e14",
+   "fromNode": "T-008#B-001",
+   "toNode": "T-008#B-002",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e15",
+   "fromNode": "T-008#B-002",
+   "toNode": "T-009#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e16",
+   "fromNode": "T-009#B-001",
+   "toNode": "T-009#B-002",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  }
+ ]
+}
