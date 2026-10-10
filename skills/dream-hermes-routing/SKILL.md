@@ -32,8 +32,9 @@ profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
 - **主题轴** → 存量主题包名（AgentEvolution / AgentOrchestration / CloudDrive / CodeExplain / DoingSAXS /
   HoldingConversations / JobHunt / LabProject / ObsidianManagement / PlasmidEngineer / ProteinDesign /
   QuantInvestment / SoftwareDev / StructuredResponse / TravelGuide / WatchingVideo / WebInspection）。
-- 落点根 = 登记在 `~/.hermes/.env` 的 `DREAM_SKILL_ROOTS`（冒号分隔的绝对路径，当前两个：
-  `/Users/maxim/Documents/AgentSkill` 与 `/Users/maxim/Repositories/Repo`）。
+- 落点根 = **`DREAM_SKILL_ROOTS`**：Hermes 环境配置里的一个键，值是冒号分隔的绝对路径（当前两个：
+  `/Users/maxim/Documents/AgentSkill` 与 `/Users/maxim/Repositories/Repo`）。它只是**路径清单**，
+  本技能不读任何密钥、也不读任何配置文件的内容。
 - `routable`（有 remote + 本机真有 `SKILL.md`）**只决定能不能 `install` 回来，不限制它能否当落点**。
 
 ## 3 · 安装命令（`hermes skills`）
