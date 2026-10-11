@@ -69,7 +69,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因） |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
 | **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名> [--skills-manager] [--manager-agent <名>]` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
-| **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
+| **S5 写入** | 脚本 + **writer 子代理** | 新技能：`apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run] [--changes-out <路径>]`；已有技能被改：`apply.py taskbook` → 按包派 writer（**不做回归测试**） | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md`；改动清单默认在会话里报，给了 `--changes-out` 就落盘 | 扫描闸非 `safe` → 回滚不提交；name/desc 与包内已有撞车 → 跳过该行先改名/改 desc；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
 | **S6 独立验证** | 脚本（只读，0 次模型调用） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 + S5 的报告 | 逐行 PASS/FAIL（日志可留下，如 `verify-r1.log`） | 见下方「S6 逐行核什么」；有 FAIL → exit 1，回 S5 修 |
 | **S7 装回** | 脚本（按归属分三条路，见下） | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile + 启动时的 `--skills-manager` 开关 | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave、不自己 `git mv` |
 | **S8 退役** | 脚本 + 汇报 | `apply.py retire --dir <out> --backup ~/.hermes/backups/dream-retire` | verify 通过的行 | 先 `tar czf` 备份（路径写进汇报）再删 profile 副本 | 只对**回读通过**的行动手；修不动的那行跳过，副本不删 |
@@ -120,7 +120,7 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 1. **S2 判官**：每条候选读全文 → 二选一（工具轴/主题轴）→ 挑落点 → 逐字抄 3–8 条 `claims`。
    脚本只负责分块、HTTP、JSONL 拼装、覆盖率报告。
-2. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**
+2. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**（看 diff 合并，**不回归测试**）
    （`apply.py taskbook` 生成 `writers.md`，一个包一个 writer，任务书与五步形状见 `references/dream-agent-roster.md`）。
 3. **S4 的逐行决议**：按「无人值守」判，不等人、不用 `clarify`、不发表单。
 
@@ -156,7 +156,8 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 - **S7 装回只有两条路的实现细节待跑实**：命令清单已按三条路生成（`--skills-manager` 开 → 交 Skills-Manager 从本地包装；关 → 直接复制；profile 里是符号链接的 → 交 Skills-Manager 更新），但**还没真跑**过一遍：
   `skills-manager-cli skills install --local` 这条参数组合只在文档里对过，没有实测回读。
-- **S5 的形态待定**：倾向是"机械地给被改动的包加一个带 SKILL.md 的 L1 入口 + 列出哪些技能被改过"，之后批量交给 SkillWeave 完善；dream 不对包结构做严格要求。这条还没实现（等讨论定稿）。
+- **S5 的形态（2026-10-12 定）**：不做 frontmatter 归一；**新技能只拷贝**，入口就是它自己的 `SKILL.md`，脚本只机械查 name/desc 与包内已有是否撞车（撞了跳过该行、报出来，改名/改 desc 后重跑）；**已有技能被改就只看 diff 交代理合并，不做回归测试**；不给包额外加 L1 入口——包结构优化整段归 SkillWeave。改动清单默认在会话里报，`--changes-out <路径>` 可落盘。
+- **S5 的 writer 产物没有独立验证**（按上面口径**有意为之**）：不看正文质量、不回归测试；S6 只核"装的东西在不在、提交对不对得上"。
 - **`reconcile` / `patch-package` / `patch-or-restore` 没有对应阶段**：15 态里这四类动作现在只在
   `states.json` 里列出来，S2–S8 没有任何一步会去执行它们（建 patch 包、判方向、让 manager 重装）。
 - **S7 仍发 `hermes … skills install/update`**（见上一条缺口）。
@@ -178,7 +179,7 @@ S3 audit ── claims 逐条 grep 接收侧 ── audit.md / audit.json       
    │
 S4 merge ── 逐行决议 ── resolved.json / plan.md / install-cmds.sh / stale             [脚本·只写 out]
    │
-S5 apply ── 机械行写入包 ── commits / apply-report.json                               [脚本]
+S5 apply ── 新技能拷贝进包 ── commits / apply-report.json / 改动清单                 [脚本]
         └─ merge/strengthen 行 → taskbook → writers.md → 按包派 writer               [模型]
    │
 S6 verify ── 逐行 PASS/FAIL                                                          [脚本·只读]

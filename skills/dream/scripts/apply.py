@@ -88,30 +88,47 @@ def load_rows(d: pathlib.Path):
 
 
 def normalize_frontmatter(text: str) -> tuple:
-    """frontmatter 只留 `name` + `description`（包形状）。→ (新文本, 丢了哪些键)"""
-    if not text.startswith("---"):
-        return text, []
-    end = text.find("\n---", 3)
-    if end == -1:
-        return text, []
-    fm = text[3:end].splitlines()
-    body = text[end + 1:]
-    keep, dropped, i = [], [], 0
-    while i < len(fm):
-        line = fm[i]
-        if line.startswith("name:"):
-            keep.append(line)
-        elif line.startswith("description:"):
-            keep.append(line)
-            i += 1
-            while i < len(fm) and fm[i][:1] in (" ", "\t"):
-                keep.append(fm[i])
-                i += 1
+    """2026-10-12 用户定：**不做** frontmatter 归一，原样保留（归一交给 SkillWeave/代理）。
+    这个函数留着只为兼容既有调用点：永远原样返回，dropped 恒为空。"""
+    return text, []
+
+
+def skill_desc(skill_dir: pathlib.Path) -> str:
+    """取 SKILL.md 的 description（含折行续行），归一成小写去标点的串，用来比对"两条技能的 desc 是不是同一句"。"""
+    md = skill_dir / "SKILL.md"
+    if not md.is_file():
+        return ""
+    lines = md.read_text(encoding="utf-8", errors="replace").splitlines()
+    out, on = [], False
+    for line in lines[1:60]:
+        if line.startswith("description:"):
+            on = True
+            out.append(line.split(":", 1)[1].strip())
             continue
-        elif line.strip():
-            dropped.append(line.split(":")[0])
-        i += 1
-    return "---\n" + "\n".join(keep).rstrip() + "\n" + body, dropped
+        if on:
+            if line[:1] in (" ", "\t"):
+                out.append(line.strip())
+                continue
+            break
+    text = " ".join(" ".join(out).strip().strip('"').strip("'").split())   # 折行/多余空白先塌平，否则同一句会被判成不同
+    return "".join(ch for ch in text.lower() if ch.isalnum() or ch == " ").strip()
+
+
+def desc_dups(pack: pathlib.Path, incoming: list) -> dict:
+    """新增技能的 name/desc 与包内**已有**技能是否撞：name 撞 → 记；desc 撞 → 记。
+    （用户 2026-10-12：新技能只做 copy，然后让模型看一眼 name/desc 有没有重复并改。）"""
+    have = {}
+    for md in sorted(pack.rglob("SKILL.md")):      # 排序：撞车时要稳定报出**同一个**对手
+        if "__pycache__" in md.parts:
+            continue
+        have.setdefault(skill_desc(md.parent), md.parent.name)
+    skip_names = {d.name for _, _, d, _ in incoming}
+    out = {}
+    for _, _, dst, _ in incoming:
+        d = skill_desc(dst)
+        if d and d in have and have[d] not in skip_names:
+            out[dst.name] = have[d]
+    return out
 
 
 def scan_verdict(skill_dir: pathlib.Path) -> tuple:
@@ -217,7 +234,14 @@ def do_apply(args) -> int:
                 print(f"[apply] ✗ {r['id']} {dst.name}: scan verdict={verdict} ⇒ 不提交（按扫描闸改形态）")
                 continue
             written.append((r, src, dst, dropped))
-            print(f"[apply] ✓ {r['id']} {dst.name}: 拷贝+归一 frontmatter（丢掉 {dropped or '无'}）· scan=safe")
+            print(f"[apply] ✓ {r['id']} {dst.name}: 拷贝（frontmatter 原样保留）· scan=safe")
+        dups = desc_dups(pack, written)
+        if dups:
+            for name, other in dups.items():
+                results.append((next(r["id"] for r, _, d, _ in written if d.name == name), "BLOCKED",
+                                f"desc 与包内 {other} 重复 ⇒ 先改 name/desc 再重跑（判断归模型，脚本只报）"))
+                print(f"[apply] ⚠ {name}: description 与包内 {other} 撞了 ⇒ 跳过，交代理改写后重跑")
+            written = [w for w in written if w[2].name not in dups]
         if not written:
             continue
         add = [str(p.relative_to(pack)) for _, _, p, _ in written]   # 整个技能目录（含 references/、scripts/）
@@ -235,6 +259,18 @@ def do_apply(args) -> int:
             results.append((r["id"], "WRITTEN", f"{pack.name}/{dst.name}@{sha[:8]}"))
     out = d / "apply-report.json"
     out.write_text(json.dumps({"results": results, "manual": [r["id"] for r in manual]}, ensure_ascii=False, indent=1))
+    # 改动清单：默认只在会话里报；给了 --changes-out 就落一份文件（用户 2026-10-12）
+    changes = [dict(id=cid, status=st, detail=str(det)) for cid, st, det in results]
+    if getattr(args, "changes_out", ""):
+        cp = pathlib.Path(args.changes_out).expanduser()
+        cp.parent.mkdir(parents=True, exist_ok=True)
+        cp.write_text(json.dumps(dict(profile=args.profile, changes=changes), ensure_ascii=False, indent=2) + "\n",
+                      encoding="utf-8")
+        print(f"[apply] 改动清单 → {cp}（{len(changes)} 条）")
+    else:
+        print(f"[apply] 改动清单（{len(changes)} 条；要落盘加 --changes-out <路径>）："
+              + " · ".join(f"{c['id']}:{c['status']}" for c in changes[:8])
+              + (" …" if len(changes) > 8 else ""))
     bad = [x for x in results if x[1] in ("BLOCKED", "SKIP")]
     wrote = len([x for x in results if x[1] == "WRITTEN"])
     print(f"[apply] 写入 {wrote} 行 · 阻断/跳过 {len(bad)} 行 → {out}")
@@ -281,7 +317,7 @@ def do_taskbook(args) -> int:
                    f"- **net-new（要折进去的）**：{'、'.join(f'`{c}`' for c in a.get('net_new', [])) or '（无——那说明落点存疑，退回 S2）'}",
                    ""]
         md += ["硬纪律：① 只在这个 clone 里动手；② 只 `git add` 你改的那个技能目录（pathspec，不许 `-A`）；"
-               "③ **禁止起后台进程**；④ 改完 frontmatter 只留 `name`+`description`，丢掉的键要在回执里列出；"
+               "③ **禁止起后台进程**；④ 不做 frontmatter 归一（原样保留，别删 version/author/metadata 这些键）；"
                "⑤ 提交前跑扫描闸（`tools.skills_guard.scan_skill`），非 `safe` 按命中改写文字再扫，"
                "`dangerous` 不许提交；" + ("⑥ **禁止 push**（副本测试面）" if args.test else "⑥ `git push origin <sha>:main` 后从远端回读 sha"),
                "", "回执：commit sha · `git show --stat HEAD` · 扫描 verdict 与 findings 条数 · 折进哪几条 net-new · 不确定的地方。", ""]
@@ -424,13 +460,26 @@ def do_retire(args) -> int:
 
 
 def self_test() -> int:
-    """最小自检：frontmatter 归一 + 形状判定（不碰 git、不碰真仓库）。"""
+    """最小自检：frontmatter 原样保留 + 形状判定（不碰 git、不碰真仓库）。"""
     text = ("---\nname: x\ndescription: >-\n  两行\n  描述\nversion: 1.0.0\nauthor: me\n"
             "metadata:\n  hermes:\n    tags: [a]\n---\n# body\n")
     new, dropped = normalize_frontmatter(text)
-    assert new.startswith("---\nname: x\ndescription: >-\n  两行\n  描述\n---\n"), new
-    assert "# body" in new and "version" not in new and set(dropped) >= {"version", "author", "metadata"}, dropped
+    assert new == text, "不做归一：frontmatter 必须原样保留"
+    assert "version" in new and "metadata" in new and dropped == [], \
+        "不做归一：version/author/metadata 这类键都要原样留着（交给 SkillWeave/代理处理）"
     assert normalize_frontmatter("# no frontmatter\n") == ("# no frontmatter\n", [])
+    # desc 撞车检测：包内已有 A，新来 B 的 description 与 A 同一句 → 必须报出来（判断归模型，脚本只报）
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        pack = pathlib.Path(td)
+        for name, desc in (("a-skill", "Use when X happens. Do Y."), ("b-skill", "use when   x happens, do y"),
+                           ("c-skill", "Something else entirely.")):
+            (pack / "skills" / name).mkdir(parents=True)
+            (pack / "skills" / name / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: {desc}\n---\n# t\n", encoding="utf-8")
+        incoming = [(None, None, pack / "skills" / "b-skill", None), (None, None, pack / "skills" / "c-skill", None)]
+        dups = desc_dups(pack, incoming)
+        assert dups == {"b-skill": "a-skill"}, dups
     print("[apply] self-test OK")
     return 0
 
@@ -450,6 +499,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--test", action="store_true", help="taskbook：按测试面写（禁 push）")
+    ap.add_argument("--changes-out", default="", help="把本轮的改动清单落一份到这里（默认只在会话里报）")
     ap.add_argument("--max-skills", type=int, default=MAX_AGENT_SKILLS,
                     help="S7 装前闸门的上限（默认 MAX_AGENT_SKILLS=120；这是给人留的校准旋钮）")
     a = ap.parse_args()

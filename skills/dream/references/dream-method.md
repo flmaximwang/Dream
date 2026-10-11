@@ -137,7 +137,7 @@ python3 -B skills/dream/scripts/sweep-plan.py merge --dir <scratch>/sweep-<date>
 python3 -B skills/dream/scripts/apply.py apply --dir <scratch>/sweep-<date>   # 加 --dry-run 先看清单
 ```
 
-脚本按包串行：拷贝技能目录 → frontmatter 只留 `name` + `description` → **扫描闸**（非 `safe` 就回滚拷贝、
+脚本按包串行：**只拷贝**技能目录（frontmatter 原样保留，不做归一）→ 查 name/desc 与包内已有是否撞车（撞了就跳过该行、报出来，改名/改 desc 后重跑）→ **扫描闸**（非 `safe` 就回滚拷贝、
 不提交不推送）→ 只 `git add skills/<name>`（**pathspec**）→ commit → `git push origin <sha>:main`；
 包工作区有别人的改动就跳过那个包。逐行结果落 `apply-report.json`；每包一次提交，长活被截断时已提交的那些
 就是可回读的成果。

@@ -40,7 +40,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
 | S3 交叉审计 | **主 agent 跑 `audit.py`**（判官的 `claims` × `grep -nF` 接收侧） | 只有 `grep` 的真输出能给出接收侧 `file:line`；模型转述不算证据 | 不改任何文件；只出两张清单 |
 | S4 自动决议 | **主 agent 跑 `sweep-plan.py merge` + 规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
-| S5 写入 | **主 agent 跑 `apply.py apply`**（机械行：拷贝 + 归一 frontmatter + 扫描闸 + pathspec 提交推送）；**`merge`/`strengthen` 行仍要按包一个 writer 子代理**改正文（拿 `audit.md` 的 net-new 清单） | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许子代理起后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
+| S5 写入 | **主 agent 跑 `apply.py apply`**（新技能：只拷贝 + 查 name/desc 撞车 + 扫描闸 + pathspec 提交推送）；**`merge`/`strengthen` 行按包派一个 writer 子代理看 diff 合并正文**（不做回归测试） | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许子代理起后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
 | S6 验证 | **主 agent 跑 `apply.py verify`**（逐行核目录 / sha / `diff -rq` 装好的副本） | 「自己写自己验」有乐观偏差 —— v3 改成脚本只读核验，结果按行 PASS/FAIL 落 `apply-report.json` | 只读；FAIL 的行回 S5 修，不静默放过 |
 | S7 整包重装 | **主 agent 跑 `apply.py install`**（执行 `merge` 生成的 `install-cmds.sh`） | 命令由 lock 证据生成、条数与代价要在眼前 | 不装本批没改动的包 |
 | S8 退役与汇报 | **主 agent 跑 `apply.py retire`** | 删除是最后一步，且必须等回读（脚本先 `tar czf` 再删） | 回读没通过不许删 |
@@ -117,7 +117,7 @@ python3 -B skills/dream/scripts/audit.py --dir <scan 的 --out 目录>   # 实�
 python3 -B skills/dream/scripts/apply.py apply --dir <scan 的 --out 目录>   # 机械行；加 --dry-run 先看清单
 ```
 
-机械行（`action=move` + `dest_skill=__new__`）= 拷贝 + frontmatter 只留 `name`/`description` + 扫描闸
+新技能（`action=move` + `dest_skill=__new__`）= **只拷贝**（frontmatter 原样留着，不做归一）+ 查 name/desc 与包内已有是否撞车 + 扫描闸
 （非 `safe` 就回滚不提交）+ 只 `git add` 该技能目录（pathspec）→ commit → `git push origin <sha>:main`；
 包工作区有别人的改动就跳过那个包。**`merge`/`strengthen` 行脚本不动**（要改正文）：按包派 writer 子代理，
 拿 `audit.md` 的 net-new 清单折进接收技能。新包先建仓库（幂等）→ 换 SSH remote → README 是交付物的一部分
