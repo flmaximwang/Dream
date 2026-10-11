@@ -2,7 +2,7 @@
 
 > 让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。
 
-**进度** 15/15 块（100%） · 状态 `active` · 更新于 2026-10-11 21:56
+**进度** 15/15 块（100%） · 状态 `active` · 更新于 2026-10-11 22:07
 
 **参与方** 本人(human)
 
@@ -150,7 +150,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 17:54` **agent** [exec] T-006#B-002: 登记线程 deleg_281477ba#0 @dream-dev · 转录 /Users/maxim/.hermes/cache/delegation/live/deleg_281477ba/task-0.log（派独立子代理复核（只读、前台命令、不起后台进程））
 - `2026-10-11 17:54` **agent** [status] T-006#B-002: pending → running（派独立子代理复核（只读、前台命令、不起后台进程））
 - `2026-10-11 17:56` **agent** [status] T-001#B-001: done → done（补原始输出（独立复核指出 output 为空、且记的 git log 结果漏了 2 条本 plan 自身提交）：完整 6 段原始输出见 t001-evidence.txt —— ①worktree SKILL.md 0 命中 ②main SKILL.md 命中 5 行 ③--help worktree={scan,merge} / main={scan,merge,dedupe} ④git log --all -S '## S10 · 合并' = 4 条（含 f691e18/020d4c5 两条本 plan 提交、5b957be 删、2f52f41 加）⑤-S '## S9 · 全库去重' = 3 条 ⑥branch --contains：2f52f41 在 dream-v3+main，5b957be 只在 dream-v3 ⇒ 判定「未合并」不变。）
 - `2026-10-11 17:56` **agent** [status] T-002#B-001: done → done（done_when 已更新）（独立复核（deleg_281477ba）指出原判据两条字面不成立：①转指行不含被 grep 的 token ②判据要的 check-disclosure.py 被本任务 B-004 删掉。删除目标本身达成，判据按上面改写。）
@@ -170,6 +169,7 @@ flowchart LR
 - `2026-10-11 17:59` **agent** [assign] T-005#B-001 指派给 you（原 dream-dev）（这块是 decision，由本人拍板）
 - `2026-10-11 17:59` **agent** [status] T-005#B-001: pending → blocked（等本人拍板：①skill-library-stewardship 改口径 or 作废 ②装前闸门上限 120 保持/改数/只报警 ③local=0 是否改为硬失败）
 - `2026-10-11 21:56` **agent** [status] T-005#B-001: blocked → done（本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。）
+- `2026-10-11 22:07` **agent** [decision] 本人 2026-10-11 拍板（开发日志）：S7 装前闸门上限 MAX_AGENT_SKILLS 由 120 改成 300。理由：本机 default profile 当时已有 246–263 个技能，120 这个数会让每一次真装都被挡（闸门的意义是挡住「往上涨」，不是挡住现状）；撞上 300 说明该先清退。落点：apply.py 常量（含注释）、SKILL.md 常量表、docs/scope.md 引用；--max-skills 仍是校准旋钮。复测：现有 246 + 新装 1 = 247 ≤ 300 → 闸门放行。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render handover-to-skillweave` 生成。

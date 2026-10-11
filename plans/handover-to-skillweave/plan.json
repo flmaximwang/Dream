@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T21:56:55+08:00",
+  "updated_at": "2026-10-11T22:07:43+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -1056,7 +1056,14 @@
       "kind": "status",
       "text": "T-005#B-001: blocked → done（本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。）",
       "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-11T22:07:43+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "本人 2026-10-11 拍板（开发日志）：S7 装前闸门上限 MAX_AGENT_SKILLS 由 120 改成 300。理由：本机 default profile 当时已有 246–263 个技能，120 这个数会让每一次真装都被挡（闸门的意义是挡住「往上涨」，不是挡住现状）；撞上 300 说明该先清退。落点：apply.py 常量（含注释）、SKILL.md 常量表、docs/scope.md 引用；--max-skills 仍是校准旋钮。复测：现有 246 + 新装 1 = 247 ≤ 300 → 闸门放行。",
+      "ref": "T-003#B-001"
     }
   ],
-  "rev": "d0997fe5af38"
+  "rev": "b5da8053def5"
 }
