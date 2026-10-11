@@ -212,11 +212,31 @@ def sibling_module(filename: str):
     return mod
 
 
-def prescreen(args, packs, local) -> None:
+def dir_fingerprint(mirror, d: pathlib.Path) -> str:
+    """技能目录的指纹：身份=相对路径，内容=每个文件的 sha256（复用 skill-mirror 的文件清单）。"""
+    h = hashlib.sha256()
+    for rel, sha in sorted(mirror.skill_files(d).items()):
+        h.update(rel.encode("utf-8")); h.update(sha.encode("utf-8"))
+    return h.hexdigest()
+
+
+def find_dups(rows: list) -> dict:
+    """同名多份：身份按相对路径区分，名字只用来找可比者。同名两份会互相顶替（实测 docx/xlsx 各两份），
+    必须单独报出来而不是当成两个独立技能。"""
+    by = {}
+    for r in rows:
+        by.setdefault(r["name"], []).append(r)
+    dups = {n: [x["dir"] for x in rs] for n, rs in by.items() if len(rs) > 1}
+    for n, rs in by.items():
+        for r in rs:
+            r["duplicate_of"] = ", ".join(x["dir"] for x in rs if x is not r) if len(rs) > 1 else ""
+    return dups
+
+
+def prescreen(args, packs, local, mirror) -> None:
     """S1 预筛（口径 2026-10-11，用户拍板）：profile 技能只要**在外部仓库里找得到**（AgentSkills 那些包），
     或**Skills-Manager 管着**，就算已装 —— 不进候选、不判落点。两边都没有的才是候选。
     三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。"""
-    mirror = sibling_module("skill-mirror.py")
     index = mirror.build_index([p["path"] for p in packs], [])
     try:
         rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
@@ -250,6 +270,7 @@ def cmd_scan(args) -> int:
                          no_category=no_cat, dir=str(rel.parent), _md=md,
                          desc=" ".join(str(fm.get("description") or "").split()), bytes=md.stat().st_size))
     rows.sort(key=lambda r: (r["kind"] != "local", r["category"], r["name"]))
+    dups = find_dups(rows)
     local = [r for r in rows if r["kind"] == "local"]
     if not local:
         die(2, f"no profile-local skills in {root} — nothing to recruit")
@@ -282,7 +303,8 @@ def cmd_scan(args) -> int:
     if not packs:
         die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
-    prescreen(args, packs, local)
+    mirror = sibling_module("skill-mirror.py")
+    prescreen(args, packs, local, mirror)
     cands = [r for r in local if r["verdict"] == "local"]
     routable = [p for p in packs if not p["empty"]]
     if not routable:
@@ -292,9 +314,9 @@ def cmd_scan(args) -> int:
     out = pathlib.Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     (out / "inventory.tsv").write_text(
-        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tdesc\n" + "".join(
+        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tduplicate_of\tdesc\n" + "".join(
             f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t"
-            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r['desc'][:200]}\n"
+            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r.get('duplicate_of', '')}\t{r['desc'][:200]}\n"
             for r in rows), encoding="utf-8")
     # Frozen judge input: one P<k> per candidate, script-generated so that no hand transcription can drift
     # from what the judges were actually asked (the pack's own judge lesson). v2 carries the absolute path so
@@ -335,6 +357,10 @@ def cmd_scan(args) -> int:
     (out / "inputs.json").write_text(json.dumps(dict(
         generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
         packs={p["repo"]: p["head"] for p in packs},
+        # profile 侧也要有"评估时"的快照：技能树被别的会话重排过一次（实测 00:17 整棵扁平化），
+        # 没有这个指纹，S1 的结论会在 S4 之前悄悄失效。
+        profile_root=str(skills_root),
+        profile={r["dir"]: dir_fingerprint(mirror, r["_md"].parent) for r in rows},
         files=file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json",
                                  "inventory.tsv"))), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     # The judge's answer space, v2: EVERY AgentSkill-* directory name, split by axis, plus the two naming
@@ -365,10 +391,15 @@ def cmd_scan(args) -> int:
         homed=[r["name"] for r in local if r["verdict"] == "homed"],
         drift=[dict(skill=r["name"], external=r["matched"]) for r in local if r["verdict"] == "drift"],
         managed=[r["name"] for r in local if r["verdict"] == "managed"],
-        candidates=[dict(skill=r["name"], category=r["category"], no_category=r["no_category"]) for r in cands],
+        candidates=[dict(skill=r["name"], dir=r["dir"], category=r["category"],
+                         no_category=r["no_category"], duplicate_of=r.get("duplicate_of", "")) for r in cands],
+        duplicates=dups,
     ), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
           f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
+    if dups:
+        print(f"[sweep-plan] ⚠ 同名多份 {len(dups)} 组（身份按相对路径区分，名字相同会互相顶替）："
+              + " · ".join(f"{n}: {', '.join(ds)}" for n, ds in dups.items()))
     print(f"[sweep-plan] no_category={n_nocat}（候选里直接躺在 skills/ 下、没有类目层的）")
     print(f"[sweep-plan] candidates={len(cands)} judge_input={out / 'judge-input.json'} "
           f"({(out / 'judge-input.json').stat().st_size} B) bodies={(out / 'judge-input-bodies.json').stat().st_size} B "
@@ -491,6 +522,22 @@ def cmd_merge(args) -> int:
 
     # T-004#B-001：拿 scan 的指纹比一遍。上游动过 ⇒ 这一轮结论带 stale，不许直接动手。
     rec = json.loads((out / "inputs.json").read_text()) if (out / "inputs.json").is_file() else {}
+    # profile 侧指纹：与 scan 那一刻比，谁变了谁作废（同一个 stale 口径，只是换到技能树这边）
+    prof_changed = []
+    if rec.get("profile"):
+        mirror = sibling_module("skill-mirror.py")
+        base = pathlib.Path(rec.get("profile_root") or (pathlib.Path.home() / ".hermes" / "skills"))
+        for rel, fp in rec["profile"].items():
+            d = base / rel
+            now = dir_fingerprint(mirror, d) if d.is_dir() else "（已不在）"
+            if now != fp:
+                prof_changed.append(rel)
+        if prof_changed:
+            print(f"[sweep-plan] ⚠ profile 侧变了 {len(prof_changed)} 个技能（别的会话在动这棵树）"
+                  f"：{', '.join(prof_changed[:6])}{' …' if len(prof_changed) > 6 else ''} → profile-stale.json")
+        (out / "profile-stale.json").write_text(
+            json.dumps(dict(changed=prof_changed, profile_root=str(base)), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8")
     rec_packs = rec.get("packs") or {}
     # 「现在」的 HEAD 必须**现场读**（packs.json 是 scan 那一刻的快照，拿它比等于自己跟自己比）
     now_packs = {}
@@ -770,6 +817,17 @@ def self_test() -> int:
     assert pack_name_for("tool", "Drawio") == "AgentSkill-UsingDrawio"
     assert pack_name_for("topic", "Progress Heartbeat") == "AgentSkill-ProgressHeartbeat"
     assert pack_name_for("topic", "AgentSkill-Foo") == "AgentSkill-Foo"
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        _d = pathlib.Path(_td) / "sk"; _d.mkdir()
+        (_d / "SKILL.md").write_text("a\n"); (_d / "references").mkdir(); (_d / "references" / "x.md").write_text("y\n")
+        _mi = sibling_module("skill-mirror.py")
+        _f1 = dir_fingerprint(_mi, _d)
+        assert _f1 == dir_fingerprint(_mi, _d), "同内容应同指纹"
+        (_d / "references" / "x.md").write_text("z\n")
+        assert dir_fingerprint(_mi, _d) != _f1, "内容一变指纹必须变"
+        (_d / "references" / "x.md").write_text("y\n"); (_d / "new.md").write_text("n\n")
+        assert dir_fingerprint(_mi, _d) != _f1, "多一个文件指纹也要变"
     print("[sweep-plan] self-test OK")
     return 0
 
