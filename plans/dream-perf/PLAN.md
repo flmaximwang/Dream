@@ -2,7 +2,7 @@
 
 > 把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。
 
-**进度** 1/12 块（8%） · 状态 `active` · 更新于 2026-10-11 13:44
+**进度** 1/12 块（8%） · 状态 `active` · 更新于 2026-10-11 14:07
 
 **参与方** 本人(human)
 
@@ -133,8 +133,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 10:20` **agent** [decision] 用户 2026-10-11 起的固定动作：每拍心跳跑 tools/perf-probe.py 取同一把尺子的指纹，只报增量；探针报出新慢因就加块/改块，没有就 note 记一行。
-- `2026-10-11 10:20` **agent** [block] T-007#B-001 改了 做什么
 - `2026-10-11 10:31` **agent** [task] 新增任务 T-008「扇出等待模型：并发数按端点吞吐标定 + 子代理等待要有超时」
 - `2026-10-11 10:31` **agent** [block] 新增块 T-008#B-001「按端点吞吐实测标定判官并发数（现在写死的 10 可能是反效果）」
 - `2026-10-11 10:31` **agent** [block] 新增块 T-008#B-002「子代理 LLM 等待加超时与部分结果，父块不再无限等」
@@ -153,6 +151,8 @@ flowchart LR
 - `2026-10-11 13:01` **agent** [decision] 更正 12:35 那条里写的止损线：15min 是假信号。实测本 run 孩子静默 38min 后恢复过两次（33698e 11:18→11:56、2529f2 11:22→12:01），monk 流卡死 180s/次、单回合重试 3 次。13:01 复核：唯一还在动的 d25f75 也已静默 22min（msgs 67→76、calls 22→25 是它 12:32–12:38 的进展），但按实测这不算死锁。新判据（已写进 HANDOFF §3）：全部孩子连续 ≥45min 无任何调用 且 父静默 ≥4h，或越过 4h50m（04:00 那轮失败点）仍无孩子交卷，才重启 gateway。
 - `2026-10-11 13:39` **agent** [decision] 04:00 那轮的死因定案（T-008#B-003 的补充证据）：父块 08:50:24 收到的 delegate_task 结果是 status=interrupted、summary="Operation interrupted: waiting for model response (15910.8s elapsed)" —— 15910.8s = 4h25m 等一次模型响应，就是 monk 的流断拖到被中断上限收掉，整轮才记 failed。即：不是 dream 逻辑失败，是 provider 把子代理的等待拖过了上限。
 - `2026-10-11 13:44` **agent** [decision] 13:45 本机实测 A/B（同一台机器、同一时刻，各 2 次、max_tokens=24 的流式小请求）：monk ttfb 34.8s / 10.2s；deepseek ttfb 0.79s / 0.88s（总 1.0-1.3s）。裸连 https://monk.party/v1/models 三次：一次 20s 收 0 字节，另两次 TLS 握手 0.57s / 13.3s。今天 error log 计数：handshake 超时 104、peer closed connection 66、ReadTimeout 46、APITimeoutError 52、APIConnectionError 28、Stream stale 180/240/300s 共 46。⇒ monk 侧（或它前面的 Cloudflare LAX 边缘）确实不稳定，不是本机网络、不是 dream 逻辑；大 context（子代理每次 prompt ~75K）时最差。
+- `2026-10-11 14:05` **agent** [decision] 13:14 拍：探针 leaks 归零但 _dream_enum.py 仍在盘上（1.8K，mtime 越过探针 3h 窗口）⇒ 泄漏检测会随时间自行失明，别把「leaks=[]」读成已清理。同一拍：子代理 kids_calls 自 12:46 起 231 恒定 28min（跨度 164.3min），父静默 199.5min / 整轮 246.5min，逼近 T-008#B-002 的 45min+4h 死锁判据；api_failed 3（阈值 5，未触发 !!）。
+- `2026-10-11 14:07` **agent** [decision] 止损机制的答案（读源码定案，别重复问）：(1) 没有外科中止——cron CLI 无 cancel 子命令；scheduler.py:1083 的 sweep_stale_inflight 对 future 未 done 的 claim 直接 continue，真在跑的僵尸不会被自动释放。(2) 唯一手段是重启 gateway 服务（hermes gateway 的 restart 子命令）；代价=本轮被 recover_interrupted_executions 标 unknown（同 43cfe2e6 那条），即丢掉 7 份已交卷孩子的 fan-in。(3) 硬 deadline 明天 04:00：in-flight claim 挡同一 job 的后续 fire（scheduler.py:4170 注释原文 blocking every future run of that job），不清则每日 dream 静默不跑。(4) 结论：无人值守不自己动手，到判据喊人，最晚今晚 03:00 前处理。判据=全部孩子连续 ≥45min 无调用 且 父静默 ≥4h，或越过 4h50m。已写进 HANDOFF §3。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-perf` 生成。

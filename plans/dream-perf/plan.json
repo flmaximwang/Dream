@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T13:44:32+08:00",
+  "updated_at": "2026-10-11T14:07:18+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -649,7 +649,21 @@
       "kind": "decision",
       "text": "13:45 本机实测 A/B（同一台机器、同一时刻，各 2 次、max_tokens=24 的流式小请求）：monk ttfb 34.8s / 10.2s；deepseek ttfb 0.79s / 0.88s（总 1.0-1.3s）。裸连 https://monk.party/v1/models 三次：一次 20s 收 0 字节，另两次 TLS 握手 0.57s / 13.3s。今天 error log 计数：handshake 超时 104、peer closed connection 66、ReadTimeout 46、APITimeoutError 52、APIConnectionError 28、Stream stale 180/240/300s 共 46。⇒ monk 侧（或它前面的 Cloudflare LAX 边缘）确实不稳定，不是本机网络、不是 dream 逻辑；大 context（子代理每次 prompt ~75K）时最差。",
       "ref": "T-008#B-003"
+    },
+    {
+      "at": "2026-10-11T14:05:50+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "13:14 拍：探针 leaks 归零但 _dream_enum.py 仍在盘上（1.8K，mtime 越过探针 3h 窗口）⇒ 泄漏检测会随时间自行失明，别把「leaks=[]」读成已清理。同一拍：子代理 kids_calls 自 12:46 起 231 恒定 28min（跨度 164.3min），父静默 199.5min / 整轮 246.5min，逼近 T-008#B-002 的 45min+4h 死锁判据；api_failed 3（阈值 5，未触发 !!）。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T14:07:18+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "止损机制的答案（读源码定案，别重复问）：(1) 没有外科中止——cron CLI 无 cancel 子命令；scheduler.py:1083 的 sweep_stale_inflight 对 future 未 done 的 claim 直接 continue，真在跑的僵尸不会被自动释放。(2) 唯一手段是重启 gateway 服务（hermes gateway 的 restart 子命令）；代价=本轮被 recover_interrupted_executions 标 unknown（同 43cfe2e6 那条），即丢掉 7 份已交卷孩子的 fan-in。(3) 硬 deadline 明天 04:00：in-flight claim 挡同一 job 的后续 fire（scheduler.py:4170 注释原文 blocking every future run of that job），不清则每日 dream 静默不跑。(4) 结论：无人值守不自己动手，到判据喊人，最晚今晚 03:00 前处理。判据=全部孩子连续 ≥45min 无调用 且 父静默 ≥4h，或越过 4h50m。已写进 HANDOFF §3。",
+      "ref": ""
     }
   ],
-  "rev": "db93e1b9e3bd"
+  "rev": "59f4ea991552"
 }

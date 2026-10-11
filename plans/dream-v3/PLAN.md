@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 16:51
+**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 17:53
 
 **参与方** 本人(human)
 
@@ -69,6 +69,7 @@ flowchart LR
     - 产物：`skills/dream/SKILL.md`
     - run 2026-10-11 14:02 default pending→done S9/S10 全删：dedupe 子命令与 _suggest_category 移除（-252 行）、SKILL.md 删两节+分工表那行+加边界排除、method.md 删 s9/s10、routing 删 umbrella 落值、README 修过期引用。证据：--self-test OK、--help 只剩 scan/merge、check-disclosure 通过、grep 无残留。commit 5b957be（分支 dream-v3）。
     - run 2026-10-11 14:02 default done→done 第二条证据：边界节新增「技能库/pack 的整理与优化（合并/umbrella/副本清退/无类目归位）→ SkillWeave」，文档树与 Support files 同步为 S1–S8。
+    - run 2026-10-11 17:53 dream-dev done→done 补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**（SKILL.md 无 S9/S10、sweep-plan.py 无 dedupe）；main 上仍是旧文本（删除提交 5b957be 只在 dream-v3）。等这次收尾把 dream-v3 合并进 main 之后，main 侧才同样成立。
 
 ### T-003 判官换 deepseek-flash（JEV 451 不用） — 已完成
 前置 T-001
@@ -143,7 +144,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:55` **agent** [decision] apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。
 - `2026-10-11 14:55` **agent** [assign] T-004#B-001 指派给 default（由本会话（default profile 的 agent）在做）
 - `2026-10-11 15:03` **agent** [status] T-004#B-002: pending → running（先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。）
 - `2026-10-11 15:03` **agent** [exec] T-004#B-002: 线程登记已清除（@default 收工）
@@ -163,6 +163,7 @@ flowchart LR
 - `2026-10-11 16:21` **agent** [summary] writer 扇出实测（测试面副本）：2 个包并行 54.5s / 94.7s，单元 wall 94.8s。两个 writer 都落了 commit（UsingGit fac28ca / UsingZotero 82b8f9e）、工作区干净、扫描 verdict 双 safe、net-new 逐条 grep 验证在位（filter-repo/core.quotepath/clone --no-local/count-objects、saveItems/localAPIKeys/zot search/Zotero-Server-ID 各 1 处）。按并发上限 10 外推：writer 阶段 wall ≈ 最慢那条 ≈ 95–150s ⇒ 全轮 ≈ 279s + ~150s + install/retire ≈ 8 min，20 分钟预算有余量。
 - `2026-10-11 16:28` **agent** [summary] apply.py 加 taskbook 子命令（worktree 9b5dca5）：拿 resolved.json + audit.json 按包拼出可直接派的 writer 任务书 → <dir>/writers.md（每包含 clone 路径、逐行的源/接收目录、判官理由、already-there 与 net-new 清单、六条硬纪律、回执要求）；filter 只认「落点=已有技能」的行。本轮实测 17 行 / 10 包（AgentOrchestration P67 · LabProject P42/P78 · ObsidianManagement P43/P46 · SoftwareDev P66/P94/P96 · UsingComfyUI P16/P69 · UsingEagle P76 · UsingGit P41 · UsingGitAnnex P48/P75 · UsingHermes P1/P24 · UsingZotero P44）。
 - `2026-10-11 16:51` **agent** [summary] 正式轮预检（只读，未写任何包）：① 本轮要落地的 10 个包里 9 个 remote 可达（ssh BatchMode ls-remote 通过），只有 AgentSkill-UsingEagle 是**本地 git 仓但没有远端**（gh 查 flmaximwang/AgentSkill-UsingEagle 不存在）⇒ 那一行不能推，已在 apply.py 里改成「真推时先验远端，没有 origin 就整包跳过并写进报告」（commit aa662ac）。② 包根目录全景：290 个条目 / 288 个是 git 仓 / **258 个没有远端**（与 scan 的 routable=33 · placeholder=257 对得上）⇒ 「新包只报不建」这条规则以后会经常触发。
+- `2026-10-11 17:53` **agent** [status] T-002#B-001: done → done（补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**（SKILL.md 无 S9/S10、sweep-plan.py 无 dedupe）；main 上仍是旧文本（删除提交 5b957be 只在 dream-v3）。等这次收尾把 dream-v3 合并进 main 之后，main 侧才同样成立。）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
