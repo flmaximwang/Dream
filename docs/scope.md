@@ -32,3 +32,10 @@
 
 主因不是 dream 的逻辑，而是：①判官与子代理架构带来大量 LLM 回合；②provider（monk）流反复 stale/drop，把子代理的等待拖过中断上限。
 逐阶段归因见 `docs/baseline-v2.md`。
+
+## 5 · 开发与测试口径（用户 2026-10-11 指示）
+
+**开发 dream 时绝不拿真 `~/Documents/AgentSkill` 当测试面**：先整份 `cp -Rc ~/Documents/AgentSkill ~/Documents/AgentSkill-copy`
+（APFS clonefile，秒级、几乎不占额外磁盘），把每个仓的 `origin` 摘掉（`git remote remove origin`，这样任何误推都会当场失败），
+再让 apply/verify 跑 `--packs-root ~/Documents/AgentSkill-copy`；**测完 `rm -rf` 删掉副本**。
+真包在工作区的改动数就是判据：跑完测试 `git -C ~/Documents/AgentSkill/<包> status --porcelain` 必须是 0 项（他人的在途改动除外）。

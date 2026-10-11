@@ -204,12 +204,16 @@ def do_verify(args) -> int:
         pack = root / dest["repo"]
         name = pathlib.Path(r["_src"]).name
         dir_ok = (pack / "skills" / name / "SKILL.md").is_file()
-        remote = sh(["git", "log", "--oneline", "-1", "origin/main"], cwd=str(pack)).stdout.strip()
+        rev = sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack))
+        where = "origin/main"
+        if rev.returncode != 0:                  # 测试用副本没有远端 → 退回本地 HEAD，并在行里标明
+            rev, where = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)), "HEAD(无远端)"
+        full = rev.stdout.strip()
         sha = written[r["id"]].split("@")[-1]
-        remote_ok = remote.startswith(sha)
+        remote_ok = full.startswith(sha)         # 比全 sha 的前缀：`git log --oneline` 只印 7 位，缩写比会假 FAIL
         installed = list((HERMES_HOME / "skills").rglob(name))
         diff = sh(["diff", "-rq", str(pack / "skills" / name), str(installed[0])]).stdout.strip() if installed else "not installed yet"
-        line = f"{r['id']} dir={dir_ok} origin/main={remote_ok}({sha}) diff={'-' if not diff else diff[:60]}"
+        line = f"{r['id']} dir={dir_ok} {where}={remote_ok}({sha}) diff={'-' if not diff else diff[:60]}"
         (oks if dir_ok and remote_ok else fails).append(line)
     for l in oks:
         print("PASS", l)
