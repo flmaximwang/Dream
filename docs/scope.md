@@ -11,7 +11,7 @@
 
 | # | 口径 | 含义与边界 |
 |---|---|---|
-| ① | **不含「优化/整理 skill pack」这一步 — 已交接（2026-10-11）** | dream 侧已把 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）**连脚本一起删除**：① 移交的动作清单 = 去重 / 无类目归位 / 合并 umbrella / 正文下沉 / `description` 改写；② 接手方 = **SkillWeave**（`https://github.com/flmaximwang/SkillWeave`，契约文件 `docs/contract.md`，命令：SkillWeave 的 `weave.py layers|checks <pack>`；本技能被删的 S9/S10 两节即对应它的 `propose` 里的「并 / 分」两类动作）；③ 反向：**profile 级读数与闸门（`MAX_AGENT_SKILLS = 120`）不进 SkillWeave**，那是 dream 的活。 |
+| ① | **不含「优化/整理 skill pack」这一步 — 已交接（2026-10-11）** | dream 侧已把 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）**连脚本一起删除**：① 移交的动作清单 = 去重 / 无类目归位 / 合并 umbrella / 正文下沉 / `description` 改写；② 接手方 = **SkillWeave**（`https://github.com/flmaximwang/SkillWeave`，契约文件 `docs/contract.md`，命令：SkillWeave 的 `weave.py layers|checks <pack>`；本技能被删的 S9/S10 两节即对应它的 `propose` 里的「并 / 分」两类动作）；③ 反向：**profile 级读数与闸门（`MAX_AGENT_SKILLS = 300`）不进 SkillWeave**，那是 dream 的活。 |
 | ② | **一轮 = 一个 profile** | 运行单位是单个 profile（验收用 `default`），跑扫描当刻的**全量** local 候选，**不抽样**。 |
 | ③ | **判官 = deepseek-flash** | JEV 稳定 451（地域限制），不再作为默认判官，也不做重试降级链；判官直接调 deepseek-flash。 |
 | ④ | **判据 = wall clock ≤ 20 min** | 从起跑到「退役完成」，含装回与退役，贴实测时间戳与逐阶段耗时表。 |
@@ -46,3 +46,47 @@
 **合并之后必须清除工作树**（验收的一部分）：从主 clone 侧 `git worktree remove <worktree>` → `branch -d dream-v3` →
 `worktree prune`，并确认主 clone 的 `git status --porcelain` 干净（不许在 worktree 里切 main 来清理）。
 条目见 `plans/dream-v3` 的 `T-006#B-002`。
+
+## 6 · 15 态分类与逐态去向（用户 2026-10-11 拍板）
+
+四根轴各 2 值；Hermes 侧 **15 态**、general agent 侧 **7 态**（无 A 轴，且同一处坍缩）。
+
+- **A 轴 · Hermes 来源**：`local`，或**第三方维护**的四种子类，按此优先级取第一个命中：
+  - `built-in` = 发行版 `~/.hermes/hermes-agent/skills/`
+  - `official` = 发行版 `~/.hermes/hermes-agent/optional-skills/`（`hermes skills repair-official --restore` 的来源）
+  - `bundled` = `~/.hermes/skills/.bundled_manifest` 的 `名字:md5` 账本
+  - `hub` = `~/.hermes/skills/.hub/lock.json`
+- **B 轴**：归 Skills-Manager 管否（它的 CLI `skills list` 里有这个技能名）
+- **C 轴**：归 `external_dirs`（`.env` 的 `DREAM_EXTERNAL_DIRS` 那份 JSON）里的某个包管否（同名且能定位到那份目录）
+- **D 轴**：与**可比者**内容相同/不同。可比者 = external 命中那份 · Skills-Manager 中央库那份 ·
+  `.bundled_manifest` 的 md5 · 发行版 `skills/` 那份 · 发行版 `optional-skills/` 那份。
+  **没有可比者时 D 坍缩** —— 只有 `A=local·B=no·C=no` 这一格（所以是 15 不是 16）。
+
+| 态 | 去向 |
+|---|---|
+| local · mgr=no · ext=no | **判落点** → 写进我的包 → push → 交 manager 装 |
+| local · mgr=no · ext=yes · same | 不动（已装） |
+| local · mgr=no · ext=yes · differs | **合回/重装**：先判方向（profile 新 → 合回我的包；包新 → manager 重装） |
+| local · mgr=yes · ext=no · same | 不动 |
+| local · mgr=yes · ext=no · differs | **建 patch 包**（我的改动落在第三方技能上）→ manager 装 patch |
+| local · mgr=yes · ext=yes · same | 不动 |
+| local · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
+| 第三方 · 任一种 · mgr=no · ext=no · same | 不动 |
+| 第三方 · 任一种 · mgr=no · ext=no · differs | **先判方向**：本地新 → patch 包；远端新 → 更新本地 |
+| 第三方 · mgr=no · ext=yes · same / differs | 不碰（官方是源；确是我加的改动才走 patch） |
+| 第三方 · mgr=yes · ext=no · same | 不动 |
+| 第三方 · mgr=yes · ext=no · differs | **建 patch 包** → manager 装 patch |
+| 第三方 · mgr=yes · ext=yes · same | 不动 |
+| 第三方 · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
+
+**装回只有一个所有者**：装/更新一律交 **Skills-Manager**（`skills-manager-cli skills install/update/deploy`）；
+dream **不再用 `hermes skills install`**，也不 retire 它装的东西（否则会与它部署的 symlink 打架）。
+
+**判方向（只在 differs 时需要）**：拿 profile 那份去撞**所有者那一侧的历史版本**——
+① 命中某历史版本 ⇒ **本地旧**（远端新，动作＝更新本地）；
+② 所有者命中 HEAD、profile 谁都不命中 ⇒ **本地已偏离上游**（动作＝patch 包／收编）；
+③ 那一侧没有历史可比（无 clone、无 md5 账本）⇒ **方向未知，只报**，不动手。
+
+**落地物**：`sweep-plan.py scan` 逐条算 `state`（`A·source·mgr·ext·D`）与 `action`，写进 `inventory.tsv`
+两列（`state` / `action`）与 `states.json`（含 general agent 的 7 态计数）；控制台打印态分布与动作分布。
+`--hermes <profile>` 给 Hermes 侧 15 态；不给 A 轴时（general agent）就是同一份数据的 7 态视图。

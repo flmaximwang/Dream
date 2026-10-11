@@ -16,6 +16,11 @@
 
 ## s1 · 枚举
 
+**每条技能先归 15 态再谈落点**（口径与逐态去向：`docs/scope.md` §6）。四轴 = A 来源（local／第三方四种子类）·
+B 归 Skills-Manager 管否 · C 归 external_dirs 管否 · D 与可比者同否（无所有者时坍缩 → 15 态）。
+只有 `local·mgr=no·ext=no`（判落点）、`ext·differs`（合回/重装、先判方向）、`mgr·differs`（patch 包）三类要动手；
+`third·differs` 走"先判方向"，其余一律不动。算好的结果在 `inventory.tsv` 的 `state`/`action` 两列与 `states.json`。
+
 ```bash
 python3 -B skills/dream/scripts/sweep-plan.py scan \
   --profile <profile> --packs-root <主技能根> --out <scratch>/sweep-<date>

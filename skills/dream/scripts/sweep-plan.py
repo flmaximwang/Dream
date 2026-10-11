@@ -37,6 +37,7 @@ Exit codes: 0 ok | 2 no candidates, no packs, or missing sibling | 3 profile not
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import importlib.util
 import json
@@ -220,6 +221,86 @@ def dir_fingerprint(mirror, d: pathlib.Path) -> str:
     return h.hexdigest()
 
 
+# ---------------------------------------------------------------- 15 态分类（2026-10-11 用户拍板）
+# A = hermes 侧来源：local 或「第三方维护」四种子类 built-in / official / bundled / hub
+# B = 归 Skills-Manager 管否 · C = 归 external_dirs 管否 · D = 与可比者内容相同否（无所有者时坍缩）
+# 第三方的权威副本：built-in/optional 在发行版树里、bundled 在 .bundled_manifest、hub 在 .hub/lock.json
+STATE_ACTIONS = {
+    # local 组（7 态）
+    ("local", "no", "no", "fold"): "judge-destination",       # 真候选：判落点 → 写我的包 → push → 交 manager 装
+    ("local", "no", "yes", "same"): "noop",                   # 我的包＝profile
+    ("local", "no", "yes", "differs"): "reconcile",           # 比方向：profile 新→合回包；包新→manager 重装
+    ("local", "yes", "no", "same"): "noop",
+    ("local", "yes", "no", "differs"): "patch-package",       # 第三方技能上的本地改动 → 建 patch 包 → manager 装
+    ("local", "yes", "yes", "same"): "noop",
+    ("local", "yes", "yes", "differs"): "reconcile",          # 以我的包为源合回 → manager 重装
+    # 第三方组（8 态，来源无关的处置相同）
+    ("third", "no", "no", "same"): "noop",                    # 与官方副本一致
+    ("third", "no", "no", "differs"): "patch-or-restore",     # 先判方向：本地新→patch 包；远端新→更新本地
+    ("third", "no", "yes", "same"): "noop",
+    ("third", "no", "yes", "differs"): "noop",                # 官方是源，不碰（确是我加的改动 → patch 包）
+    ("third", "yes", "no", "same"): "noop",
+    ("third", "yes", "no", "differs"): "patch-package",
+    ("third", "yes", "yes", "same"): "noop",
+    ("third", "yes", "yes", "differs"): "reconcile",
+}
+
+
+def third_party_dirs() -> dict:
+    """第三方来源的权威副本（名字 → 目录）：发行版 skills/ 与 optional-skills/。"""
+    src = HERMES_HOME.parent / "hermes-agent" if HERMES_HOME.parent.name != "hermes-agent" else HERMES_HOME
+    out = {}
+    for tag, sub in (("built-in", "skills"), ("official", "optional-skills")):
+        d = src / sub
+        if not d.is_dir():
+            continue
+        for md in d.rglob("SKILL.md"):
+            out.setdefault(md.parent.name, (tag, md.parent))
+    return out
+
+
+def hermes_source(n: str, tp: dict, manifest: dict, lock: set) -> str:
+    """A 轴的取值：local 或第三方四种子类（built-in / official / bundled / hub，按这个优先级）。"""
+    if tp.get(n, ("", None))[0] == "built-in":
+        return "built-in"
+    if tp.get(n, ("", None))[0] == "official":
+        return "official"
+    if n in manifest:
+        return "bundled"
+    if n in lock:
+        return "hub"
+    return "local"
+
+
+def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict) -> dict:
+    """一条 profile 技能的 15 态归属：source/A/B/C/D + action。"""
+    n = r["name"]; d = r["_md"].parent
+    source = hermes_source(n, tp, manifest, r.get("lock_names", set()))
+    mgr = "yes" if n in manager_dirs else "no"
+    hit = mirror.classify(d, index)
+    ext = "yes" if hit["verdict"] in ("homed", "drift") else "no"
+    owners, same = [], False
+    if ext == "yes":
+        owners.append("external"); same = same or hit["verdict"] == "homed"
+    if mgr == "yes":
+        owners.append("manager"); same = same or mirror.diff_dirs(d, manager_dirs[n])["identical"]
+    if n in manifest:
+        owners.append("manifest")
+        try:
+            sys.path.insert(0, str(HERMES_HOME.parent / "hermes-agent"))
+            from tools.skills_sync import _matches_origin_hash
+            same = same or _matches_origin_hash(d, manifest[n])
+        except Exception:                                     # 拿不到账本就不下这个结论（保守：不算 same）
+            pass
+    if n in tp:
+        owners.append(tp[n][0]); same = same or mirror.diff_dirs(d, tp[n][1])["identical"]
+    D = "fold" if not owners else ("same" if same else "differs")
+    A = "local" if source == "local" else "third"
+    return dict(state_source=source, A=A, mgr=mgr, ext=ext, D=D,
+                state=f"{A}·{source}·mgr={mgr}·ext={ext}·{D}",
+                action=STATE_ACTIONS[(A, mgr, ext, D)], comparators=owners)
+
+
 def find_dups(rows: list) -> dict:
     """同名多份：身份按相对路径区分，名字只用来找可比者。同名两份会互相顶替（实测 docx/xlsx 各两份），
     必须单独报出来而不是当成两个独立技能。"""
@@ -233,16 +314,34 @@ def find_dups(rows: list) -> dict:
     return dups
 
 
-def prescreen(args, packs, local, mirror) -> None:
+def prescreen(args, packs, rows, local, mirror) -> None:
     """S1 预筛（口径 2026-10-11，用户拍板）：profile 技能只要**在外部仓库里找得到**（AgentSkills 那些包），
     或**Skills-Manager 管着**，就算已装 —— 不进候选、不判落点。两边都没有的才是候选。
     三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。"""
     index = mirror.build_index([p["path"] for p in packs], [])
     try:
-        rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
-        managed = {s.get("name", "") for s in rows if s.get("name")}
+        mgr_rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
+        managed = {s.get("name", "") for s in mgr_rows if s.get("name")}   # 别叫 rows：会盖住传入的 profile 行
     except SystemExit:                      # CLI 不在/报错都不该让一轮挂掉
         managed = set()
+    sk_lock = HERMES_HOME / "skills" / ".hub" / "lock.json"
+    tp = third_party_dirs()
+    lock_names = set(json.load(open(sk_lock))["installed"]) if sk_lock.is_file() else set()
+    try:
+        manifest = {l.split(":")[0]: l.strip().split(":")[1]
+                    for l in open(HERMES_HOME / "skills" / ".bundled_manifest") if l.strip()}
+    except OSError:
+        manifest = {}
+    manager_dirs = {}
+    for x in sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager"):
+        n = x.get("name")
+        if n and pathlib.Path(x.get("path", "")).is_dir():
+            manager_dirs[n] = pathlib.Path(x["path"])
+    for r in rows:
+        if "_md" not in r:                                    # 自检里的合成行没有真实目录，跳过
+            continue
+        r["lock_names"] = lock_names
+        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest))
     for r in local:
         if r["name"] in managed:
             r["verdict"], r["matched"] = "managed", "skills-manager"
@@ -304,7 +403,7 @@ def cmd_scan(args) -> int:
         die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
     mirror = sibling_module("skill-mirror.py")
-    prescreen(args, packs, local, mirror)
+    prescreen(args, packs, rows, local, mirror)
     cands = [r for r in local if r["verdict"] == "local"]
     routable = [p for p in packs if not p["empty"]]
     if not routable:
@@ -314,9 +413,10 @@ def cmd_scan(args) -> int:
     out = pathlib.Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     (out / "inventory.tsv").write_text(
-        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tduplicate_of\tdesc\n" + "".join(
+        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tduplicate_of\tstate\taction\tdesc\n" + "".join(
             f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t"
-            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r.get('duplicate_of', '')}\t{r['desc'][:200]}\n"
+            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r.get('duplicate_of', '')}\t"
+            f"{r.get('state', '')}\t{r.get('action', '')}\t{r['desc'][:200]}\n"
             for r in rows), encoding="utf-8")
     # Frozen judge input: one P<k> per candidate, script-generated so that no hand transcription can drift
     # from what the judges were actually asked (the pack's own judge lesson). v2 carries the absolute path so
@@ -395,6 +495,20 @@ def cmd_scan(args) -> int:
                          no_category=r["no_category"], duplicate_of=r.get("duplicate_of", "")) for r in cands],
         duplicates=dups,
     ), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    st_counts = collections.Counter(r.get("state", "") for r in rows if r.get("state"))
+    act_counts = collections.Counter(r.get("action", "") for r in rows if r.get("action"))
+    gen_counts = collections.Counter(
+        ("mgr=%s·ext=%s·%s" % (r["mgr"], r["ext"], r["D"])) for r in rows if r.get("mgr"))
+    (out / "states.json").write_text(json.dumps(dict(
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        rules="A=local|第三方(built-in/official/bundled/hub) · B=skills-manager 管否 · C=external_dirs 管否 · "
+              "D=与可比者内容同否（无所有者则坍缩）→ hermes 15 态；general agent 去掉 A 轴 → 7 态",
+        counts_hermes=dict(st_counts), actions=dict(act_counts), counts_general=dict(gen_counts),
+        rows=[dict(skill=r["name"], dir=r["dir"], state=r.get("state", ""), action=r.get("action", ""),
+                   source=r.get("state_source", ""), comparators=r.get("comparators", []))
+              for r in rows if r.get("state")]), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"[sweep-plan] 15 态（hermes）=" + " · ".join(f"{k} {v}" for k, v in st_counts.most_common()))
+    print(f"[sweep-plan] 逐态去向=" + " · ".join(f"{k}={v}" for k, v in act_counts.most_common()))
     print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
           f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
     if dups:

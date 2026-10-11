@@ -75,6 +75,9 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 `judge-input-bodies.json`（内联正文）、`packs.json`、`answer-space.json`、`pack-index.txt`。
 脚本自报 counts，先核一遍再往下走。完整做法：`references/dream-method.md#s1`。
 
+S1 还逐条算 **15 态**（`state` / `action`）：态的定义、可比者与逐态去向见 `docs/scope.md` §6；产出 `states.json`
+（hermes 15 态 + general agent 7 态）。控制台的 `15 态（hermes）=` 与 `逐态去向=` 两行先看，再决定这一轮做哪些态。
+
 ## S2 · 路由判断
 
 **第一步是二选一，不是挑名字**：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科」（主题）？
