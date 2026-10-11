@@ -19,7 +19,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
   收编进包仓库并装回（S1–S8），批次收尾就是退役与汇报。
 - **本 skill 不把任何 agent 当主语**：某 agent 的容器判据（哪些 skill 算「没有仓库归属」）、安装/更新/卸载命令、
   判官接线、私有路径，一律由**该 agent 的适配技能**提供。**Hermes 的落点见同族 `dream-hermes-routing`**
-  （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = JEV 或分类子代理）。
+  （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = 分块直调语言模型）。
   本文件正文只写「适配层提供 X」。
 
 ## Agent 分工（本 skill 的主体，先读这张表）
@@ -27,7 +27,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | 阶段 | 谁做 | 为什么非它不可 | 明确不许 |
 |---|---|---|---|
 | S1 枚举 | **主 agent 跑 `scripts/sweep-plan.py scan`** | 上百条候选手抄必错；判官输入必须是**脚本产物**（凭记忆转写的题面曾逐条与源文件不同，整轮结论作废） | 不读技能正文、不判断归属 |
-| S2 路由 | **独立判官**（一次请求多题；无判官服务 → 分类子代理，每 8–12 条一个） | 判断要独立视角：主 agent 刚枚举完，对「这条像哪个包」已有先入之见 | 子代理只写自己的 `verdicts-task-N.jsonl`，不写包、不装、不起后台进程 |
+| S2 路由 | **主 agent 跑 `scripts/judge.py`**（按字节分块，每块一次**非流式**请求；题面与判据在 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
 | S3 交叉审计 | **每条「落点=已有技能」的行一个子代理** | 只有它能 grep 正文、给出接收侧 `file:line` 证明 already-there / net-new | 不改任何文件；只出两张清单 + 一个建议 |
 | S4 自动决议 | **主 agent 跑规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
 | S5 写入 | **每个目标包一个 writer 子代理**，包内串行、跨包并行 | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
@@ -69,7 +69,11 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 **第一步是二选一，不是挑名字**：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科」（主题）？
 先答这一句，再在对应轴里挑落点。**严禁偷懒判法**：① 必须读 SKILL.md 全文（含正文点名的 `references/`）；
 ② 每个落点必须回一条正文证据（原句或 `file:line`）；③ 禁止按类目批量套模板——每条独立判。
-三段问法、`dest` 两种形状、`source` 标注、降级路径：`references/dream-judge-routing.md`。
+三段问法、`dest` 两种形状、`source` 标注、判完之后的复核口径：`references/dream-judge-routing.md`。
+
+做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（默认 `--chunk-bytes 140000`、`--workers 2`）——
+脚本按字节分块、每块一次**非流式**请求、**逐块落盘并断点续跑**（已判完的块不再重复付费）。
+实测 99 候选 = 8 块、整批 166s。
 
 ## S3 · 交叉审计
 
@@ -162,9 +166,10 @@ dream/
 ├── references/
 │   ├── dream-method.md            ← S1–S8 的完整做法（SKILL.md 各步的转指目标）
 │   ├── dream-agent-roster.md      ← 五种子代理任务书（逐字可抄）、并发与分波、必须回的收据
-│   └── dream-judge-routing.md     ← 判官题面（两轴 + 三段问法）、分块、dest 形状、降级路径
+│   └── dream-judge-routing.md     ← S2 判官：题面/分块/dest 形状/复核口径
 └── scripts/
     ├── sweep-plan.py              ← scan / merge
+    ├── judge.py                   ← S2 判官：分块直调 deepseek-flash
     └── check-disclosure.py        ← 上限自检（SKILL.md / 单文档 / 第一层 skill 数）
 ```
 
@@ -187,7 +192,8 @@ dream/
 |---|---|
 | `references/dream-method.md` | S1–S8 的完整做法与判据 |
 | `references/dream-agent-roster.md` | 五种子代理任务书、并发与分波、收据清单 |
-| `references/dream-judge-routing.md` | 判官题面模板、分块、`dest` 形状、`source` 标注、降级路径 |
+| `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`source` 标注、复核口径 |
+| `scripts/judge.py` | S2 判官：分块直调 deepseek-flash（逐块落盘 + 断点续跑） |
 | `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
 | `scripts/check-disclosure.py` | 分层披露长度上限自检 |
 
@@ -206,6 +212,7 @@ dream/
 │   └── dream-judge-routing.md
 └── scripts/
     ├── sweep-plan.py
+    ├── judge.py
     └── check-disclosure.py
 ```
 

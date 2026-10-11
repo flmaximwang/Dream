@@ -1,6 +1,6 @@
 ---
 name: dream-hermes-routing
-description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与判官（JEV/分类子代理）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
+description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与判官（judge.py 分块直调 deepseek-flash）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
 ---
 
 # dream-hermes-routing · dream 方法在 Hermes 上的适配层
@@ -62,17 +62,26 @@ hermes skills list                                     # 回读名字与类目
 **扫描闸**：push 之前预测扫描 verdict。非 `safe` 先按扫描闸手册改写形态；`dangerous` 的 revision 在 hub 上
 **永远装不上**，`--force` 也覆盖不了。
 
-## 4 · 判官接线（JEV 优先，无 key 走子代理）
+## 4 · 判官接线（分块直调 deepseek-flash）
 
-1. **探活**：`$HERMES_HOME/.env` 里有没有 `TYPESAFE_API_KEY`（`grep -c`，不回显值），再打一次探针。
-   **探针 451**（`Typesafe is not available in your region`）与超时同样算「不可用」，**直接走子代理**，
-   别重试到超时。
-2. **JEV 在** → 把 `judge-input-bodies.json`（正文内联的那份）当 `state` 分块出题，落 `verdicts-jev.jsonl`，
-   **每条记下回复里的 `model` 字段**才算真机答案。题面模板与两层走树：`references/` 见方法本体的
-   `dream-judge-routing.md`。
-3. **JEV 不在**（无 key / 探针非 200 / 451 / 429 退避两次仍失败）→ 派分类子代理，**每 8–12 条一个**。
-4. **标注纪律**：只有带 `model` 字段的算 JEV；子代理/人工填的一律 `source: agent`，两组数字分开写，
-   不许混着当「JEV 的效果」。
+主 agent 直接跑方法本体的 `skills/dream/scripts/judge.py`：
+
+```bash
+python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录> [--workers 2] [--chunk-bytes 140000]
+# 只看分块计划：--dry-run ；烟测：--limit 5 --workers 1
+```
+
+- 它在 `judge-input-bodies.json`（正文内联那份）上按字节分块，**每块一次非流式 deepseek-flash 请求**，
+  落 `verdicts-deepseek-flash.jsonl`；`source` / `model` 由脚本写死（`deepseek` / 实际模型名）。
+- **逐块落盘 + 断点续跑**：被打断后重跑同一条命令，已判完的块直接复用。**不要**手写别的判官脚本去绕它。
+- 题面、形状、复核口径：方法本体的 `references/dream-judge-routing.md`。
+
+**为什么不用 JEV**：`TYPESAFE_API_KEY` 在不在都一样 —— 本机对 `api.typesafe.ai` 稳定返回 **451**
+（`Typesafe is not available in your region`）。451 是**区域限制**，不是限流：重试到超时只是白花时间。
+所以 v3 既不探活也不留降级链，**判官只有一个**：`judge.py`。
+
+**并发纪律**：实测 3 块 ~140KB 并发时会被 `Connection reset by peer`（Errno 54）打掉，脚本已带 3 次退避
+重试；仍然 reset 就把 `--workers` 降到 1。
 
 ## 5 · 回读三件（收工判据）
 

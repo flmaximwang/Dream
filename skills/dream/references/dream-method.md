@@ -72,13 +72,10 @@ python3 -B skills/dream/scripts/sweep-plan.py scan \
 `evidence` 空的 verdict 视为没判；③ **禁止按类目批量套模板**——每条独立判，同类目下不同技能可以落不同包，
 允许新包只吃 1 条。
 
-**走哪条路（判官接线）**：适配层给「判官在哪 / 怎么探活 / 不可用时怎么降级」。通用三条：
-① 先探活，再出题；探活失败（无凭据 / 区域不可用 / 超时）**直接走降级**，别重试到超时；
-② 判官在线 → 把 `judge-input-bodies.json` 当 `state` 分块出题，落 `verdicts-<judge>.jsonl`，
-**每条记下回复里的 `model` 字段**才算真机答案；
-③ 判官不在 → 派分类子代理，**每 8–12 条一个**（判官要读全文，一条比只给 name+desc 贵得多），
-落 `verdicts-task-N.jsonl`。
-④ **标注纪律**：只有带 `model` 字段的算判官答案；子代理/人工填的一律 `source: agent`，两组数字分开写。
+**走哪条路（判官接线）**：适配层给「用哪条命令判、怎么分块、模型是谁」。v3 是**一条路，没有降级链**：
+跑 `scripts/judge.py --dir <scan 产物>` —— 它把 `judge-input-bodies.json` 按字节分块、**每块一次非流式请求**、
+逐块落盘并断点续跑，落 `verdicts-<model>.jsonl`；`source`/`model` 由脚本写死。
+（v2 的「探活判官服务 → 不在就每 8–12 条派一个分类子代理」已废除：那条降级链本身是一整次扇出，是本版要砍的成本。）
 
 判据：`merge` 覆盖率必须 100%，且没有任何 `dest.repo` 落在 `answer-space.json` 之外。
 

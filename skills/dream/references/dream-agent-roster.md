@@ -1,6 +1,7 @@
 # 子代理任务书与收据
 
-`dream` 的分工落到可抄的文字。四条通则，然后四份任务书。
+`dream` 的分工落到可抄的文字。三条通则，然后三份任务书（B 交叉审计 / C writer / D 验证）。
+（**没有 S2 判官子代理**：判官由 `scripts/judge.py` 分块直调，不派子代理。）
 
 ## 通则（每条任务书都要带上）
 
@@ -13,48 +14,6 @@
    子代理只返回事实与建议，决议按 S4 的规则做；需要人拍板的行留本地并列进汇报。
 4. **只给它该看的东西。** 任务书里写死「只读哪几个文件」，别让它去翻技能目录、翻内存、翻别的包——那是另一
    条子代理的活，串味的判断比没有判断更贵。
-
-## A. 分类子代理（S2，JEV 不可用时；每 8–12 条一个）
-
-```
-你是技能归位判官。为每条候选技能判一个落点包 —— **每条都必须有落点，没有「留本地」这个答案**。
-
-材料（只读这几个，不要翻别的目录、不要读内存、不要读别的包）：
-  <SCRATCH>/judge-input.json        候选：id / skill / category / description / **skill_md 绝对路径** / refs
-  <SCRATCH>/answer-space.json       落点空间：dirs / tool_dirs / topic_dirs / routable
-  <SCRATCH>/pack-index.txt          可路由包的各条 category/name: desc（判「并入哪条已有技能」时看它）
-
-**纪律（违反其中任何一条，这条 verdict 作废）**
-1. **必须读全文**：对你负责的每一条，用 read_file 打开它 `skill_md` 指的那个 SKILL.md **整篇**
-   （正文点了名的 references/ 文件也要读）。**禁止只看 name / description / category 就下结论**
-   —— 那是机械判法，用户已明确驳回。
-2. **每条都要有一段正文证据**：`evidence` 字段填正文原句，或 `file:line`。填不出来的算没判。
-3. **每条独立判**：同一类目下的技能可以落不同包；**禁止按类目批量套模板**（「obsidian/* 全进
-   ObsidianManagement」「profile 私有 → AgentSkill-Private-<Profile>」这类映射已被用户驳回）。
-
-**三段问法**（一条一条按顺序答，别跳）
-1. **轴**：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科/项目」？
-2. **落点**：该轴里哪个目录名？从 answer-space.json 的 tool_dirs / topic_dirs 里挑（**照抄，不许自己造名字**）。
-   现有目录都不覆盖它才答 new，并给 axis + topic + **boundary（这个包不吃什么，必填）**；
-   主题名要少、同类合并（一主题一包）；这条只关你本地这台机器的私有流程，仍要落主题包，别自己发明
-   `AgentSkill-Private-<Profile>` 这种垃圾抽屉。
-3. **落点技能**：落点是已有目录时，并入它已有的哪条技能（从 pack-index.txt 抄，或答 __new__）。
-   正文没给你接收侧正文，所以**重叠不要在这一轮下结论**，只在 why 里点出可疑的那条名字。
-
-这条例外要标出来：技能**自报上游仓库**（目录里带 `_meta.json` / `skill-card.md`，或正文头部写着
-`GitHub: <url>`）时，照常给落点，但 `why` 以 `upstream:<owner>/<repo>` 开头。
-
-产出：把结果**写进** <SCRATCH>/verdicts-task-<N>.jsonl（每行一条 JSON，不要代码块包裹）：
-{"id":"P12","dest":{"kind":"existing","repo":"AgentSkill-UsingGit","dest_skill":"__new__","action":"move"},
- "why":"…","evidence":"正文：「…」","confidence":0.82,"source":"agent"}
-{"id":"P13","dest":{"kind":"new","axis":"tool","topic":"Jev","personal":false,"boundary":"不吃编辑器接入"},
- "why":"…","evidence":"…","confidence":0.8,"source":"agent"}
-  action: move（整条迁进包）/ merge（内容并进 dest_skill）/ strengthen（两边头部各加一句界限声明）
-  source 一律写 agent（你不是 JEV）。写完在回答里原样重复这几行。
-
-**先把 JSONL 写完再回答**：回答里只给「条数 + 每条一行」，正文以落盘文件为准。
-```
-
 ## B. 交叉审计子代理（S3，**每个目标包一个**）
 
 同一包的候选共享接收侧技能，合起来审比拆开审准：一个判官能同时比较「这条该并入哪条已有技能」与
@@ -127,8 +86,8 @@ git diff --cached --stat · 你**没有**碰过的路径清单（如果你 check
 
 ## 分波与并发
 
-- 分类子代理与 writer 子代理并发上限都是 **10**；超过就分波，每波 ≤10，等一波回执齐了再派下一波。
-- 交叉审计子代理通常只有几条，和分类子代理不同波（它依赖 S2 的结果）。
+- writer 子代理并发上限 **10**；超过就分波，每波 ≤10，等一波回执齐了再派下一波。
+- 交叉审计子代理通常只有几条，与 writer 不同波（它依赖 S2 的判断，不等 writer 结束）。
 - 验证子代理**只在全部 writer 结束后**派一条，别按包派多条（六件事里有三件要等 plan 全部落地）。
 
 ## 回执对不上时的处置
