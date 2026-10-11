@@ -258,7 +258,8 @@ def do_apply(args) -> int:
         for r, src, dst, _ in written:
             results.append((r["id"], "WRITTEN", f"{pack.name}/{dst.name}@{sha[:8]}"))
     out = d / "apply-report.json"
-    out.write_text(json.dumps({"results": results, "manual": [r["id"] for r in manual]}, ensure_ascii=False, indent=1))
+    out.write_text(json.dumps({"results": results, "manual": [r["id"] for r in manual],
+                               "no_push": bool(getattr(args, "no_push", False))}, ensure_ascii=False, indent=1))
     # 改动清单：默认只在会话里报；给了 --changes-out 就落一份文件（用户 2026-10-12）
     changes = [dict(id=cid, status=st, detail=str(det)) for cid, st, det in results]
     if getattr(args, "changes_out", ""):
@@ -301,7 +302,8 @@ def do_taskbook(args) -> int:
         return 0
     md = ["# writer 任务书（每条按包一份，直接派给子代理）", "",
           f"- 要改正文的行 {len(man)} 条 · 涉及 {len(by_pack)} 个包 · 并发上限 10（>10 分包分波）",
-          f"- 测试面：{'是（副本 + 禁 push）' if args.test else '否（真包，写入后要推）'}", ""]
+          f"- 测试面：{'是（副本）' if args.test else '否（真包）'} · "
+          f"{'本轮 **不推送**（--no-push）：提交只留本地，谁都不许 push' if args.no_push else '本轮写入后要推（push 后从远端回读 sha）'}", ""]
     for repo, items in sorted(by_pack.items()):
         pack = pack_path(args, repo)
         md += [f"## {repo}（{len(items)} 行）", "", f"clone：`{pack}`", ""]
@@ -319,7 +321,9 @@ def do_taskbook(args) -> int:
         md += ["硬纪律：① 只在这个 clone 里动手；② 只 `git add` 你改的那个技能目录（pathspec，不许 `-A`）；"
                "③ **禁止起后台进程**；④ 不做 frontmatter 归一（原样保留，别删 version/author/metadata 这些键）；"
                "⑤ 提交前跑扫描闸（`tools.skills_guard.scan_skill`），非 `safe` 按命中改写文字再扫，"
-               "`dangerous` 不许提交；" + ("⑥ **禁止 push**（副本测试面）" if args.test else "⑥ `git push origin <sha>:main` 后从远端回读 sha"),
+               "`dangerous` 不许提交；"
+               + ("⑥ **禁止 push**（本轮 --no-push：提交只留本地）" if (args.test or args.no_push)
+                  else "⑥ `git push origin <sha>:main` 后从远端回读 sha"),
                "", "回执：commit sha · `git show --stat HEAD` · 扫描 verdict 与 findings 条数 · 折进哪几条 net-new · 不确定的地方。", ""]
     out = d / "writers.md"
     out.write_text("\n".join(md))
@@ -333,7 +337,9 @@ def do_verify(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
     rows = load_rows(d)
     only = set(args.only.split(",")) if args.only else None
-    checks = json.loads((d / "apply-report.json").read_text())["results"] if (d / "apply-report.json").exists() else []
+    _rep = json.loads((d / "apply-report.json").read_text()) if (d / "apply-report.json").exists() else {}
+    checks = _rep.get("results", [])
+    no_push = bool(_rep.get("no_push"))      # 本轮没推的话，提交只在本地 HEAD，比 origin/main 全是假 FAIL
     written = {c[0]: c[2] for c in checks if c[1] == "WRITTEN"}
     fails, oks = [], []
     for r in rows:
@@ -345,16 +351,20 @@ def do_verify(args) -> int:
         pack = pack_path(args, dest["repo"])
         name = pathlib.Path(r["_src"]).name
         dir_ok = (pack / "skills" / name / "SKILL.md").is_file()
-        rev = sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack))
-        where = "origin/main"
-        if rev.returncode != 0:                  # 测试用副本没有远端 → 退回本地 HEAD，并在行里标明
-            rev, where = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)), "HEAD(无远端)"
-        full = rev.stdout.strip()
-        sha = written[r["id"]].split("@")[-1]
-        remote_ok = full.startswith(sha)         # 比全 sha 的前缀：`git log --oneline` 只印 7 位，缩写比会假 FAIL
+        # 要核实的是"S5 报的那条提交真在这个包里"；origin/main 是额外的"已发布"要求，
+        # 所以先认 origin/main，认不上再看本地 HEAD —— 本轮 --no-push 时提交只可能在本地（否则全是假 FAIL），
+        # 没有远端的测试副本走同一支。都比不上才是真 FAIL。
+        sha = written[r["id"]].split("@")[-1]     # 比全 sha 的前缀：`git log --oneline` 只印 7 位，缩写比会假 FAIL
+        refs = {"origin/main": sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack)).stdout.strip(),
+                "HEAD": sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()}
+        where, remote_ok = "origin/main/HEAD 都没有", False
+        for label in ("origin/main", "HEAD"):
+            if refs[label] and refs[label].startswith(sha):
+                where, remote_ok = (label if label == "origin/main" else "HEAD(未推)"), True
+                break
         installed = list((HERMES_HOME / "skills").rglob(name))
         diff = sh(["diff", "-rq", str(pack / "skills" / name), str(installed[0])]).stdout.strip() if installed else "not installed yet"
-        line = f"{r['id']} dir={dir_ok} {where}={remote_ok}({sha}) diff={'-' if not diff else diff[:60]}"
+        line = f"{r['id']} dir={dir_ok} 提交在{where}({sha}) diff={'-' if not diff else diff[:60]}"
         (oks if dir_ok and remote_ok else fails).append(line)
     for l in oks:
         print("PASS", l)
