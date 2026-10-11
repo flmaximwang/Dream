@@ -2,7 +2,7 @@
 
 > 把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。
 
-**进度** 1/11 块（9%） · 状态 `active` · 更新于 2026-10-11 11:02
+**进度** 1/11 块（9%） · 状态 `active` · 更新于 2026-10-11 11:04
 
 **参与方** 本人(human)
 
@@ -14,7 +14,7 @@
 - `T-004#B-001` **一轮批次按 profile 拆成可独立跑完的单元** — 待认领 · @未指派
 - `T-006#B-001` **给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）** — 待认领 · @未指派
 - `T-008#B-001` **按端点吞吐实测标定判官并发数（现在写死的 10 可能是反效果）** — 待认领 · @未指派
-- `T-009#B-001` **定位并修掉「运行中的 Hermes 环境目录被回收」** — 待认领 · @未指派
+- `T-009#B-001` **定位并修掉「环境目录原地重建期间活进程失联」** — 待认领 · @未指派
 
 ## 图
 
@@ -30,7 +30,7 @@ flowchart LR
   T-007_B-001["B-001 把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl"]
   T-008_B-001["B-001 按端点吞吐实测标定判官并发数（现在写死的 10 可能是反效果）"]
   T-008_B-002["B-002 子代理 LLM 等待加超时与部分结果，父块不再无限等"]
-  T-009_B-001["B-001 定位并修掉「运行中的 Hermes 环境目录被回收」"]
+  T-009_B-001["B-001 定位并修掉「环境目录原地重建期间活进程失联」"]
   T-001_B-001 --> T-002_B-001
   T-001_B-001 --> T-005_B-001
   T-002_B-001 --> T-005_B-001
@@ -105,14 +105,12 @@ flowchart LR
     - 依赖：T-008#B-001
 
 ### T-009 运行期地基被拆：环境目录被回收 — 待认领
-- [ ] `T-009#B-001` **定位并修掉「运行中的 Hermes 环境目录被回收」** _impl_ — 待认领
-    - 做什么：实测证据链（2026-10-11，11:02 更新）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（environments/ 的 mtime = 10:51:33，现在只剩 ef2099f3d36145779f2e00c200d4279a）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，到 11:02 的 15 分钟窗口内已有 API failed 71 · provider down 16 · FileNotFoundError 132；④ 该错只在**新建** httpx/openai 客户端时触发，内存里已导入模块的调用照旧能跑 —— 表现为部分子代理动、其余卡死（8/10 idle 超 10 分钟，最长 33.9 分钟）；⑤ 网络与证书本身正常：curl 直连与走代理都是 401（缺鉴权），iron-proxy egress 未启用，config 里没有证书变量；⑥ **强候选：App Store 在装 Xcode**——/Applications/Xcode.app mtime 10:59:02、install.log 里 appstoreagent 于 10:59:35 注册 bundle、load average 16.7/18.0/15.7、空闲内存仅 136MB、cp 占 88% CPU、mds_stores 占 43%（Spotlight 重建索引）。同期的吞吐单调衰减（31→29→13→11→9→4→1 次/5min，10:25 起）与资源争用时间吻合；⑦ 附带伤害：/usr/bin/python3 从 11:00 起直接不可用（Xcode 许可未同意，退出码 69），任何依赖它的脚本都会挂，本探针已改用 Hermes 工具 python 运行。做法：先定案分叉——回收是**资源压力/安装过程触发**的清理，还是 Hermes 自己的环境 GC（新 env 01:49 建好、旧 env 10:51 回收）？定案后在进程存活期间不回收（租约 / 引用检测），并在回收前检查是否有活进程在用。
+- [ ] `T-009#B-001` **定位并修掉「环境目录原地重建期间活进程失联」** _impl_ — 待认领
+    - 做什么：实测证据链（2026-10-11，11:05 定版 —— 结论已修正一次，别再退回旧说法）：**不是「被 GC 回收」，是「原地删掉又重建」同一个环境**。① 09:50 我还成功用过 environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 该目录在 10:51:33 被删（environments/ mtime = 10:51:33，路径一度不存在）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，到 11:02 的 15 分钟窗口内 API failed 69 · provider down 14 · FileNotFoundError 122；④ 该错只在**新建** httpx/openai 客户端时触发（内存里已导入模块的调用照旧能跑）⇒ 表现为部分子代理动、其余卡死（8/10 idle 超 10 分钟，最长 33.9 分钟）；⑤ **11:02:03 同一个 hash 的环境目录重新出现且可用**（venv/bin/python3 能 import httpx / truststore / discord），11:02:05 之后再无 FileNotFoundError（尾部只剩 3 条 APITimeoutError），子代理 11:03:27 恢复动作 ⇒ **因果确证：卡死就是这段「路径不存在」的窗口造成的，不是网络**；⑥ 网络与证书始终正常：curl 直连与走代理都是 401、monk 端点 1.25s 可达，iron-proxy egress 未启用，config 里没有证书变量；⑦ **背景压力**：App Store 在装 Xcode（/Applications/Xcode.app mtime 10:59:02、install.log 里 appstoreagent 10:59:35 注册 bundle、load average 16.7/18.0/15.7、空闲内存一度只剩 136MB、mds_stores 占 43 至 119% CPU），与吞吐从 10:25 起单调衰减（31→29→13→11→9→4→1 次/5min）时间吻合；⑧ 附带伤害：/usr/bin/python3 与 /usr/bin/git 一度双双不可用（Xcode 许可未同意，退出码 69），11:03 用户执行许可同意后恢复（Python 3.9.6 / git 2.54.0）。做法（修正后）：重建必须在**新 hash 的目录里建好再原子切换**，不许把活进程正在用的目录先删后建；重建前检测引用（有活进程在用就推迟或换 hash），并把「重建窗口」写进日志与探针告警。
     - 判据：① 定案证据：给出回收触发者与阈值（能复现，或能指到 file:line 与触发条件）；② 修法落地且可验证：跑一个长任务跨越一次回收时机，全程无 FileNotFoundError（贴改前改后错误计数对比）；③ 回归闸：一条自检说明「被活进程引用的环境不回收」（贴命令与输出）；④ 下一轮 cron 的 error log 里不再出现 retry 风暴（贴 grep -c 原文）；⑤ 附带项已处理：/usr/bin/python3 可用（贴 python3 -V 输出）或已明确绕开方案并记录在案。
 
 ## 日志（近 20 条）
 
-- `2026-10-11 10:08` **agent** [block] 新增块 T-003#B-001「JEV 451 判为永久不可用：跳过重试并裁剪判官输入」
-- `2026-10-11 10:08` **agent** [block] 新增块 T-003#B-002「cron 审批闸写进 dream-hermes-routing（用户 2026-10-11 要求）」
 - `2026-10-11 10:08` **agent** [block] 新增块 T-004#B-001「一轮批次按 profile 拆成可独立跑完的单元」
 - `2026-10-11 10:08` **agent** [block] 新增块 T-005#B-001「推送 Dream 并重装两技能，回读三件」
 - `2026-10-11 10:16` **agent** [task] 新增任务 T-006「子代理纪律：判官与审计的子代理不许自己撑爆上下文」
@@ -131,6 +129,8 @@ flowchart LR
 - `2026-10-11 10:54` **agent** [decision] 定案纠正：10:25 之后的吞吐衰减不是端点排队。10:51:33 运行中的环境目录 installs/b200403c2b90970e/environments/51e7b11d... 被回收，此后任何新建 httpx 客户端都在 truststore 载入处 FileNotFoundError（monk 调用全部失败），表现为部分子代理卡死。T-008#B-001 的原文已从「事实」降回「待验证假设」，新开 T-009 追这一条。
 - `2026-10-11 11:02` **agent** [block] T-009#B-001 改了 做什么
 - `2026-10-11 11:02` **agent** [status] T-009#B-001: pending → pending（done_when 已更新）
+- `2026-10-11 11:04` **agent** [block] T-009#B-001 改了 标题
+- `2026-10-11 11:04` **agent** [block] T-009#B-001 改了 做什么
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-perf` 生成。

@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T11:02:17+08:00",
+  "updated_at": "2026-10-11T11:04:21+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -346,11 +346,11 @@
       "blocks": [
         {
           "id": "T-009#B-001",
-          "title": "定位并修掉「运行中的 Hermes 环境目录被回收」",
+          "title": "定位并修掉「环境目录原地重建期间活进程失联」",
           "kind": "impl",
           "status": "pending",
           "owner": "",
-          "doc": "实测证据链（2026-10-11，11:02 更新）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（environments/ 的 mtime = 10:51:33，现在只剩 ef2099f3d36145779f2e00c200d4279a）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，到 11:02 的 15 分钟窗口内已有 API failed 71 · provider down 16 · FileNotFoundError 132；④ 该错只在**新建** httpx/openai 客户端时触发，内存里已导入模块的调用照旧能跑 —— 表现为部分子代理动、其余卡死（8/10 idle 超 10 分钟，最长 33.9 分钟）；⑤ 网络与证书本身正常：curl 直连与走代理都是 401（缺鉴权），iron-proxy egress 未启用，config 里没有证书变量；⑥ **强候选：App Store 在装 Xcode**——/Applications/Xcode.app mtime 10:59:02、install.log 里 appstoreagent 于 10:59:35 注册 bundle、load average 16.7/18.0/15.7、空闲内存仅 136MB、cp 占 88% CPU、mds_stores 占 43%（Spotlight 重建索引）。同期的吞吐单调衰减（31→29→13→11→9→4→1 次/5min，10:25 起）与资源争用时间吻合；⑦ 附带伤害：/usr/bin/python3 从 11:00 起直接不可用（Xcode 许可未同意，退出码 69），任何依赖它的脚本都会挂，本探针已改用 Hermes 工具 python 运行。做法：先定案分叉——回收是**资源压力/安装过程触发**的清理，还是 Hermes 自己的环境 GC（新 env 01:49 建好、旧 env 10:51 回收）？定案后在进程存活期间不回收（租约 / 引用检测），并在回收前检查是否有活进程在用。",
+          "doc": "实测证据链（2026-10-11，11:05 定版 —— 结论已修正一次，别再退回旧说法）：**不是「被 GC 回收」，是「原地删掉又重建」同一个环境**。① 09:50 我还成功用过 environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 该目录在 10:51:33 被删（environments/ mtime = 10:51:33，路径一度不存在）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，到 11:02 的 15 分钟窗口内 API failed 69 · provider down 14 · FileNotFoundError 122；④ 该错只在**新建** httpx/openai 客户端时触发（内存里已导入模块的调用照旧能跑）⇒ 表现为部分子代理动、其余卡死（8/10 idle 超 10 分钟，最长 33.9 分钟）；⑤ **11:02:03 同一个 hash 的环境目录重新出现且可用**（venv/bin/python3 能 import httpx / truststore / discord），11:02:05 之后再无 FileNotFoundError（尾部只剩 3 条 APITimeoutError），子代理 11:03:27 恢复动作 ⇒ **因果确证：卡死就是这段「路径不存在」的窗口造成的，不是网络**；⑥ 网络与证书始终正常：curl 直连与走代理都是 401、monk 端点 1.25s 可达，iron-proxy egress 未启用，config 里没有证书变量；⑦ **背景压力**：App Store 在装 Xcode（/Applications/Xcode.app mtime 10:59:02、install.log 里 appstoreagent 10:59:35 注册 bundle、load average 16.7/18.0/15.7、空闲内存一度只剩 136MB、mds_stores 占 43 至 119% CPU），与吞吐从 10:25 起单调衰减（31→29→13→11→9→4→1 次/5min）时间吻合；⑧ 附带伤害：/usr/bin/python3 与 /usr/bin/git 一度双双不可用（Xcode 许可未同意，退出码 69），11:03 用户执行许可同意后恢复（Python 3.9.6 / git 2.54.0）。做法（修正后）：重建必须在**新 hash 的目录里建好再原子切换**，不许把活进程正在用的目录先删后建；重建前检测引用（有活进程在用就推迟或换 hash），并把「重建窗口」写进日志与探针告警。",
           "input": "",
           "output": "",
           "command": "",
@@ -565,7 +565,21 @@
       "kind": "status",
       "text": "T-009#B-001: pending → pending（done_when 已更新）",
       "ref": "T-009#B-001"
+    },
+    {
+      "at": "2026-10-11T11:04:21+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "T-009#B-001 改了 标题",
+      "ref": "T-009#B-001"
+    },
+    {
+      "at": "2026-10-11T11:04:21+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "T-009#B-001 改了 做什么",
+      "ref": "T-009#B-001"
     }
   ],
-  "rev": "a166ccdfca69"
+  "rev": "02b927ce20e8"
 }
