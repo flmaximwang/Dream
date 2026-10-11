@@ -37,6 +37,10 @@ python3 -B /Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-prob
 - `dream-perf` 进度 **1/11**：`T-007#B-001`（探针）已完成；其余 10 块待开工。
 - 被监视的那一轮：`cron 52fe6cf3a3dc` 手动触发版，execution `57b244d85cd749d4893f9d6ee1ff539c`，
   session `cron_52fe6cf3a3dc_20261011_090717`（default 库），model `monk`。
+  **父块不是「卡死」，是扇出栅栏**（12:00 复核）：父 09:54:33 派完 10 个子代理后再无消息（静默 = 等孩子），
+  10 个孩子里 **7 个已经交卷**（最后一条消息是 assistant，11:01–11:22 返回），
+  `2529f2` 静默 38min，`33698e` / `d25f75` 12:00 仍在调工具。⇒ 有真实进展，别掐。
+  没有 cancel 入口（`hermes cron` 无 cancel 子命令），要中止只能重启 gateway（会连带掐掉监视 job 自己）。
 - 已确认的慢因（都已在 plan 里成块）：
   | 块 | 慢因 | 证据位置 |
   |---|---|---|
@@ -70,7 +74,12 @@ python3 -B /Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-prob
 
 ## 6 · 顺带挂着的事
 
-- 本轮 dream 的交付目标 `discord:1558166085080055878` 返回 **403 Missing Access**，报告发不出去 ⇒
-  要么修投递目标，要么直接读 `~/.hermes/cron/output/52fe6cf3a3dc/`。
-- 越界残留：`~/.hermes/profiles/dev-general/skills/_dream_enum.py`（某子代理的临时脚本落在 skills 根），
-  等那轮跑完再清（`T-006#B-001` 的判据里已含这条）。
+- 本轮 dream 的交付目标：`discord:1558166085080055878` 返回 **403 Missing Access**。原因是这个 id
+  **根本不在 `~/.hermes/channel_directory.json` 里**（bot 连看都看不见它，不是权限能修的事）。
+  2026-10-11 12:0x 已把 `52fe6cf3a3dc` 的 deliver 改成 `origin`（= 建这个 job 的 thread
+  `1558075006947426419`，bot 有权限）。想发别处一条命令：
+  `HERMES_HOME=/Users/maxim/.hermes hermes cron edit 52fe6cf3a3dc --deliver discord:<thread_id>`。
+  历史报告照旧直接读 `~/.hermes/cron/output/52fe6cf3a3dc/`。
+- 越界残留：`~/.hermes/profiles/dev-general/skills/_dream_enum.py`（某子代理的 skill 枚举脚本；它用
+  `__file__` 定位 skills 根，所以只能待在那个位置）。**没有任何东西会自动清它** —— 那轮跑完得手动 `rm`。
+  现在别删：run 还活着（12:00 仍有 2 个子代理在调工具），删了可能踩到正在用它的孩子。
