@@ -7,8 +7,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-001#B-001\n把 umbrella 合并的流程与判据写进 dream 方法（含三步 LEDGERED 顺序）\n\n`ready` · @-\n\n背景：自治维护已全局关闭——每轮复盘 fork 与周期 curator pass 都不再对 skill 做任何内容写入，curator 的 LLM 合并 pass（consolidate）也已关闭，所以「把窄 skill 簇合成类级 umbrella」这件事现在没有执行者。框架侧已核事实：合法合并只有三步 LEDGER"
+   "color": "0",
+   "text": "### T-001#B-001\n把 umbrella 合并的流程与判据写进 dream 方法（含三步 LEDGERED 顺序）\n\n`claimed` · @default\n\n背景：自治维护已全局关闭——每轮复盘 fork 与周期 curator pass 都不再对 skill 做任何内容写入，curator 的 LLM 合并 pass（consolidate）也已关闭，所以「把窄 skill 簇合成类级 umbrella」这件事现在没有执行者。框架侧已核事实：合法合并只有三步 LEDGER"
   },
   {
    "id": "T-001#B-002",
@@ -18,7 +18,7 @@
    "width": 300,
    "height": 110,
    "color": "1",
-   "text": "### T-001#B-002\n试点一簇真实候选：走完合并三步并回读（需人工点头）\n\n`blocked` · @-\n\n做法：挑一簇真实的 2+ 成员窄 skill 簇（同一类任务、agent-created / local），按 B-001 的三步走完：write_file 到 umbrella 的支持目录 → remove_file 源 → delete 源并带 absorbed_into=<umbrella>。注意：关掉的是自主写"
+   "text": "### T-001#B-002\n试点一簇真实候选：走完合并三步并回读（需人工点头）\n\n`blocked` · @default\n\n做法：挑一簇真实的 2+ 成员窄 skill 簇（同一类任务、agent-created / local），按 B-001 的三步走完：write_file 到 umbrella 的支持目录 → remove_file 源 → delete 源并带 absorbed_into=<umbrella>。注意：关掉的是自主写"
   }
  ],
  "edges": [
