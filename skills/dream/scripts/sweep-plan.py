@@ -94,7 +94,9 @@ def load_parser(override: str = "") -> tuple:
     if not override and not any(p.is_file() for p in cands):
         # 在 worktree 里开发时兄弟技能不在旁边（它只在 profile 里装好）——退回装好的那份，别让一轮卡在 S1
         for root in (HERMES_HOME, pathlib.Path.home() / ".hermes"):
+            # 两种布局都要认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后就长这样）
             cands += sorted(root.glob(f"skills/*/{PARSER_SKILL}/scripts/skill-index.py"))
+            cands += sorted(root.glob(f"skills/{PARSER_SKILL}/scripts/skill-index.py"))
     for p in cands:
         if p.is_file():
             spec = importlib.util.spec_from_file_location("_sweep_sibling_index", p)
@@ -176,6 +178,23 @@ def read_bundled(root: pathlib.Path) -> set:
             if ":" in ln}
 
 
+def pack_candidates(args) -> list:
+    """候选落点目录：优先 `--external-dirs` 的那份 JSON（每个目录自身或它的直接子目录），
+    否则退回老的 `--packs-root` 下 glob `AgentSkill-*`。"""
+    ext = getattr(args, "external_dirs", "") or ""
+    if ext:
+        data = json.loads(pathlib.Path(ext).expanduser().read_text())
+        out = []
+        for d in data.get("dirs", []):
+            p = pathlib.Path(d["path"]).expanduser()
+            if not p.is_dir():
+                continue
+            kids = [c for c in sorted(p.glob("*")) if c.is_dir() and not c.name.startswith(".")]
+            out += [p] if (p / "SKILL.md").is_file() else kids     # 目录自己就是技能 → 收它；否则收它的一层子目录
+        return out
+    return sorted(pathlib.Path(args.packs_root).expanduser().glob("AgentSkill-*"))
+
+
 def cmd_scan(args) -> int:
     root = profile_root(args.profile)
     mod, parser_path = load_parser(args.parser_script)
@@ -198,7 +217,7 @@ def cmd_scan(args) -> int:
         die(2, f"no profile-local skills in {root} — nothing to recruit")
 
     packs = []
-    for pack in sorted(pathlib.Path(args.packs_root).expanduser().glob("AgentSkill-*")):
+    for pack in pack_candidates(args):
         if not pack.is_dir():
             continue
         # A linked worktree of some other clone has `.git` as a FILE, not a directory: its name looks exactly
@@ -223,7 +242,8 @@ def cmd_scan(args) -> int:
                           installed=installed,
                           categories=sorted({p.split("/")[0] for p in installed.values() if p})))
     if not packs:
-        die(2, f"no AgentSkill-* checkout under {args.packs_root}")
+        die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
+               if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
     routable = [p for p in packs if not p["empty"]]
     if not routable:
         die(2, f"every AgentSkill-* under {args.packs_root} is a placeholder (no SKILL.md) — "
@@ -705,6 +725,8 @@ def main() -> int:
     s = sub.add_parser("scan", help="enumerate candidates + packs, freeze the judge input")
     s.add_argument("--profile", default="default", help="default = $HERMES_HOME, else profiles/<name>")
     s.add_argument("--packs-root", default="~/Documents/AgentSkill", help="where the AgentSkill-* checkouts live")
+    s.add_argument("--external-dirs", default="",
+                   help="DREAM_EXTERNAL_DIRS 那份 JSON：列出的目录（或它们的直接子目录）就是落点候选池")
     s.add_argument("--out", required=True, help="scratch dir: inventory.tsv / judge-input.json / packs.json")
     s.add_argument("--parser-script", default="", help="override the sibling skill-index.py path")
     s.add_argument("--repo-stem", default="", help=argparse.SUPPRESS)   # accepted, unused: kept for CLI stability

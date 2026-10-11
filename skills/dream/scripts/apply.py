@@ -46,6 +46,31 @@ def sh(cmd, cwd=None, check=False):
     return r
 
 
+def external_map(args) -> dict:
+    """`--external-dirs <json>` → {落点名: 目录}。清单里每个目录自身（是技能）或它的直接子目录都是一个落点名。"""
+    ext = getattr(args, "external_dirs", "") or ""
+    if not ext:
+        return {}
+    data = json.loads(pathlib.Path(ext).expanduser().read_text())
+    out = {}
+    for d in data.get("dirs", []):
+        p = pathlib.Path(d["path"]).expanduser()
+        if not p.is_dir():
+            continue
+        if (p / "SKILL.md").is_file():
+            out[d.get("name") or p.name] = p
+        else:
+            for kid in sorted(p.glob("*")):
+                if kid.is_dir() and not kid.name.startswith("."):
+                    out[kid.name] = kid
+    return out
+
+
+def pack_path(args, repo: str) -> pathlib.Path:
+    """落点目录：先查清单，再退回 --packs-root/<repo>。"""
+    return external_map(args).get(repo) or (pathlib.Path(args.packs_root).expanduser() / repo)
+
+
 def row_dest(r: dict) -> dict:
     """resolved.json 把 dest 摊平在顶层（repo/kind/dest_skill/action），别按嵌套读。"""
     if isinstance(r.get("dest"), dict):
@@ -130,7 +155,6 @@ def pack_gate(pack, items, args) -> tuple:
 
 def do_apply(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
-    root = pathlib.Path(args.packs_root).expanduser()
     rows = load_rows(d)
     only = set(args.only.split(",")) if args.only else None
     todo, manual, skipped = [], [], []
@@ -143,7 +167,7 @@ def do_apply(args) -> int:
             continue
         src = pathlib.Path(r["_src"])
         name = src.name
-        pack = root / dest["repo"]
+        pack = pack_path(args, dest["repo"])
         dst = pack / "skills" / name
         if dst.exists():
             skipped.append((r["id"], f"{dest['repo']}/skills/{name} 已存在（幂等跳过）"))
@@ -222,7 +246,7 @@ def do_apply(args) -> int:
 def do_taskbook(args) -> int:
     """把「要模型改正文」的行按包拼成可直接派的 writer 任务书（省掉主 run 手抄 10 份）。"""
     d = pathlib.Path(args.dir).expanduser()
-    root = pathlib.Path(args.packs_root).expanduser()
+    # taskbook：每包的 clone 路径同样先查清单（--external-dirs），再退回 --packs-root
     rows = load_rows(d)
     audit = {}
     ap = d / "audit.json"
@@ -243,7 +267,7 @@ def do_taskbook(args) -> int:
           f"- 要改正文的行 {len(man)} 条 · 涉及 {len(by_pack)} 个包 · 并发上限 10（>10 分包分波）",
           f"- 测试面：{'是（副本 + 禁 push）' if args.test else '否（真包，写入后要推）'}", ""]
     for repo, items in sorted(by_pack.items()):
-        pack = root / repo
+        pack = pack_path(args, repo)
         md += [f"## {repo}（{len(items)} 行）", "", f"clone：`{pack}`", ""]
         for r, dest in items:
             a = audit.get(r["id"], {})
@@ -271,7 +295,6 @@ def do_taskbook(args) -> int:
 
 def do_verify(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
-    root = pathlib.Path(args.packs_root).expanduser()
     rows = load_rows(d)
     only = set(args.only.split(",")) if args.only else None
     checks = json.loads((d / "apply-report.json").read_text())["results"] if (d / "apply-report.json").exists() else []
@@ -283,7 +306,7 @@ def do_verify(args) -> int:
         if r["id"] not in written:
             continue
         dest = row_dest(r)
-        pack = root / dest["repo"]
+        pack = pack_path(args, dest["repo"])
         name = pathlib.Path(r["_src"]).name
         dir_ok = (pack / "skills" / name / "SKILL.md").is_file()
         rev = sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack))
@@ -418,6 +441,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["apply", "verify", "install", "retire", "taskbook"])
     ap.add_argument("--dir")
+    ap.add_argument("--external-dirs", default="",
+                    help="DREAM_EXTERNAL_DIRS 那份 JSON（落点名 → 目录的映射就来自它）")
     ap.add_argument("--packs-root", default="~/Documents/AgentSkill")
     ap.add_argument("--profile", default="default")
     ap.add_argument("--only", default="", help="逗号分隔的 P id")

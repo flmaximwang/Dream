@@ -15,7 +15,9 @@ SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 # scan 要一个兄弟技能里的解析器；在 worktree 里开发时它不在旁边，就退回 profile 里装好的那份。
 PARSER="$SKILL_DIR/../load-external-skill-index/scripts/skill-index.py"
-[ -f "$PARSER" ] || PARSER=$(ls "$HOME/.hermes/skills"/*/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
+# 两种布局都认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后会长成后者）
+[ -f "$PARSER" ] || PARSER=$(ls "$HOME/.hermes/skills"/*/load-external-skill-index/scripts/skill-index.py \
+                                 "$HOME/.hermes/skills"/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
 if [ ! -f "$PARSER" ]; then echo "[round] 找不到 load-external-skill-index 的 skill-index.py（scan 的兄弟依赖）" >&2; exit 2; fi
 
 profile=default
@@ -38,8 +40,18 @@ done
 mkdir -p "$out"
 stages="$out/stages.tsv"
 
+# 落点池：正式轮来自 .env 的 DREAM_EXTERNAL_DIRS（一份本地 JSON，脚本 external-dirs.py 管它）；
+# 测试轮仍走 AgentSkill-copy 那份一次性副本。路径不写死在脚本里。
+ext="${DREAM_EXTERNAL_DIRS:-}"
+if [ -z "$ext" ]; then
+  ext=$(grep -m1 '^DREAM_EXTERNAL_DIRS=' "$HOME/.hermes/.env" 2>/dev/null | cut -d= -f2-)
+fi
+ext="${ext/#\~/$HOME}"
+[ -f "$ext" ] || ext=""
+
 if [ "$mode" = test ]; then
   packs="$HOME/Documents/AgentSkill-copy"
+  loc_arg=(--packs-root "$packs")
   apply_extra=(--no-push)
   if [ ! -d "$packs" ] && [ $plan_only -eq 0 ]; then
     echo "[round] 测试轮要先建副本并摘掉远端："
@@ -48,7 +60,13 @@ if [ "$mode" = test ]; then
     exit 2
   fi
 else
-  packs="$HOME/Documents/AgentSkill"
+  packs=""
+  if [ -z "$ext" ]; then
+    echo "[round] 正式轮要落点池：把 DREAM_EXTERNAL_DIRS=<本地 JSON> 写进 ~/.hermes/.env（首次生成：\n" \
+         "        $PY -B $SKILL_DIR/scripts/external-dirs.py init）" >&2
+    exit 2
+  fi
+  loc_arg=(--external-dirs "$ext")
   apply_extra=()
 fi
 
@@ -75,31 +93,31 @@ summary() {
   local cached; cached=$(grep -c cached "$out"/*.log 2>/dev/null | awk -F: '{s+=$2}END{print s+0}')
   echo "[round] 机械阶段合计 ${total}s（预算 1200s）；含缓存命中 ${cached} 处（>0 时这一轮的时间不作数）"
   echo "[round] 仍要模型做：merge/strengthen 行的正文改写（按包派 writer，并发上限 10）："
-  echo "        $PY -B $SKILL_DIR/scripts/apply.py taskbook --dir $out --packs-root $packs${mode:+ }$( [ "$mode" = test ] && echo --test)"
+  echo "        $PY -B $SKILL_DIR/scripts/apply.py taskbook --dir $out ${loc_arg[*]}${mode:+ }$( [ "$mode" = test ] && echo --test)"
   echo "        → 生成 $out/writers.md（每包一段可直接派的任务书）；回执要求见 references/dream-agent-roster.md"
 }
 
 if [ $plan_only -eq 1 ]; then
   cat <<EOF
-[round] mode=$mode profile=$profile packs=$packs out=$out
-  S1 枚举      sweep-plan.py scan   --profile $profile --out $out --packs-root $packs
+[round] mode=$mode profile=$profile 落点池=$([ "$mode" = test ] && echo "$packs" || echo "$ext") out=$out
+  S1 枚举      sweep-plan.py scan   --profile $profile --out $out ${loc_arg[*]}
   S2 判官      judge.py             --dir $out --chunk-bytes 140000 --workers 2
   S3 交叉审计  audit.py             --dir $out
   S4 决议      sweep-plan.py merge  --dir $out --profile $profile
-  S5 写入      apply.py apply       --dir $out --packs-root $packs ${apply_extra[*]:-（真推）}
-  S6 验证      apply.py verify      --dir $out --packs-root $packs
+  S5 写入      apply.py apply       --dir $out ${loc_arg[*]} ${apply_extra[*]:-（真推）}
+  S6 验证      apply.py verify      --dir $out ${loc_arg[*]}
   $([ "$mode" = test ] && echo "  S7/S8        测试轮跳过（不 install、不 retire）" || echo "  S7 重装      apply.py install --dir $out
   S8 退役      apply.py retire  --dir $out --backup ~/.hermes/backups/dream-retire")
 EOF
   exit 0
 fi
 
-run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" --packs-root "$packs" --parser-script "$PARSER"
+run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" "${loc_arg[@]}" --parser-script "$PARSER"
 run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out" --chunk-bytes 140000 --workers 2
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
 run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile"
-run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" --packs-root "$packs" "${apply_extra[@]+"${apply_extra[@]}"}"
-run "S6 验证"      "$PY" -B "$SKILL_DIR/scripts/apply.py" verify --dir "$out" --packs-root "$packs"
+run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"
+run "S6 验证"      "$PY" -B "$SKILL_DIR/scripts/apply.py" verify --dir "$out" "${loc_arg[@]}"
 if [ "$mode" = formal ]; then
   run "S7 重装"    "$PY" -B "$SKILL_DIR/scripts/apply.py" install --dir "$out"
   run "S8 退役"    "$PY" -B "$SKILL_DIR/scripts/apply.py" retire --dir "$out" --backup "$HOME/.hermes/backups/dream-retire"
