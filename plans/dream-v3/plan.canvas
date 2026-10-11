@@ -99,6 +99,16 @@
    "height": 110,
    "color": "0",
    "text": "### T-006#B-001\n推送 + 重装 + 回读\n\n`waiting` · @-\n\ngit push origin <sha>:main；hermes skills install/update flmaximwang/Dream/skills/dream 与 dream-hermes-routing（用 default profile 的已装版本做回读）。"
+  },
+  {
+   "id": "T-006#B-002",
+   "type": "text",
+   "x": 1060,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "1",
+   "text": "### T-006#B-002\n收尾：合并后清理工作树（Dream 仓库）\n\n`blocked` · @-\n\nDream 开发完成、dream-v3 与主 clone 上别人的提交合并之后：把 worktree 清掉并让主 clone 干净——git -C <主 clone> worktree remove <worktree 路径>；git -C <主 clone> branch -d dream-v3；git -C <主 "
   }
  ],
  "edges": [
@@ -151,6 +161,15 @@
    "id": "e5",
    "fromNode": "T-005#B-001",
    "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e6",
+   "fromNode": "T-006#B-001",
+   "toNode": "T-006#B-002",
    "fromSide": "right",
    "toSide": "left",
    "label": "",

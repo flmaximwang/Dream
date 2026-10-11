@@ -2,12 +2,13 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/10 块（60%） · 状态 `active` · 更新于 2026-10-11 15:47
+**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 15:55
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
+- `T-006#B-002` **收尾：合并后清理工作树（Dream 仓库）** — 待批准 · @未指派
 - `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @default · 在做 @default
 - `T-004#B-002` **主 run 上下文瘦身** — 进行中 · @default · 在做 @default
 
@@ -25,18 +26,22 @@ flowchart LR
   T-004_B-003["B-003 S3 交叉审计降本：不再每条重叠行一个子代理"]
   T-005_B-001["B-001 20 分钟验收：default + deepseek-flash 跑一轮"]
   T-006_B-001["B-001 推送 + 重装 + 回读"]
+  T-006_B-002["B-002 收尾：合并后清理工作树（Dream 仓库）"]
   T-001_B-002 --> T-002_B-001
   T-001_B-002 --> T-003_B-001
   T-002_B-001 --> T-004_B-001
   T-003_B-002 --> T-004_B-001
   T-004_B-003 --> T-005_B-001
   T-005_B-001 --> T-006_B-001
+  T-006_B-001 --> T-006_B-002
   classDef done stroke-width:1px;
   class T-001_B-001,T-001_B-002,T-002_B-001,T-003_B-001,T-003_B-002,T-004_B-003 done;
   classDef running stroke-width:1px;
   class T-004_B-001,T-004_B-002 running;
   classDef waiting stroke-width:1px;
   class T-005_B-001,T-006_B-001 waiting;
+  classDef blocked stroke-width:1px;
+  class T-006_B-002 blocked;
 ```
 
 ## 任务
@@ -129,10 +134,14 @@ flowchart LR
     - 做什么：git push origin <sha>:main；hermes skills install/update flmaximwang/Dream/skills/dream 与 dream-hermes-routing（用 default profile 的已装版本做回读）。
     - 判据：推送 sha 与 origin/main 回读一致；hermes skills list 里两条都在；lock.json 的 identifier 指向 flmaximwang/Dream/skills/<名>。
     - 依赖：T-005#B-001（任务级）
+- [ ] `T-006#B-002` **收尾：合并后清理工作树（Dream 仓库）** _impl_ — 待批准
+    - 做什么：Dream 开发完成、dream-v3 与主 clone 上别人的提交合并之后：把 worktree 清掉并让主 clone 干净——git -C <主 clone> worktree remove <worktree 路径>；git -C <主 clone> branch -d dream-v3；git -C <主 clone> worktree prune。不许在 worktree 里切 main（那是包仓库规则里的坑），只从主 clone 侧清理。
+    - 判据：贴三条命令与输出：worktree remove、branch -d、git worktree list（不再有 Dream.wt-v3）；主 clone 的 git status --porcelain 干净（除了别人的在途改动，若有要说明）。
+    - 依赖：T-006#B-001
+    - 依赖：T-005#B-001（任务级）
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:41` **agent** [decision] 判官路径第一版跑通（99/99，166s），但 merge 拒收 10 行 → 两个真缺陷，都已修：① 每块的中间产物我命名成 verdicts-chunk-*.jsonl，正好被 merge 的 verdicts*.jsonl 通配吃掉 ⇒ 变成 109 条重复 verdict（exit 4）；改名 judge-verdicts-chunk-*.jsonl。② 判官题面只给了 290 个目录名、没给**各目录的现有技能清单**，于是 merge/strengthen 的 dest_skill 被它编出来（如 AgentSkill-ObsidianManagement 下的 relayer-clc-classification-paths）⇒ 10 行被拒。改成 dest_space()：工具/主题轴 + 每个非空目录的现有技能名（18.8KB），并在题面写明「dest_skill 必须是列出的名字之一，没有就退回 move + __new__」。另加一道缓存闸：断点续跑要求 prompt sha 逐字节相同，改了题面不会被旧回复静默复用。当前改完题面重判中（proc_aa397cad76da）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-002: pending → done（merge exit 0（覆盖率 100%，无 exit 4）：plan.md 43KB / resolved.json / install-cmds.sh 生成；命中 16 个包、拟建 12 个新包（只报不建）。99 条里 existing 86 / new 13，action move 75 / merge 11；15 条 confidence<0.6 进 S3 复核队列。）
 - `2026-10-11 14:47` **agent** [decision] T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）
@@ -152,6 +161,7 @@ flowchart LR
 - `2026-10-11 15:37` **agent** [status] T-004#B-003: running → done（选定做法＝①+②合体：claims 随 S2 同一批返回（判官只抄串、脚本负责证明），audit.py grep 出接收侧 file:line。实测（default profile 全量 99 候选 / 25 条重叠行）：S3 = 0 次 LLM 调用、wall 1.5s、160 条 claims、already-there 38 条带 file:line（如 SKILL.md:44、references/install-a-hermes-plugin-dependency-resolution.md:12）、落点不存在 0、全净新增 10 行（都是 merge，正常形状）。v2 同批要 25 个只读子代理（每条重叠行一个）。形状复核：P1 用 v2 的做法手工做了一遍（源侧抄出 7 条旗标=判官 claims 全对，接收侧逐条 grep），与 audit.py 判定逐条一致（1 命中/6 净新增）。）
 - `2026-10-11 15:47` **agent** [status] T-004#B-002: pending → running（文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。）
 - `2026-10-11 15:47` **agent** [assign] T-004#B-002 指派给 default（本会话在做）
+- `2026-10-11 15:55` **agent** [block] 新增块 T-006#B-002「收尾：合并后清理工作树（Dream 仓库）」
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
