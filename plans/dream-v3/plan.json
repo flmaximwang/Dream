@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T14:02:10+08:00",
+  "updated_at": "2026-10-11T14:05:59+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -61,7 +61,7 @@
           "id": "T-001#B-002",
           "title": "旧流程逐阶段耗时归因",
           "kind": "research",
-          "status": "pending",
+          "status": "done",
           "owner": "",
           "doc": "取 2026-10-11 两轮实测（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完）＋ plans/dream-perf 的 T-001/T-002/T-004/T-006/T-008/T-009 结论，写成 docs/baseline-v2.md：逐阶段（枚举/判官/审计/写入/验证/重装/退役）的实测耗时与主因，标出哪几条在 v3 被砍掉或被脚本化。",
           "input": "",
@@ -70,13 +70,23 @@
           "done_when": [
             "docs/baseline-v2.md 有逐阶段表（阶段 / 实测耗时或证据 / 主因 / v3 处置），每行带证据路径（如 plans/dream-perf/evidence/rounds.jsonl 的行时间戳）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "docs/baseline-v2.md"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T13:53:45+08:00",
-          "runs": []
+          "status_since": "2026-10-11T14:05:59+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T14:05:59+08:00",
+              "by": "default",
+              "from": "pending",
+              "to": "done",
+              "note": "逐阶段归因表落盘：两轮实测（04:00 轮 4h50m 失败 = 子代理等模型响应 15910.8s 被中断；09:07 轮 ≥4h57m 未完）；S1–S8 每阶段的主因与 v3 处置；三条横切（provider 流断 / 环境目录被回收 / cron 审批闸）。基线暴露一个缺口：S3 交叉审计在 v2 里是每行一个子代理，v3 还没有降本块 —— 已补 T-004#B-003。commit 在分支 dream-v3。"
+            }
+          ]
         }
       ],
       "note": "",
@@ -239,6 +249,27 @@
           "feedback": "",
           "exec": {},
           "status_since": "2026-10-11T13:53:45+08:00",
+          "runs": []
+        },
+        {
+          "id": "T-004#B-003",
+          "title": "S3 交叉审计降本：不再每条重叠行一个子代理",
+          "kind": "impl",
+          "status": "pending",
+          "owner": "",
+          "doc": "v2 的 S3 对「落点=已有技能」的每一行派一个只读子代理（第二次扇出）。20 分钟目标下这一步要降本，候选做法（要拿实测选，不许拍脑袋）：①把已证明重叠的行并进判官同一批调用；②先用脚本按 claim 逐条 grep 出候选命中，再只对命中行做一次批量判断；③合并成 1–2 个子代理分块处理。判据：本轮 S3 的 wall 与调用数要落进 20 分钟预算，且 already-there / net-new 两张清单的证据格式（接收侧 file:line）不变。",
+          "input": "",
+          "output": "",
+          "command": "",
+          "done_when": [
+            "贴选定的做法 + 本轮 S3 的实测 wall 与 LLM 调用数；同一批重叠行在降本前后各出一份清单，形状一致（接收侧 file:line 齐全）。"
+          ],
+          "artifacts": [],
+          "deps": [],
+          "review_of": "",
+          "feedback": "",
+          "exec": {},
+          "status_since": "2026-10-11T14:05:59+08:00",
           "runs": []
         }
       ],
@@ -460,7 +491,21 @@
       "kind": "status",
       "text": "T-002#B-001: done → done（第二条证据：边界节新增「技能库/pack 的整理与优化（合并/umbrella/副本清退/无类目归位）→ SkillWeave」，文档树与 Support files 同步为 S1–S8。）",
       "ref": "T-002#B-001"
+    },
+    {
+      "at": "2026-10-11T14:05:59+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-002: pending → done（逐阶段归因表落盘：两轮实测（04:00 轮 4h50m 失败 = 子代理等模型响应 15910.8s 被中断；09:07 轮 ≥4h57m 未完）；S1–S8 每阶段的主因与 v3 处置；三条横切（provider 流断 / 环境目录被回收 / cron 审批闸）。基线暴露一个缺口：S3 交叉审计在 v2 里是每行一个子代理，v3 还没有降本块 —— 已补 T-004#B-003。commit 在分支 dream-v3。）",
+      "ref": "T-001#B-002"
+    },
+    {
+      "at": "2026-10-11T14:05:59+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "新增块 T-004#B-003「S3 交叉审计降本：不再每条重叠行一个子代理」",
+      "ref": "T-004#B-003"
     }
   ],
-  "rev": "22587ec5ecbf"
+  "rev": "c5c85b93a243"
 }
