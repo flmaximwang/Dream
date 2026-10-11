@@ -36,9 +36,13 @@ RULES = """你是 dream 批次（把「没有仓库归属」的本地技能收�
 4. `dest_skill` 填 `__new__`（表示在这条目录下新增一个技能）；`action` 三选一：move（整条迁进包）/
    merge（内容并进 dest_skill 指的已有技能）/ strengthen（两边各加界限声明）。
 5. 拿不准（两轴相邻、或与已有技能高度重叠）时：照常给落点，把疑问写进 why，confidence 给低值。
+6. **落点=已有技能**（`dest_skill` ≠ `__new__`，即 action=merge/strengthen）的行还要回 `claims`：
+   从候选正文里**逐字抄** 3–8 条短串（表头 / 命令旗标 / 源路径 / 实测数字），是「若接收方已覆盖就该在那儿出现」的东西。
+   这些串会被脚本拿去做 `grep -n`，命中与否就是 already-there / net-new 的证据 —— 抄错一个字等于判错。
 
 输出格式：**只输出 JSONL**，一条候选一行，不要解释、不要 markdown 代码围栏。每行形状：
 {"id":"P12","dest":{"kind":"existing","repo":"AgentSkill-UsingPyMOL","dest_skill":"__new__","action":"move"},"why":"…","evidence":"正文：「…」","confidence":0.87}
+{"id":"P23","dest":{"kind":"existing","repo":"AgentSkill-UsingGit","dest_skill":"investigate-git-history","action":"merge"},"claims":["git log -S","git blame -w"],"why":"…","evidence":"…","confidence":0.6}
 {"id":"P31","dest":{"kind":"new","axis":"topic","topic":"RunningLocalBatches","personal":true,"boundary":"不吃常驻服务与 cron"},"why":"…","evidence":"…","confidence":0.8}
 """
 
@@ -154,6 +158,14 @@ def parse_verdicts(raw: str, want: list, model: str) -> tuple:
         if not str(v.get("evidence") or "").strip():
             bad.append(f"{v['id']}: 空 evidence（只凭 name/desc 的判法不算数）")
             continue
+        if d.get("kind") == "existing" and d.get("dest_skill") != "__new__":
+            cl = [c.strip() for c in (v.get("claims") or []) if isinstance(c, str) and 2 <= len(c.strip()) <= 120]
+            if not cl:
+                bad.append(f"{v['id']}: 落点=已有技能但缺 claims（S3 靠它 grep 出 file:line，不再派子代理）")
+                continue
+            v["claims"] = cl[:8]
+        else:
+            v.setdefault("claims", [])
         v.setdefault("source", "deepseek")
         v["model"] = model
         v.setdefault("why", "")
