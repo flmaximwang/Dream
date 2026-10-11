@@ -942,6 +942,18 @@ def self_test() -> int:
         assert dir_fingerprint(_mi, _d) != _f1, "内容一变指纹必须变"
         (_d / "references" / "x.md").write_text("y\n"); (_d / "new.md").write_text("n\n")
         assert dir_fingerprint(_mi, _d) != _f1, "多一个文件指纹也要变"
+    # 15 态表自检：A(2)×B(2)×C(2)×D(2)=16，减去「无所有者时 D 坍缩」那 1 格 → 恰好 15
+    _keys = {(a, b, c, d) for a in ("local", "third") for b in ("no", "yes")
+             for c in ("no", "yes") for d in ("same", "differs", "fold")}
+    # 「无所有者 ⇔ D 必须是 fold」——两个方向都要卡：没有可比者时不许出现 same/differs，
+    # 有可比者时也不许用 fold 偷懒
+    _valid = {k for k in _keys if (k[3] == "fold") == (k[0] == "local" and k[1] == "no" and k[2] == "no")}
+    assert _valid == set(STATE_ACTIONS), sorted(_valid ^ set(STATE_ACTIONS))
+    assert len(_valid) == 15, len(_valid)
+    # general agent：去掉 A 轴 → B(2)×C(2)×D(3) 减去同一处坍缩 = 7
+    _g = {(b, c, d) for b in ("no", "yes") for c in ("no", "yes") for d in ("same", "differs", "fold")}
+    _gv = {k for k in _g if (k[2] == "fold") == (k[0] == "no" and k[1] == "no")}
+    assert len(_gv) == 7, len(_gv)
     print("[sweep-plan] self-test OK")
     return 0
 
