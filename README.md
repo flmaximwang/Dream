@@ -14,6 +14,7 @@
 | `skills/dream-hermes-routing/` | Hermes 适配技能（profile 容器判据 / `hermes skills` 安装命令 / JEV 判官接线） |
 | `plans/dream-perf/` | 执行效率优化计划（2026-10-11 实测基线驱动：上下文瘦身 / 回合数压缩 / 两条硬事实 / 按 profile 拆批） |
 | `plans/dream-upgrade/` | 本项目开发的 loomerto 计划（**计划持久化在项目里**，随项目一起提交） |
+| `plans/skill-library-stewardship/` | skill 库结构化整理（归类 / 合并 / umbrella-building）由 dream 接管——自治维护已全局关闭之后的执行者 |
 | `docs/acceptance.md` | 验收清单（每条要求 → 判据 → 实测命令与输出） |
 
 ## 安装
