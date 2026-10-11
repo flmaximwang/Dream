@@ -1,0 +1,155 @@
+{
+ "nodes": [
+  {
+   "id": "T-001#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-001#B-001\n复现 dream-v3#T-002#B-001 的 done_when：哪几条现在不成立\n\n`claimed` · @dream-dev\n\n【背景】plans/dream-v3 的 T-002#B-001「删除 S9/S10 并改边界节」状态是 done，它的 done_when 写的是「三处文件（SKILL.md / references/dream-method.md / README.md）不再有 S9/S10 的步骤定义」「sweep-plan.p"
+  },
+  {
+   "id": "T-002#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-001\n删 `skills/dream/SKILL.md` 的 S9/S10 两节，改成一行转指\n\n`claimed` · @dream-dev\n\n删掉 :110-115（S9 全库去重 + 无类目归位，含 `sweep-plan.py dedupe --fix-no-category --backup` 那条命令）与 :117-122（S10 合并/umbrella 三步 LEDGERED 顺序）。原位留**一行**：「包内结构整理（去重 / 归位 / 合并 /"
+  },
+  {
+   "id": "T-002#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 300,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-002\n`sweep-plan.py` 删掉 `dedupe` 子命令（含 --fix-no-category 与它的自检）\n\n`claimed` · @dream-dev\n\ndedupe 是 S9 的机械半身：它会 `git mv` 无类目技能、按 SKILL.md 相同直接删 local —— 正是移交出去的动作。删子命令与其自检；`scan` / `merge` 保留（那两条是 dream 自己的收编流程）。若 dedupe 里有 dream 还要用的读能力（例如「列出无类目技能」），"
+  },
+  {
+   "id": "T-002#B-003",
+   "type": "text",
+   "x": 40,
+   "y": 430,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-003\n改 `dream-hermes-routing` 里指向 S10 的转指\n\n`claimed` · @dream-dev\n\n`skills/dream-hermes-routing/SKILL.md:40` 写着「方法本体在 `skills/dream` 的『合并 / umbrella』一节（S10）」。S10 一删这句就成悬空转指。改成指向 SkillWeave 的契约文件（写死路径与仓库），或删掉这句。"
+  },
+  {
+   "id": "T-002#B-004",
+   "type": "text",
+   "x": 40,
+   "y": 560,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-004\n`check-disclosure.py` 与 README 的长度/披露常量一并移交\n\n`claimed` · @dream-dev\n\n`check-disclosure.py` 量的是**单个 skill 目录与 pack 第一层**（MAX_SKILL_LINES / MAX_SKILL_BYTES / MAX_DOC_BYTES / MAX_FIRST_LAYER）—— 全是 repo 形状，不是 profile。整体移交：删脚本或改成指向 Sk"
+  },
+  {
+   "id": "T-002#B-005",
+   "type": "text",
+   "x": 40,
+   "y": 690,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-005\n`docs/scope.md` §① 与 README 边界表改成「已移交」并写死 SkillWeave 入口\n\n`claimed` · @dream-dev\n\nscope.md 现在写的是「删除 S9、S10 … SkillWeave 项目接手这件事」—— 措辞要改成**已完成交接**，并写清三件事：① 移交的动作清单（去重 / 无类目归位 / 合并 umbrella / 正文下沉 / description 改写）；② SkillWeave 的位置（repo URL + `"
+  },
+  {
+   "id": "T-003#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 820,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-001\nS7 装前的总量闸门：装完后 profile 技能总数 ≤ 120（MAX_AGENT_SKILLS）\n\n`claimed` · @dream-dev\n\n现在 MAX_AGENT_SKILLS=120 只是常量表里的一个数，没人拿它挡动作。改成**装前闸门**：整包重装前先算「本次要装的技能数 + 现有数量」，超过 120 就**不装**、把差额与候选清单写进汇报。这条只有 dream 能做（它才看得到 profile），也正是它能把数字顶上去的动作。"
+  },
+  {
+   "id": "T-003#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 950,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-002\nS7 装后的形状断言：每个技能都在类目下 + local = 0\n\n`claimed` · @dream-dev\n\n「无类目」是缺陷的**判定**在 profile 侧（修法在仓库侧，属 SkillWeave，见 T-002#B-001 的转指）。装完回读时断言：① 装进来的每个技能路径都形如 `skills/<类目>/<name>/`；② profile 里 local 技能为 0（保留现有 `not_in_pack > 0 → "
+  },
+  {
+   "id": "T-003#B-003",
+   "type": "text",
+   "x": 40,
+   "y": 1080,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-003\n常量表只留 profile 侧那一个，并注明口径不重复实现\n\n`claimed` · @dream-dev\n\nS9/S10 删掉后，SKILL.md 的「分层披露与长度上限」表里应只剩 `MAX_AGENT_SKILLS 120`（profile 级），其余四条（行数/字节/doc 字节/第一层）在 T-002#B-004 里已移交。表下加一句：「包内形状一律由 SkillWeave 量（repo 侧唯一实现），dream 不"
+  },
+  {
+   "id": "T-004#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 1210,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-001\n产物里记 `input_commit` + 输入文件 digest；上游变了就标 stale\n\n`claimed` · @dream-dev\n\n理由（外部 review 的原话）：三个工具都在改同一批文件、却各自只在动手前量一次 —— 上游一动，下游的结论就作废，而工具自己不知道手上的是旧结论。落地：dream 的产物（`sweep-plan.py` 的 plan.md / 汇报 / 台账）里记下**评估时的 pack 仓库 HEAD**（每个包一条）+ 输入"
+  },
+  {
+   "id": "T-004#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 1340,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-002\nSKILL.md 写明固定顺序与「不许越上游改同一对象」\n\n`claimed` · @dream-dev\n\n顺序：**dream 收编（跨包归属）→ SkillWeave 分层（包内结构）→ darwin 磨 description（单技能效果）**。同一个对象上，下游不许越过上游改（例：skillweave 改完路径后，dream 的落点映射若没重算就是 stale，而 darwin 更不该在路径还在变的时候改 descr"
+  },
+  {
+   "id": "T-005#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 1470,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-005#B-001\n`skill-library-stewardship` 与本次移交冲突：改口径或作废\n\n`claimed` · @dream-dev\n\nplans/skill-library-stewardship 的 T-001#B-001（**done**）是「把 umbrella 合并的流程与判据写进 dream 方法」，标题即「skill 库结构化整理：由 dream 接管」—— 与本次移交**方向相反**；它的 T-001#B-002（试点一簇真实候选走完合"
+  },
+  {
+   "id": "T-005#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 1600,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-005#B-002\n按 T-001 的判定改 `dream-v3#T-002#B-001` 的状态\n\n`claimed` · @dream-dev\n\nT-001 如果判「误标 / 部分完成」，就把 dream-v3#T-002#B-001 从 done 改回能反映现实的档位（并在它的 note 里写清剩下的活是哪几件，别让下一个人以为已经干净）。判「回归」就在该块记回归证据。"
+  },
+  {
+   "id": "T-006#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 1730,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-006#B-001\n在 AgentSkill-copy 上跑一轮无人值守，四条断言全过\n\n`claimed` · @dream-dev\n\n按已定口径用测试副本（`~/Documents/AgentSkill-copy`，各仓 origin 已移除），跑一轮 S1–S8。四条断言：① `grep -rn 'S9\\|S10' skills/ docs/ README.md` 只在 scope.md 的「已移交」段出现；② `sweep-plan.py --h"
+  },
+  {
+   "id": "T-006#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 1860,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-006#B-002\n独立子代理复核（不许自己验自己）\n\n`claimed` · @dream-dev\n\n派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。"
+  }
+ ],
+ "edges": []
+}
