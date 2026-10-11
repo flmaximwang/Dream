@@ -195,6 +195,37 @@ def pack_candidates(args) -> list:
     return sorted(pathlib.Path(args.packs_root).expanduser().glob("AgentSkill-*"))
 
 
+def sibling_module(filename: str):
+    """同目录的兄弟脚本当模块用（复用它的逻辑，不 copy）。"""
+    here = pathlib.Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location("_dream_sib_" + filename.replace("-", "_").replace(".", "_"),
+                                                  here / filename)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def prescreen(args, packs, local) -> None:
+    """S1 预筛（口径 2026-10-11，用户拍板）：profile 技能只要**在外部仓库里找得到**（AgentSkills 那些包），
+    或**Skills-Manager 管着**，就算已装 —— 不进候选、不判落点。两边都没有的才是候选。
+    三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。"""
+    mirror = sibling_module("skill-mirror.py")
+    index = mirror.build_index([p["path"] for p in packs], [])
+    try:
+        rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
+        managed = {s.get("name", "") for s in rows if s.get("name")}
+    except SystemExit:                      # CLI 不在/报错都不该让一轮挂掉
+        managed = set()
+    for r in local:
+        if r["name"] in managed:
+            r["verdict"], r["matched"] = "managed", "skills-manager"
+            continue
+        c = mirror.classify(r["_md"].parent, index)
+        r["verdict"] = c["verdict"]
+        r["matched"] = c["matches"][0] if c["matches"] else ""
+    return None
+
+
 def cmd_scan(args) -> int:
     root = profile_root(args.profile)
     mod, parser_path = load_parser(args.parser_script)
@@ -244,6 +275,8 @@ def cmd_scan(args) -> int:
     if not packs:
         die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
+    prescreen(args, packs, local)
+    cands = [r for r in local if r["verdict"] == "local"]
     routable = [p for p in packs if not p["empty"]]
     if not routable:
         die(2, f"every AgentSkill-* under {args.packs_root} is a placeholder (no SKILL.md) — "
@@ -252,8 +285,9 @@ def cmd_scan(args) -> int:
     out = pathlib.Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     (out / "inventory.tsv").write_text(
-        "kind\tcategory\tname\tno_category\tdir\tdesc\n" + "".join(
-            f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t{r['dir']}\t{r['desc'][:200]}\n"
+        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tdesc\n" + "".join(
+            f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t"
+            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r['desc'][:200]}\n"
             for r in rows), encoding="utf-8")
     # Frozen judge input: one P<k> per candidate, script-generated so that no hand transcription can drift
     # from what the judges were actually asked (the pack's own judge lesson). v2 carries the absolute path so
@@ -261,7 +295,7 @@ def cmd_scan(args) -> int:
     # for judges that only ever see a string (chunked API judge), so both routes see the same full document.
     bodies = {}
     judge_input = []
-    for i, r in enumerate(local, 1):
+    for i, r in enumerate(cands, 1):
         md = r["_md"]
         refs = sorted(str(p.relative_to(md.parent)) for p in md.parent.rglob("*")
                       if p.is_file() and p.name != "SKILL.md" and "__pycache__" not in p.parts)
@@ -315,9 +349,21 @@ def cmd_scan(args) -> int:
           f"pack_skills={sum(len(p['skills']) for p in routable)} pack_index_est_tokens~{idx_chars // 2}")
     print(f"[sweep-plan] dest_space={len(packs)} 个目录名（tool {len([p for p in packs if p['repo'].startswith(TOOL_PREFIX)])}"
           f" + topic {len([p for p in packs if not p['repo'].startswith(TOOL_PREFIX)])}）→ answer-space.json")
-    n_nocat = sum(1 for r in local if r["no_category"])
-    print(f"[sweep-plan] no_category={n_nocat}（local skill 直接躺在 skills/ 下，没有类目层——本批必须一并补齐）")
-    print(f"[sweep-plan] candidates={len(local)} judge_input={out / 'judge-input.json'} "
+    n_nocat = sum(1 for r in cands if r["no_category"])
+    pre = {v: sum(1 for r in local if r["verdict"] == v) for v in ("homed", "drift", "managed", "local")}
+    (out / "prescreen.json").write_text(json.dumps(dict(
+        counts=pre,
+        rules="外部仓库里找得到（AgentSkills 各包，同名同内容=homed / 内容不同=drift）或 Skills-Manager 管着（managed）"
+              " = 已装，不进候选；两边都没有（local）才判落点",
+        homed=[r["name"] for r in local if r["verdict"] == "homed"],
+        drift=[dict(skill=r["name"], external=r["matched"]) for r in local if r["verdict"] == "drift"],
+        managed=[r["name"] for r in local if r["verdict"] == "managed"],
+        candidates=[dict(skill=r["name"], category=r["category"], no_category=r["no_category"]) for r in cands],
+    ), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
+          f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
+    print(f"[sweep-plan] no_category={n_nocat}（候选里直接躺在 skills/ 下、没有类目层的）")
+    print(f"[sweep-plan] candidates={len(cands)} judge_input={out / 'judge-input.json'} "
           f"({(out / 'judge-input.json').stat().st_size} B) bodies={(out / 'judge-input-bodies.json').stat().st_size} B "
           f"parser={parser_path}")
     print(f"[sweep-plan] 判官必须读每条 P<k> 的 skill_md 全文（judge-input.json 给了绝对路径；只吃文本的判官用 "
