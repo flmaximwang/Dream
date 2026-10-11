@@ -90,6 +90,7 @@ def probe(home, session):
         "bombs": bombs, "kids": len(kids), "kids_calls": k_calls, "kids_tools": k_tools,
         "kids_prompt_per_call_k": round(k_prompt / k_calls / 1000, 1) if k_calls else 0,
         "kids_wall_min": round(k_wall, 1), "leaks": leaks,
+        "errors": recent_provider_errors(home), "env_touched": env_dir_touched(home),
     }
     m["verdict"] = verdict(m)
     return m
@@ -117,8 +118,49 @@ def scan_leaks(home):
     return out
 
 
+def recent_provider_errors(home, minutes=15):
+    """最近 N 分钟的 provider/环境类错误计数。地基塌陷（环境目录被回收）表现为
+    API call failed + FileNotFoundError，而不是延时变大 —— 只看延时会完全错过。"""
+    log = os.path.join(home, "logs", "gateway.error.log")
+    out = {"api_failed": 0, "provider_down": 0, "filenotfound": 0}
+    if not os.path.exists(log):
+        return out
+    with open(log, "rb") as f:
+        f.seek(0, 2)
+        f.seek(max(0, f.tell() - 500_000))
+        tail = f.read().decode("utf-8", "replace")
+    cut = (datetime.datetime.now() - datetime.timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M")
+    for line in tail.splitlines():
+        if line[:16] < cut:
+            continue
+        for k, needle in (("api_failed", "API call failed"),
+                          ("provider_down", "Provider unavailable"),
+                          ("filenotfound", "FileNotFoundError")):
+            if needle in line:
+                out[k] += 1
+    return out
+
+
+def env_dir_touched(home, minutes=25):
+    """installs/*/environments 的 mtime 落在最近 N 分钟内 = 有东西在回收/新建运行环境。"""
+    import glob
+    for d in glob.glob(os.path.join(home, "installs", "*", "environments")):
+        try:
+            if __import__("time").time() - os.stat(d).st_mtime < minutes * 60:
+                return d
+        except OSError:
+            pass
+    return None
+
+
 def verdict(m):
     v = []
+    e = m.get("errors") or {}
+    if e.get("filenotfound") or e.get("api_failed", 0) > 5 or e.get("provider_down", 0) > 5:
+        v.append("!! provider/环境异常：15min 内 API failed %d · provider down %d · FileNotFoundError %d"
+                 % (e.get("api_failed", 0), e.get("provider_down", 0), e.get("filenotfound", 0)))
+    if m.get("env_touched"):
+        v.append("!! 运行环境目录刚被动过（可能是回收）：%s" % m["env_touched"])
     if m["prompt_per_call_k"] > 25:
         v.append("上下文重放：每次调用 prompt %.1fK tokens" % m["prompt_per_call_k"])
     if m["kids_prompt_per_call_k"] > 25:
@@ -149,9 +191,13 @@ def show(m, prev):
     print("  子代理 %d 个 · %d 次调用 · 每调用 %.1fK · %d 工具往返 · 跨度 %.1fmin"
           % (m["kids"], m["kids_calls"], m["kids_prompt_per_call_k"], m["kids_tools"],
              m["kids_wall_min"]))
+    e = m.get("errors") or {}
+    if any(e.values()):
+        print("  15min 错误: API failed %d · provider down %d · FileNotFoundError %d"
+              % (e.get("api_failed", 0), e.get("provider_down", 0), e.get("filenotfound", 0)))
     if prev:
         keys = ["elapsed_min", "msgs", "ctx_kb", "api_calls", "prompt_per_call_k",
-                "llm_turns", "silent_min", "kids_calls", "leaks"]
+                "llm_turns", "silent_min", "kids_calls", "leaks", "errors"]
         d = ["%s %s→%s" % (k, prev.get(k), m[k]) for k in keys if prev.get(k) != m[k]]
         print("  Δ 上一拍: " + ("; ".join(d) if d else "无变化"))
     for x in m["verdict"]:
@@ -182,6 +228,10 @@ def self_test():
     assert verdict({"prompt_per_call_k": 56, "kids_prompt_per_call_k": 0, "llm_min": 40,
                     "tool_min": 3, "llm_max_s": 576, "silent_min": 0, "elapsed_min": 47,
                     "bombs": [(104785, "read_file", "10:12")], "leaks": []})[0].startswith("上下文重放")
+    assert verdict({"prompt_per_call_k": 5, "kids_prompt_per_call_k": 0, "llm_min": 1,
+                    "tool_min": 1, "llm_max_s": 10, "silent_min": 0, "elapsed_min": 5,
+                    "bombs": [], "leaks": [],
+                    "errors": {"api_failed": 40, "provider_down": 12, "filenotfound": 6}})[0].startswith("!! provider")
     assert verdict({"prompt_per_call_k": 5, "kids_prompt_per_call_k": 0, "llm_min": 1,
                     "tool_min": 1, "llm_max_s": 10, "silent_min": 0, "elapsed_min": 5,
                     "bombs": [], "leaks": []}) == ["无异常指纹"]
