@@ -2,14 +2,13 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 15:26
+**进度** 6/10 块（60%） · 状态 `active` · 更新于 2026-10-11 15:37
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
 - `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @default · 在做 @default
-- `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** — 进行中 · @default · 在做 @default
 - `T-004#B-002` **主 run 上下文瘦身** — 待认领 · @未指派
 
 ## 图
@@ -33,9 +32,9 @@ flowchart LR
   T-004_B-003 --> T-005_B-001
   T-005_B-001 --> T-006_B-001
   classDef done stroke-width:1px;
-  class T-001_B-001,T-001_B-002,T-002_B-001,T-003_B-001,T-003_B-002 done;
+  class T-001_B-001,T-001_B-002,T-002_B-001,T-003_B-001,T-003_B-002,T-004_B-003 done;
   classDef running stroke-width:1px;
-  class T-004_B-001,T-004_B-003 running;
+  class T-004_B-001 running;
   classDef ready stroke-width:1px;
   class T-004_B-002 ready;
   classDef waiting stroke-width:1px;
@@ -105,14 +104,15 @@ flowchart LR
     - 依赖：T-003#B-001（任务级）
     - 依赖：T-003#B-002（任务级）
     - run 2026-10-11 15:03 default pending→running 先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。
-- [ ] `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** _impl_ — 进行中 @default
+- [x] `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** _impl_ — 已完成 @default
     - 做什么：v2 的 S3 对「落点=已有技能」的每一行派一个只读子代理（第二次扇出）。20 分钟目标下这一步要降本，候选做法（要拿实测选，不许拍脑袋）：①把已证明重叠的行并进判官同一批调用；②先用脚本按 claim 逐条 grep 出候选命中，再只对命中行做一次批量判断；③合并成 1–2 个子代理分块处理。判据：本轮 S3 的 wall 与调用数要落进 20 分钟预算，且 already-there / net-new 两张清单的证据格式（接收侧 file:line）不变。
     - 判据：贴选定的做法 + 本轮 S3 的实测 wall 与 LLM 调用数；同一批重叠行在降本前后各出一份清单，形状一致（接收侧 file:line 齐全）。
     - 依赖：T-002#B-001（任务级）
     - 依赖：T-003#B-001（任务级）
     - 依赖：T-003#B-002（任务级）
-    - 在做：@default
+    - 产物：`skills/dream/scripts/audit.py`
     - run 2026-10-11 15:26 default pending→running 选定做法（①+② 合体）：判官在 S2 同一批里逐字抄 3–8 条 claims（不给就退回重判，校验已进 judge.py），audit.py 拿 claims 去接收技能目录 grep -nF → 命中给 file:line、未命中进 net-new，全员未命中标 ⚠（落点存疑）。LLM 调用 0（v2 是每条重叠行一个子代理=第二次扇出），证据是 grep 真输出。判官已按新题面重跑中（后台 proc_d87619f42911），跑完 audit.py 出两份形状一致的清单 + wall/调用数。
+    - run 2026-10-11 15:37 default running→done 选定做法＝①+②合体：claims 随 S2 同一批返回（判官只抄串、脚本负责证明），audit.py grep 出接收侧 file:line。实测（default profile 全量 99 候选 / 25 条重叠行）：S3 = 0 次 LLM 调用、wall 1.5s、160 条 claims、already-there 38 条带 file:line（如 SKILL.md:44、references/install-a-hermes-plugin-dependency-resolution.md:12）、落点不存在 0、全净新增 10 行（都是 merge，正常形状）。v2 同批要 25 个只读子代理（每条重叠行一个）。形状复核：P1 用 v2 的做法手工做了一遍（源侧抄出 7 条旗标=判官 claims 全对，接收侧逐条 grep），与 audit.py 判定逐条一致（1 命中/6 净新增）。
 
 ### T-005 20 分钟验收（default + deepseek-flash 跑一轮） — 待排
 前置 T-004
@@ -132,8 +132,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:02` **agent** [status] T-002#B-001: done → done（第二条证据：边界节新增「技能库/pack 的整理与优化（合并/umbrella/副本清退/无类目归位）→ SkillWeave」，文档树与 Support files 同步为 S1–S8。）
-- `2026-10-11 14:05` **agent** [status] T-001#B-002: pending → done（逐阶段归因表落盘：两轮实测（04:00 轮 4h50m 失败 = 子代理等模型响应 15910.8s 被中断；09:07 轮 ≥4h57m 未完）；S1–S8 每阶段的主因与 v3 处置；三条横切（provider 流断 / 环境目录被回收 / cron 审批闸）。基线暴露一个缺口：S3 交叉审计在 v2 里是每行一个子代理，v3 还没有降本块 —— 已补 T-004#B-003。commit 在分支 dream-v3。）
 - `2026-10-11 14:05` **agent** [block] 新增块 T-004#B-003「S3 交叉审计降本：不再每条重叠行一个子代理」
 - `2026-10-11 14:32` **agent** [decision] 判官实测（14:15-14:32）：scan 10.4s（99 候选 / 1.32MB 正文）→ 8 块（每块 ~20-210KB）。单块 141KB 烟测 53.8s 出 5/5 合格 verdict。第一次整批跑（3 workers）时 3 块 ~140KB 的请求同时被 `URLError: Connection reset by peer`（Errno 54）打掉，verdicts 只落 48/99 —— 端点对大并发大请求会 reset。处置：judge.py 加 3 次退避重试（5s/10s），并把并发降到 2；同时把「只在最后写 verdicts」改成每块落地 + 断点续跑（被掐不再白付）。当前 48/99，续跑中（proc_1c7ca25aca74）。
 - `2026-10-11 14:41` **agent** [decision] 判官路径第一版跑通（99/99，166s），但 merge 拒收 10 行 → 两个真缺陷，都已修：① 每块的中间产物我命名成 verdicts-chunk-*.jsonl，正好被 merge 的 verdicts*.jsonl 通配吃掉 ⇒ 变成 109 条重复 verdict（exit 4）；改名 judge-verdicts-chunk-*.jsonl。② 判官题面只给了 290 个目录名、没给**各目录的现有技能清单**，于是 merge/strengthen 的 dest_skill 被它编出来（如 AgentSkill-ObsidianManagement 下的 relayer-clc-classification-paths）⇒ 10 行被拒。改成 dest_space()：工具/主题轴 + 每个非空目录的现有技能名（18.8KB），并在题面写明「dest_skill 必须是列出的名字之一，没有就退回 move + __new__」。另加一道缓存闸：断点续跑要求 prompt sha 逐字节相同，改了题面不会被旧回复静默复用。当前改完题面重判中（proc_aa397cad76da）。
@@ -152,6 +150,8 @@ flowchart LR
 - `2026-10-11 15:23` **agent** [decision] 用户定案（2026-10-11）：包仓库是测试面 ⇒ 开发期一律 --no-push，测试轮跑到 verify 就停、不推不 retire；真推与退役留给正式轮。Dream 仓库开发完成后把 dream-v3 与主 clone 上别人的提交合并再按指示推。已写进 docs/scope.md §5。
 - `2026-10-11 15:26` **agent** [status] T-004#B-003: pending → running（选定做法（①+② 合体）：判官在 S2 同一批里逐字抄 3–8 条 claims（不给就退回重判，校验已进 judge.py），audit.py 拿 claims 去接收技能目录 grep -nF → 命中给 file:line、未命中进 net-new，全员未命中标 ⚠（落点存疑）。LLM 调用 0（v2 是每条重叠行一个子代理=第二次扇出），证据是 grep 真输出。判官已按新题面重跑中（后台 proc_d87619f42911），跑完 audit.py 出两份形状一致的清单 + wall/调用数。）
 - `2026-10-11 15:26` **agent** [assign] T-004#B-003 指派给 default（本会话在做）
+- `2026-10-11 15:37` **agent** [exec] T-004#B-003: 线程登记已清除（@default 收工）
+- `2026-10-11 15:37` **agent** [status] T-004#B-003: running → done（选定做法＝①+②合体：claims 随 S2 同一批返回（判官只抄串、脚本负责证明），audit.py grep 出接收侧 file:line。实测（default profile 全量 99 候选 / 25 条重叠行）：S3 = 0 次 LLM 调用、wall 1.5s、160 条 claims、already-there 38 条带 file:line（如 SKILL.md:44、references/install-a-hermes-plugin-dependency-resolution.md:12）、落点不存在 0、全净新增 10 行（都是 merge，正常形状）。v2 同批要 25 个只读子代理（每条重叠行一个）。形状复核：P1 用 v2 的做法手工做了一遍（源侧抄出 7 条旗标=判官 claims 全对，接收侧逐条 grep），与 audit.py 判定逐条一致（1 命中/6 净新增）。）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
