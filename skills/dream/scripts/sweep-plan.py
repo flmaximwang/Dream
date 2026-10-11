@@ -68,6 +68,13 @@ def pack_name_for(axis: str, topic: str) -> str:
     the same topic in different styles then land on the same repo name (and on the same normalized key).
     """
     slug = "".join(ch for ch in topic.strip() if ch.isalnum() or ch in "-_") or "Unnamed"
+    # 判官有时把前缀写进 topic（topic=UsingDrawio）——先剥掉，别拼成 AgentSkill-UsingUsingDrawio
+    for pre in ("AgentSkill",):                      # 罕见但同样会双拼
+        if slug.lower().startswith(pre.lower()):
+            slug = slug[len(pre):]
+    if slug.lower().startswith("using"):   # 注意两边都小写：slug.lower() 比 "Using" 永不成立（踩过一次）             # tool 轴的前缀；topic 轴上也一样剥（UsingX 当主题名没意义）
+        slug = slug[5:] or slug
+    slug = slug.lstrip("-_") or slug        # 剥完前缀可能留个连字符（AgentSkill-Foo → -Foo）
     return (TOOL_PREFIX if axis == "tool" else TOPIC_PREFIX) + slug
 
 
@@ -759,6 +766,10 @@ def self_test() -> int:
 
     finally:
         HERMES_HOME = real
+    assert pack_name_for("tool", "UsingDrawio") == "AgentSkill-UsingDrawio", pack_name_for("tool", "UsingDrawio")
+    assert pack_name_for("tool", "Drawio") == "AgentSkill-UsingDrawio"
+    assert pack_name_for("topic", "Progress Heartbeat") == "AgentSkill-ProgressHeartbeat"
+    assert pack_name_for("topic", "AgentSkill-Foo") == "AgentSkill-Foo"
     print("[sweep-plan] self-test OK")
     return 0
 
