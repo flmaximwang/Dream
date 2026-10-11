@@ -44,19 +44,22 @@ def grep(claim: str, target: pathlib.Path) -> list:
     return out
 
 
-def dest_dir(row: dict, packs: dict) -> pathlib.Path:
-    """接收技能的目录：优先进包的 clone，退回已装副本。"""
-    pack = packs.get(row["repo"]) or {}
-    cands = []
+def dest_dir(row: dict, packs: dict):
+    """接收技能的目录 → (Path|None, 来源)。包 clone 里是 `skills/<类目>/<名字>/` 的分层布局，
+    所以要递归找同名技能目录；找不到就退回已装副本，再找不到＝落点不存在（merge 必被拒）。"""
+    pack = packs.get(row.get("repo")) or {}
+    name = row.get("dest_skill")
     if pack.get("path"):
-        cands.append(pathlib.Path(pack["path"]) / "skills" / row["dest_skill"])
-    inst = (pack.get("installed") or {}).get(row["dest_skill"])
+        root = pathlib.Path(pack["path"])
+        hits = [p.parent for p in root.glob(f"skills/**/{name}/SKILL.md")]
+        if hits:
+            return hits[0], ("pack" if len(hits) == 1 else f"pack/{len(hits)} 处重名")
+    inst = (pack.get("installed") or {}).get(name)
     if inst:
-        cands.append(pathlib.Path.home() / ".hermes/skills" / inst)
-    for c in cands:
-        if c.exists():
-            return c
-    return cands[0] if cands else pathlib.Path("/nonexistent")
+        p = pathlib.Path.home() / ".hermes/skills" / inst
+        if (p / "SKILL.md").exists():
+            return p, "installed"
+    return None, "missing"
 
 
 def load(d: pathlib.Path):
@@ -78,23 +81,29 @@ def run(d: pathlib.Path, limit: int | None) -> int:
         rows = rows[:limit]
     md = ["# S3 交叉审计（判官 claims × grep 接收侧）", "",
           f"重叠行 {len(rows)} 条 · 判官调用 0 次（claims 随 S2 的同一批返回）", ""]
-    js, warn = [], []
+    js, warn, missing = [], [], []
     for v in rows:
         dest = v["dest"]
+        target, where = dest_dir(dest, packs)
         row = {"id": v["id"], "repo": dest["repo"], "dest_skill": dest["dest_skill"],
                "action": dest.get("action"), "confidence": v.get("confidence"),
-               "target": str(dest_dir(dest, packs)),
+               "target": str(target) if target else None, "where": where,
                "already_there": {}, "net_new": v.get("claims") or []}
-        md.append(f"## {v['id']} → {dest['repo']}/skills/{dest['dest_skill']}（{dest.get('action')} · conf {v.get('confidence')}）")
+        md.append(f"## {v['id']} → {dest['repo']}/…/{dest['dest_skill']}（{dest.get('action')} · conf {v.get('confidence')} · 接收侧 {where}）")
         md.append(f"证据：{v.get('evidence','')}")
         md.append("")
+        if target is None:
+            missing.append(v["id"])
+            md.append(f"- ⚠ **落点不存在**：`{dest['dest_skill']}` 在 {dest['repo']} 里找不到技能目录 ⇒ `merge` 会被拒收\n")
+            js.append(row)
+            continue
         if not row["net_new"]:
             warn.append(f"{v['id']}: 判官没给 claims")
             md.append("- ⚠ 判官没给 claims，无法证明\n")
             js.append(row)
             continue
         for claim in row["net_new"]:
-            hits = grep(claim, dest_dir(dest, packs))
+            hits = grep(claim, target)
             if hits:
                 row["already_there"][claim] = hits
                 row["net_new"] = [c for c in row["net_new"] if c != claim]
@@ -102,21 +111,26 @@ def run(d: pathlib.Path, limit: int | None) -> int:
             else:
                 md.append(f"- ➕ net-new `{claim}`（接收侧 0 命中）")
         if not row["already_there"]:
-            warn.append(f"{v['id']}: claims 全员未命中 → 落点存疑（接收方覆盖不了这条）")
-            md.append("- ⚠ **全员未命中**：落点可能选错了，别当净新增直接 merge\n")
-        md.append("")
+            if row["action"] == "merge":
+                md.append("- 💬 全净新增（merge＝整段折进接收技能，这是正常形状）\n")
+            else:
+                warn.append(f"{v['id']}: {row['action']} 却一条都没命中 → 重叠说法没证据（接收方覆盖不了这条）")
+                md.append(f"- ⚠ **{row['action']} 却全员未命中**：重叠说法没有证据，别照 merge 处理\n")
+        else:
+            md.append("")
         js.append(row)
     (d / "audit.md").write_text("\n".join(md))
     (d / "audit.json").write_text(json.dumps(js, ensure_ascii=False, indent=1))
+    for m in missing:
+        print(f"[audit] ✗ {m}: 落点技能在包内不存在 ⇒ merge/strengthen 会被拒")
     for w in warn:
         print("[audit] ⚠", w)
     wall = time.time() - t0
-    print(f"[audit] 重叠行 {len(rows)} · claims {sum(len(r['net_new'])+len(r['already_there']) for r in js)} · "
-          f"already-there {sum(len(r['already_there']) for r in js)} · 全员未命中的行 {len([w for w in warn if '存疑' in w])} · "
+    claims_total = sum(len(r["already_there"]) + len(r["net_new"]) for r in js)
+    print(f"[audit] 重叠行 {len(rows)} · claims {claims_total} · already-there {sum(len(r['already_there']) for r in js)} · "
+          f"落点不存在 {len(missing)} · 零命中行 {len([r for r in js if r['target'] and not r['already_there']])} · "
           f"LLM 调用 0 · wall {wall:.1f}s → {d/'audit.md'}")
-    if len(rows) and not [r for r in js if r["already_there"]]:
-        print("[audit] ⚠ 一条都没命中：先看 claims 是不是抄错了（判官逐字抄的要求）")
-    return 0 if not [w for w in warn if "没给 claims" in w] else 1
+    return 0 if not missing else 1
 
 
 def self_test() -> int:
