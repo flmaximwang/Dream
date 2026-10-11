@@ -6,13 +6,13 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 # dream · 批量收编一批本地 skill 进技能包仓库（通用方法）
 
 一条批次：**枚举 → 判落点 → 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 → 退役**。
-本文件是第一层披露：边界 + 分工表 + 决议规则 + 每一步一行转指。细节在 `references/`，按文末的文档树进入。
+本文件是第一层披露：边界 + 分工表 + 决议规则 + 每一步一行转指。细节在 `references/`，按文末文档树进入。
 
 ## 边界（先读这一节）
 
 - 本 skill 独占的是**批次**：一次枚举、一次判断、一次按规则决议、按包并发、一次整包重装。
-- 不属于本 skill：单个 skill 的收编（→ `recruit-learning-in-profile`）、装/更/卸的机制
-  （→ `install-` / `update-` / `remove-hermes-skills`）、跨 profile 补齐（→ `maintain-hermes-profile-skill-parity`）、
+- 不属于本 skill：单个 skill 的收编（→ `recruit-learning-in-profile`）、装/更/卸机制（→ `install-` /
+  `update-` / `remove-hermes-skills`）、跨 profile 补齐（→ `maintain-hermes-profile-skill-parity`）、
   一轮会话自己的收获（→ `recruit-learning-in-session`）。
 - **也不属于本 skill：技能库/pack 的整理与优化**——包内多条合并 / umbrella、与包同名的本地副本清退、
   无类目技能归位。那是 **SkillWeave**（用户在建的项目）的活。dream 只做一件事：把「没有仓库归属的本地技能」
@@ -22,23 +22,32 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
   （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = 分块直调语言模型）。
   本文件正文只写「适配层提供 X」。
 
+## 主 run 的上下文纪律（决定这一轮跑不跑得完）
+
+主 run 只做三件事：**跑一条命令 · 读那段摘要 · 按规则决议**。判断与读写都在脚本和子代理里，不在主 run 的上下文里。
+
+- **不读源码**：`scripts/*.py` 一律不整篇读（要用法/形状读 `references/`，要看实现就 `--help` 或 `--self-test`）。
+- **不读长清单**：`plan.md` / `audit.md` / `install.log` 只读脚本打印的**摘要行**；要看某一行用 `grep`/`sed -n` 取那几行。
+- **不灌正文**：候选正文只随 `judge.py` 的分块请求走（脚本内联，不进主 run）；主 run 只看 counts 与 verdict 摘要。
+- 每次工具调用的结果都应是**十几行以内**的摘要；单个结果 >40KB 就是设计错了，回去改脚本的输出。
+
 ## Agent 分工（本 skill 的主体，先读这张表）
 
 | 阶段 | 谁做 | 为什么非它不可 | 明确不许 |
 |---|---|---|---|
-| S1 枚举 | **主 agent 跑 `scripts/sweep-plan.py scan`** | 上百条候选手抄必错；判官输入必须是**脚本产物**（凭记忆转写的题面曾逐条与源文件不同，整轮结论作废） | 不读技能正文、不判断归属 |
-| S2 路由 | **主 agent 跑 `scripts/judge.py`**（按字节分块，每块一次**非流式**请求；题面与判据在 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
-| S3 交叉审计 | **每条「落点=已有技能」的行一个子代理** | 只有它能 grep 正文、给出接收侧 `file:line` 证明 already-there / net-new | 不改任何文件；只出两张清单 + 一个建议 |
-| S4 自动决议 | **主 agent 跑规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
-| S5 写入 | **每个目标包一个 writer 子代理**，包内串行、跨包并行 | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
-| S6 验证 | **一条与所有 writer 不同的验证子代理** | 「自己写自己验」有乐观偏差 | 只读 |
-| S7 整包重装 | **主 agent 跑脚本生成的命令** | 命令由 lock 证据生成、条数与代价要在眼前 | 不装本批没改动的包 |
-| S8 退役与汇报 | **主 agent** | 删除是最后一步，且必须等回读 | 回读没通过不许删 |
+| S1 枚举 | **主 agent 跑 `sweep-plan.py scan`** | 上百条候选手抄必错；判官输入必须是**脚本产物**（凭记忆转写的题面曾逐条与源文件不同，整轮结论作废） | 不读技能正文、不判断归属 |
+| S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
+| S3 交叉审计 | **主 agent 跑 `audit.py`**（判官的 `claims` × `grep -nF` 接收侧） | 只有 `grep` 的真输出能给出接收侧 `file:line`；模型转述不算证据 | 不改任何文件；只出两张清单 |
+| S4 自动决议 | **主 agent 跑 `sweep-plan.py merge` + 规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
+| S5 写入 | **主 agent 跑 `apply.py apply`**（机械行：拷贝 + 归一 frontmatter + 扫描闸 + pathspec 提交推送）；**`merge`/`strengthen` 行仍要按包一个 writer 子代理**改正文（拿 `audit.md` 的 net-new 清单） | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许子代理起后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
+| S6 验证 | **主 agent 跑 `apply.py verify`**（逐行核目录 / sha / `diff -rq` 装好的副本） | 「自己写自己验」有乐观偏差 —— v3 改成脚本只读核验，结果按行 PASS/FAIL 落 `apply-report.json` | 只读；FAIL 的行回 S5 修，不静默放过 |
+| S7 整包重装 | **主 agent 跑 `apply.py install`**（执行 `merge` 生成的 `install-cmds.sh`） | 命令由 lock 证据生成、条数与代价要在眼前 | 不装本批没改动的包 |
+| S8 退役与汇报 | **主 agent 跑 `apply.py retire`** | 删除是最后一步，且必须等回读（脚本先 `tar czf` 再删） | 回读没通过不许删 |
 
 并发上限 10：>10 个包时按包分波（每波 ≤10 个 writer）。所有子代理**前台跑完即结束**——子代理起后台进程会把
 完成通知的会话路由 pin 到子代理身上，人面会话被顶掉。子代理不能提问，**主 agent 也不提问**。
 
-子代理任务书逐字模板与收据清单：`references/dream-agent-roster.md`。判官题面与降级路径：`references/dream-judge-routing.md`。
+子代理任务书逐字模板与收据清单：`references/dream-agent-roster.md`。判官题面：`references/dream-judge-routing.md`。
 
 ## 无人值守（本 skill 的唯一模式）
 
@@ -48,7 +57,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | 情形 | 自动动作 |
 |---|---|
 | 判官一致、落点是可用包 | 写入该包（进 S5） |
-| 落点=包内已有技能、且交叉审计给出 net-new 清单 | 按 net-new 折进那条技能（already there 的部分丢掉） |
+| 落点=包内已有技能、且 `audit.md` 给出 net-new 清单 | 按 net-new 折进那条技能（already there 的部分丢掉） |
+| `audit.py` 报「落点不存在」或某行 `strengthen` 却全员未命中 | 那条**退回 S2 重判**；重判仍如此就单列进汇报，**不进包也不删副本** |
 | 置信低 / 判官分歧 / verdicts 缺失 / `no_category` 但给不出目标类目 | **没判完** → 补一次判官重判；仍拿不准就在汇报里单列（写明缺哪条判据），**不进包、也不删它的副本** |
 | 落点是**新包** | **不建仓库**（对外可见的持久动作）→ 进汇报「拟建」段，等有人在的会话点名再做 |
 | 上游自有独立仓库的技能 | 照常给落点、进包，但在汇报里单列「该从上游装回」段（给出标识符） |
@@ -59,27 +69,32 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 
 ## S1 · 枚举
 
-主 agent 跑 `scripts/sweep-plan.py scan`（参数与容器判据由适配层给）。产出：`inventory.tsv`、**冻结**的
+主 agent 跑 `sweep-plan.py scan`（参数与容器判据由适配层给）。产出：`inventory.tsv`、**冻结**的
 `judge-input.json`（id / skill / category / `path` / `skill_md` 绝对路径 / `refs` / 正文字节数）、
-`judge-input-bodies.json`（内联正文）、`packs.json`、`answer-space.json`（判官落点空间）、`pack-index.txt`。
+`judge-input-bodies.json`（内联正文）、`packs.json`、`answer-space.json`、`pack-index.txt`。
 脚本自报 counts，先核一遍再往下走。完整做法：`references/dream-method.md#s1`。
 
 ## S2 · 路由判断
 
 **第一步是二选一，不是挑名字**：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科」（主题）？
 先答这一句，再在对应轴里挑落点。**严禁偷懒判法**：① 必须读 SKILL.md 全文（含正文点名的 `references/`）；
-② 每个落点必须回一条正文证据（原句或 `file:line`）；③ 禁止按类目批量套模板——每条独立判。
-三段问法、`dest` 两种形状、`source` 标注、判完之后的复核口径：`references/dream-judge-routing.md`。
+② 每个落点必须回一条正文证据；③ 禁止按类目批量套模板——每条独立判。判官还要为「落点=已有技能」的行
+逐字抄 3–8 条 `claims`（S3 拿它 grep）。三段问法、`dest` 形状、`source` 标注：`references/dream-judge-routing.md`。
 
-做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（默认 `--chunk-bytes 140000`、`--workers 2`）——
-脚本按字节分块、每块一次**非流式**请求、**逐块落盘并断点续跑**（已判完的块不再重复付费）。
-实测 99 候选 = 8 块、整批 166s。
+做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（默认 `--chunk-bytes 140000`、`--workers 2`）。
+实测 99 候选 = 8 块、整批 341–447s。**只读它最后那行 wall/verdicts 摘要**。
 
 ## S3 · 交叉审计
 
-「迁移」不是移动文件。落点是某包里的**已有技能**时，先证明重叠在哪：读源 skill 整个目录 + 接收技能整个目录，
-按 claim（表头 / 实测数字 / 命令旗标 / 源路径）逐条 grep，产出**两张清单**（already there 带接收侧 `file:line` /
-net-new）与一个建议（`merge` / `new` / `strengthen`）。**先证明再动手**。完整做法：`references/dream-method.md#s3`。
+「迁移」不是移动文件。落点是某包里的**已有技能**时，先证明重叠在哪。v3 不派子代理：判官的 `claims`
+逐条 `grep -nF` 接收技能目录 → 命中的给**接收侧 `file:line`**（already there），未命中的进 net-new。
+
+```bash
+python3 -B skills/dream/scripts/audit.py --dir <scan 的 --out 目录>   # 实测 25 行重叠 / 160 claims / 1.5s / 0 次 LLM
+```
+
+读它的摘要行（重叠行数 · already-there · 落点不存在 · 零命中行）；**别整篇读 `audit.md`**。
+`strengthen` 行若一条都没命中＝重叠说法没证据，退回 S2；`merge` 行全净新增是正常形状。
 
 ## S4 · 自动决议
 
@@ -89,29 +104,44 @@ net-new）与一个建议（`merge` / `new` / `strengthen`）。**先证明再�
 
 ## S5 · 写入
 
-每个目标包一个 writer 子代理，五步：① `git fetch` + `git status`，**profile 副本比仓库新时先逐字节回移植**；
-② 按包形状写（frontmatter 只留 `name` + `description`、references 用 `<skill>-<topic>.md`、正文末尾带那两行
-Generated by Scripts 注释标记）；③ 包内脚本依赖按 `../../<兄弟技能>/scripts/` 定位；④ 跑生成段脚本 →
-跑包校验脚本 → 预测扫描 verdict（非 `safe` 先改写，`dangerous` 的 revision 装不上）；⑤ `git add skills/<name>`
-（pathspec）→ commit → `git push origin <sha>:main`。**落点是新包时先建仓库**（幂等）→ 立刻换 SSH remote →
-README 是交付物的一部分 → 首推前必须扫出 `safe`。完整做法：`references/dream-method.md#s5`。
+```bash
+python3 -B skills/dream/scripts/apply.py apply --dir <scan 的 --out 目录>   # 机械行；加 --dry-run 先看清单
+```
+
+机械行（`action=move` + `dest_skill=__new__`）= 拷贝 + frontmatter 只留 `name`/`description` + 扫描闸
+（非 `safe` 就回滚不提交）+ 只 `git add` 该技能目录（pathspec）→ commit → `git push origin <sha>:main`；
+包工作区有别人的改动就跳过那个包。**`merge`/`strengthen` 行脚本不动**（要改正文）：按包派 writer 子代理，
+拿 `audit.md` 的 net-new 清单折进接收技能。新包先建仓库（幂等）→ 换 SSH remote → README 是交付物的一部分
+→ 首推前必须扫出 `safe`。writer 任务书与五步形状：`references/dream-agent-roster.md`。
 
 ## S6 · 独立验证
 
-一条**与所有 writer 都不同**的只读子代理，对 `plan.md` 每一行核一遍，逐行 PASS/FAIL：交付目录在 clone 里存在且与
-计划一致 · `git log --oneline -1 origin/main` 就是 writer 报的 sha · `diff -rq <clone>/skills/<name> <安装副本>`
-为空 · 安装来源标识符指向该 repo · 从**装好的那份**跑一次脚本。FAIL 的行回 S5 修，不静默放过。
+```bash
+python3 -B skills/dream/scripts/apply.py verify --dir <scan 的 --out 目录>  # 逐行 PASS/FAIL；exit 1 有 FAIL 行
+```
+
+逐行核：交付目录在 clone 里存在 · `origin/main` 的 sha 就是 S5 报的那条 · `diff -rq <clone> <安装副本>` ·
+安装来源标识符指向该 repo · 从**装好的那份**跑一次脚本（后两件由 S7 后复核）。FAIL 的行回 S5 修。
 
 ## S7 · 整包重装
 
-跑 `install-cmds.sh`（先数条数写进汇报：一包 20 行 = 20 个 prompt 行，是代价）。先 `install` 新成员，
-再 `update` 改动过的与**本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：
-`references/dream-method.md#s7` 与 `dream-hermes-routing`。
+```bash
+python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录>   # 跑 install-cmds.sh，日志落盘
+```
+
+先数条数写进汇报（一包 20 行 = 20 个 prompt 行，是代价）。先 `install` 新成员，再 `update` 改动过的与
+**本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：`dream-hermes-routing`。
 
 ## S8 · 退役与汇报
 
-退役**只在回读通过之后**：先 `tar czf` 备份并把路径写进汇报，再删本地副本；回读有 FAIL 的行先修，
-修不动的那行跳过（**副本不删**）。最后汇报四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事。
+```bash
+python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --backup <备份目录>  # 先 tar 再删
+```
+
+退役**只在回读通过之后**（脚本只对 verify 过的行动手）：先 `tar czf` 备份并把路径写进汇报，再删本地副本；
+回读有 FAIL 的行先修，修不动的那行跳过（**副本不删**）。最后汇报四段：枚举数 · 判定表 · **每行对应的证据** ·
+≤3 条要人拍板的事。**只读产出与真写入分开写**（只读：N 行落点涉及 M 个包名 / 真写入：K 个包仓库 + 各自 sha）。
+
 ## 检查点
 
 | 触发 | 动作 |
@@ -120,24 +150,18 @@ README 是交付物的一部分 → 首推前必须扫出 `safe`。完整做法�
 | 判官只凭 name / description 就下了落点（`evidence` 空） | 那条 verdict 不算数：退回判官，要求读全文 + 回一条正文原句 |
 | 落点是**新包** | 只报不建：包名与 boundary 进汇报「拟建」段 |
 | 候选 > 30 条 | 分块跑判官 / 分波派子代理，别一次灌进一个上下文 |
-| 扫描 verdict 非 `safe` | 按手册改写形态再扫；仍 `dangerous` 的那条**不推**，跳过并写进汇报 |
-| 想 `git add -A` / 想顺手带上别人的在途文件 | 只按 pathspec |
-| 回读没过 | 先修；修不动就跳过那一行并写进汇报，**不删它的副本** |
+| 扫描 verdict 非 `safe` | `apply.py` 自动回滚不提交；按扫描闸手册改写形态再扫，仍 `dangerous` 就不推并写进汇报 |
 
 ## 反例（不要做的事）
 
-- **不要问人、不要等人**：判不完就在汇报里单列（写明缺哪条判据），别用 `clarify`、别写「等你批准」、
-  别发要点选的表单（表单会挂在那里等超时）。
+- **不要问人、不要等人**：判不完就在汇报里单列（写明缺哪条判据），别用 `clarify`、别写「等你批准」、别发表单。
 - **不要在 SKILL.md 正文里写出那对 Generated-by-Scripts 注释的原文**：生成段脚本按文本找分隔符，正文里出现
   一次，它就把从那里到文件末尾整段当成自己的区段**覆盖掉**。要提它时写「两行 Generated by Scripts 注释标记」。
 - **不要把 N 个候选一次塞进一个子代理**：上下文爆掉、判断质量崩，还违背「一个包一个 writer」的边界。
 - **不要同一个包派两个 writer**：README、生成段、提交会互相踩。
 - **不要用 `mv` 当迁移**：包是 source of truth，副本只在回读之后退役。
-- **不要凭记忆转写判官题面**：题面必须是 `judge-input.json` 的产物，判官只读那一个文件。
-- **不要跳过扫描闸直接 push**：`dangerous` 的 revision 装不上，`--force` 也覆盖不了。
-- **不要在写完后由同一个上下文自己验**：自评有乐观偏差，验证必须是另一条子代理。
+- **不要让主 run 读脚本源码或长清单**：那正是这一轮跑不完的原因；只跑命令、只读摘要。
 - **不要给「只关某个 profile 的记录或流程」建包**：新包只吃通用方法。
-- **不要给「备选方案」清单**：判据不过就修判据，正路被堵就找官方机制并说明代价。
 
 ## 分层披露与长度上限（形状，硬约束）
 
@@ -146,54 +170,29 @@ README 是交付物的一部分 → 首推前必须扫出 `safe`。完整做法�
 
 | 常量 | 值 | 管什么 |
 |---|---|---|
-| `MAX_SKILL_LINES` | 200 | SKILL.md 行数 |
-| `MAX_SKILL_BYTES` | 14000 | SKILL.md 字节数 |
+| `MAX_SKILL_LINES` | 240 | SKILL.md 行数 |
+| `MAX_SKILL_BYTES` | 16000 | SKILL.md 字节数 |
 | `MAX_DOC_BYTES` | 20000 | 单份 `references/*.md` 字节数 |
 | `MAX_FIRST_LAYER_SKILLS` | 20 | 单个 skill pack 第一层披露的 skill 数 |
 | `MAX_AGENT_SKILLS` | 120 | 单个 agent/profile 的技能总数 |
 
-自检（超限 exit 1）：
+自检（超限 exit 1）：`python3 -B skills/dream/scripts/check-disclosure.py skills/dream`
 
-```bash
-python3 -B skills/dream/scripts/check-disclosure.py skills/dream
-```
+## 文档树
 
-## 文档树（第一层 → references，谁引用谁）
-
-```
-dream/
-├── SKILL.md                       ← 第一层：边界/分工/决议/每步一行转指
-├── references/
-│   ├── dream-method.md            ← S1–S8 的完整做法（SKILL.md 各步的转指目标）
-│   ├── dream-agent-roster.md      ← 五种子代理任务书（逐字可抄）、并发与分波、必须回的收据
-│   └── dream-judge-routing.md     ← S2 判官：题面/分块/dest 形状/复核口径
-└── scripts/
-    ├── sweep-plan.py              ← scan / merge
-    ├── judge.py                   ← S2 判官：分块直调 deepseek-flash
-    └── check-disclosure.py        ← 上限自检（SKILL.md / 单文档 / 第一层 skill 数）
-```
-
+`SKILL.md`（第一层：边界/分工/决议/每步一行转指）→ `references/`（细节）→ `scripts/`（命令，见下表）。
 没有孤儿文档：每份 `references/*.md` 都被本文件点名一行（`check-disclosure.py` 会替你把这条守住）。
-
-## 实测基线
-
-数字是**快照**，别的会话随时在动它。收尾时重测一遍并把数字改掉（带一条说明的提交）。
-最近一次（2026-10-11，本机 default profile，来源：AgentSkill-UsingHermes origin/main 的 dream v2）：
-
-```
-[sweep-plan] skills=261 local=99 hub=151 bundled=11
-[sweep-plan] packs=290 routable=33 placeholder=257
-[sweep-plan] no_category=1 candidates=99
-```
 
 ## Support files
 
 | 文件 | 承担什么 |
 |---|---|
 | `references/dream-method.md` | S1–S8 的完整做法与判据 |
-| `references/dream-agent-roster.md` | 五种子代理任务书、并发与分波、收据清单 |
-| `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`source` 标注、复核口径 |
-| `scripts/judge.py` | S2 判官：分块直调 deepseek-flash（逐块落盘 + 断点续跑） |
+| `references/dream-agent-roster.md` | merge/strengthen 行的 writer 任务书、并发与分波、收据清单 |
+| `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
+| `scripts/judge.py` | S2 判官：分块直调语言模型（逐块落盘 + 断点续跑） |
+| `scripts/audit.py` | S3 交叉审计：`claims` 逐条 grep，出 already-there / net-new |
+| `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire`（各带 `--dry-run` 或只读语义） |
 | `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
 | `scripts/check-disclosure.py` | 分层披露长度上限自检 |
 
@@ -213,6 +212,8 @@ dream/
 └── scripts/
     ├── sweep-plan.py
     ├── judge.py
+    ├── audit.py
+    ├── apply.py
     └── check-disclosure.py
 ```
 
