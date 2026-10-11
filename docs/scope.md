@@ -42,4 +42,7 @@
 
 **开发期一律 `--no-push`**（用户 2026-10-11：包仓库既然是测试用的，肯定是 no-push）——测试轮跑到 `verify` 就停，
 不推、也**不 retire**（retire 删的是 profile 里的真副本，不是测试面）。真推与退役留给正式那一轮。
-**Dream 仓库收尾**：开发完成后把 `dream-v3` 与主 clone 上别人的提交合并（`git -C Repo/Dream merge`），再按指示推。
+**Dream 仓库收尾**：开发完成后把 `dream-v3` 与主 clone 上别人的提交合并（`git -C Repo/Dream merge`），再按指示推；
+**合并之后必须清除工作树**（验收的一部分）：从主 clone 侧 `git worktree remove <worktree>` → `branch -d dream-v3` →
+`worktree prune`，并确认主 clone 的 `git status --porcelain` 干净（不许在 worktree 里切 main 来清理）。
+条目见 `plans/dream-v3` 的 `T-006#B-002`。
