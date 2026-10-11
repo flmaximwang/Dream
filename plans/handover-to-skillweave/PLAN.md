@@ -2,7 +2,7 @@
 
 > 让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。
 
-**进度** 14/15 块（93%） · 状态 `active` · 更新于 2026-10-11 17:58
+**进度** 14/15 块（93%） · 状态 `active` · 更新于 2026-10-11 17:59
 
 **参与方** 本人(human)
 
@@ -57,12 +57,12 @@ flowchart LR
 @dream-dev
 - [x] `T-002#B-001` **删 `skills/dream/SKILL.md` 的 S9/S10 两节，改成一行转指** _impl_ — 已完成 @dream-dev
     - 做什么：删掉 :110-115（S9 全库去重 + 无类目归位，含 `sweep-plan.py dedupe --fix-no-category --backup` 那条命令）与 :117-122（S10 合并/umbrella 三步 LEDGERED 顺序）。原位留**一行**：「包内结构整理（去重 / 归位 / 合并 / 下沉）已移交 **SkillWeave** —— 见 docs/scope.md §①」并写成 SkillWeave 的可执行入口。同时逐条处理同文件里其它提到了 S9/S10 的地方（检查点表 :128 的「无类目又给不出目标类目」那条、反例段）。
-    - 判据：skills/dream/SKILL.md 不再有 S9/S10 两节：grep 'S9|S10|全库去重|合并 / umbrella' 在正文 0 命中，概念转指只出现在边界节一处（用词「技能库/pack 的整理与优化…→ SkillWeave」）；sweep-plan.py --help = {scan,merge}；包内形状自检改由 SkillWeave 的 weave.py checks 承担，**命令的根写死为 Dream 仓库根**（；传单个 skill 目录会得到一条与 Dream 无关的伪 name_mismatch），对 Dream 报 0 命中。【判据更正】原判据之二「check-disclosure.py skills/dream exit 0」已随 T-002#B-004 删除该脚本而自相矛盾（独立复核指出），改用 SkillWeave checks。
+    - 判据：skills/dream/SKILL.md 不再有 S9/S10 两节：grep "S9|S10|全库去重|合并 / umbrella" 在正文 0 命中，概念转指只出现在边界节一处（用词「技能库/pack 的整理与优化…→ SkillWeave」）；sweep-plan.py --help = {scan,merge}；包内形状自检改由 SkillWeave 的 weave.py checks 承担，命令的根写死为 Dream 仓库根（传单个 skill 目录会得到一条与 Dream 无关的伪 name_mismatch），对 Dream 报 0 命中。【判据更正】原判据之二「check-disclosure.py skills/dream exit 0」已随 T-002#B-004 删除该脚本而自相矛盾（独立复核指出），改用 SkillWeave checks。
     - 产物：`/Users/maxim/Repositories/Repo/Dream.wt-v3/skills/dream/SKILL.md`
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-175108/install-gate-blocked-demo.json`
-    - run 2026-10-11 17:53 dream-dev pending→done SKILL.md 已无 S9/S10 两节（分支 5b957be 起），grep 只剩边界节一行转指；本轮又把它改成指向 SkillWeave 的交接句
     - run 2026-10-11 17:56 dream-dev done→done 独立复核（deleg_281477ba）指出原判据两条字面不成立：①转指行不含被 grep 的 token ②判据要的 check-disclosure.py 被本任务 B-004 删掉。删除目标本身达成，判据按上面改写。
     - run 2026-10-11 17:58 dream-dev done→done 第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。
+    - run 2026-10-11 17:59 dream-dev done→done 第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。（本条判据文本因 shell 反引号被吃重发过一次，已读回校正。）
 - [x] `T-002#B-002` **`sweep-plan.py` 删掉 `dedupe` 子命令（含 --fix-no-category 与它的自检）** _impl_ — 已完成 @dream-dev
     - 做什么：dedupe 是 S9 的机械半身：它会 `git mv` 无类目技能、按 SKILL.md 相同直接删 local —— 正是移交出去的动作。删子命令与其自检；`scan` / `merge` 保留（那两条是 dream 自己的收编流程）。若 dedupe 里有 dream 还要用的读能力（例如「列出无类目技能」），只保留**只读**的那部分并改名（如 `nocat-report`），绝不留写动作。
     - 判据：`python3 -B skills/dream/scripts/sweep-plan.py --help` 的输出里不再有 dedupe（贴原文）；扫一遍仓库确认没有别处再调它（`grep -rn 'dedupe' --include=*.md --include=*.py .`）。
@@ -142,14 +142,13 @@ flowchart LR
     - 判据：复核输出落文件（路径写进本块），含逐条 ✓/✗ 与不一致明细；有 ✗ 就回到对应块整改。
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-review.md`
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-rereview.md`
-    - run 2026-10-11 17:56 dream-dev running→done 独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。
+    - 产物：`/Users/maxim/.hermes/cache/scratch/handover-rereview.md`
     - run 2026-10-11 17:57 dream-dev done→running 第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）
     - run 2026-10-11 17:58 dream-dev running→done 第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据： = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。
+    - run 2026-10-11 17:59 dream-dev done→done 第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据：git merge-base --is-ancestor 5b957be main = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。（本条 note 因 shell 反引号被吃重发，已读回校正。）
 
 ## 日志（近 20 条）
 
-- `2026-10-11 17:53` **agent** [status] T-004#B-001: pending → done（sweep-plan.py scan 写 inputs.json（每包 HEAD + 4 个输入文件 sha256）；merge 逐行带 input_commit（=评估时 HEAD）与 stale，另出 stale.json 与 plan.md「输入指纹」段；apply/verify 的整包闸认 stale。**实测**：往副本 AgentSkill-UsingHermes 提交一条 → merge 报 ⚠『pack HEAD 变了 [AgentSkill-UsingHermes]』、该包 21 行标 stale → apply dry-run 报『上游变了（merge 已标 stale）⇒ 会跳过 19 行』；把副本回退后 stale 归 0）
-- `2026-10-11 17:53` **agent** [status] T-004#B-002: pending → done（SKILL.md 边界节写明固定顺序 dream 收编 → SkillWeave 分层 → darwin 磨 description，并写「同一个对象上下游不许越过上游改」（SkillWeave 改路径后 dream 的落点即 stale，input_commit 会拦））
 - `2026-10-11 17:53` **agent** [summary] T-006 四条断言实测（AgentSkill-copy 副本，各仓已摘 origin）：① grep -rn "S9|S10" skills/ docs/ README.md → 只在 docs/scope.md 的「已交接」段（2 行）；② sweep-plan.py --help → {scan,merge}，无 dedupe；③ 装前闸门现场触发（见 T-003#B-001）；④ resolved.json 90/99 行带 input_commit（9 行是新包，无 pack HEAD，应为 null）。S5 写入 54 行 / 挡 11 行，S6 verify PASS 54 · FAIL 0。S2 判官本轮**复用了同一 id 空间的既有 verdicts**（未重跑），所以这一轮不作为计时证据。
 - `2026-10-11 17:53` **agent** [status] T-006#B-001: pending → done（四条断言全过（原文见日志）；S5 写 54 / 挡 11，S6 PASS 54 · FAIL 0；S2 复用既有 verdicts（同一 id 空间）故不作为计时证据）
 - `2026-10-11 17:53` **agent** [decision] T-005#B-002：dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done，但补一条 note 说明「在分支 dream-v3 上成立，main 上要等这次收尾合并才成立」，免得下一个人在 main 上量到旧文本又当成误标。
@@ -168,6 +167,8 @@ flowchart LR
 - `2026-10-11 17:58` **agent** [status] T-002#B-001: done → done（done_when 已更新）（第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。）
 - `2026-10-11 17:58` **agent** [exec] T-006#B-002: 线程登记已清除（@dream-dev 收工）
 - `2026-10-11 17:58` **agent** [status] T-006#B-002: running → done（第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据： = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。）
+- `2026-10-11 17:59` **agent** [status] T-002#B-001: done → done（done_when 已更新）（第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。（本条判据文本因 shell 反引号被吃重发过一次，已读回校正。））
+- `2026-10-11 17:59` **agent** [status] T-006#B-002: done → done（第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据：git merge-base --is-ancestor 5b957be main = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。（本条 note 因 shell 反引号被吃重发，已读回校正。））
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render handover-to-skillweave` 生成。
