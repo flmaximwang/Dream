@@ -190,6 +190,56 @@ def do_apply(args) -> int:
     return 0 if wrote or not todo else 1
 
 
+def do_taskbook(args) -> int:
+    """把「要模型改正文」的行按包拼成可直接派的 writer 任务书（省掉主 run 手抄 10 份）。"""
+    d = pathlib.Path(args.dir).expanduser()
+    root = pathlib.Path(args.packs_root).expanduser()
+    rows = load_rows(d)
+    audit = {}
+    ap = d / "audit.json"
+    if ap.exists():
+        audit = {r["id"]: r for r in json.loads(ap.read_text())}
+    man, by_pack = [], {}
+    for r in rows:
+        dest = row_dest(r)
+        # writer 只管「落点=已有技能」的行（merge/strengthen）；新包只报不建，机械行 apply 自己写
+        if not (dest.get("kind") == "existing" and dest.get("dest_skill") not in (None, "__new__")):
+            continue
+        man.append(r)
+        by_pack.setdefault(dest.get("repo") or "?", []).append((r, dest))
+    if not man:
+        print("[taskbook] 没有要模型改正文的行")
+        return 0
+    md = ["# writer 任务书（每条按包一份，直接派给子代理）", "",
+          f"- 要改正文的行 {len(man)} 条 · 涉及 {len(by_pack)} 个包 · 并发上限 10（>10 分包分波）",
+          f"- 测试面：{'是（副本 + 禁 push）' if args.test else '否（真包，写入后要推）'}", ""]
+    for repo, items in sorted(by_pack.items()):
+        pack = root / repo
+        md += [f"## {repo}（{len(items)} 行）", "", f"clone：`{pack}`", ""]
+        for r, dest in items:
+            a = audit.get(r["id"], {})
+            src = pathlib.Path(r["_src"])
+            dst = a.get("target") or str(pack / "skills" / str(dest.get("dest_skill")))
+            md += [f"### {r['id']} · {dest.get('action')}", "",
+                   f"- 源技能目录（整目录读完）：`{src}`",
+                   f"- 接收技能目录：`{dst}`",
+                   f"- 判官理由：{str(r.get('why') or '')[:200]}",
+                   f"- **already there（接收侧已有，别重复写）**：{'、'.join(f'`{c}`' for c in a.get('already_there', {})) or '（无）'}",
+                   f"- **net-new（要折进去的）**：{'、'.join(f'`{c}`' for c in a.get('net_new', [])) or '（无——那说明落点存疑，退回 S2）'}",
+                   ""]
+        md += ["硬纪律：① 只在这个 clone 里动手；② 只 `git add` 你改的那个技能目录（pathspec，不许 `-A`）；"
+               "③ **禁止起后台进程**；④ 改完 frontmatter 只留 `name`+`description`，丢掉的键要在回执里列出；"
+               "⑤ 提交前跑扫描闸（`tools.skills_guard.scan_skill`），非 `safe` 按命中改写文字再扫，"
+               "`dangerous` 不许提交；" + ("⑥ **禁止 push**（副本测试面）" if args.test else "⑥ `git push origin <sha>:main` 后从远端回读 sha"),
+               "", "回执：commit sha · `git show --stat HEAD` · 扫描 verdict 与 findings 条数 · 折进哪几条 net-new · 不确定的地方。", ""]
+    out = d / "writers.md"
+    out.write_text("\n".join(md))
+    print(f"[taskbook] 要模型改正文 {len(man)} 行 / {len(by_pack)} 包 → {out}")
+    for repo, items in sorted(by_pack.items()):
+        print(f"  · {repo}: {[r['id'] for r, _ in items]}")
+    return 0
+
+
 def do_verify(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
     root = pathlib.Path(args.packs_root).expanduser()
@@ -288,7 +338,7 @@ def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["apply", "verify", "install", "retire"])
+    ap.add_argument("cmd", choices=["apply", "verify", "install", "retire", "taskbook"])
     ap.add_argument("--dir")
     ap.add_argument("--packs-root", default="~/Documents/AgentSkill")
     ap.add_argument("--profile", default="default")
@@ -296,12 +346,14 @@ def main() -> int:
     ap.add_argument("--backup", default="~/.hermes/backups/dream-retire")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-push", action="store_true")
+    ap.add_argument("--test", action="store_true", help="taskbook：按测试面写（禁 push）")
     a = ap.parse_args()
     if a.cmd == "--self-test":
         return self_test()
     if not a.dir:
         sys.exit("--dir is required")
-    return {"apply": do_apply, "verify": do_verify, "install": do_install, "retire": do_retire}[a.cmd](a)
+    return {"apply": do_apply, "verify": do_verify, "install": do_install, "retire": do_retire,
+            "taskbook": do_taskbook}[a.cmd](a)
 
 
 if __name__ == "__main__":

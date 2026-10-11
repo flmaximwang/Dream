@@ -190,7 +190,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
 | `scripts/judge.py` | S2 判官：分块直调语言模型（逐块落盘 + 断点续跑） |
 | `scripts/audit.py` | S3 交叉审计：`claims` 逐条 grep，出 already-there / net-new |
-| `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire`（各带 `--dry-run` 或只读语义） |
+| `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire` + `taskbook`（按包拼 writer 任务书） |
 | `scripts/round.sh` | S1–S8 一条命令编排 + 逐阶段计时落 `stages.tsv`（`--test` 走副本 / `--plan` 只看清单） |
 | `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
 | `scripts/check-disclosure.py` | 分层披露长度上限自检 |

@@ -74,8 +74,9 @@ summary() {
   local total; total=$(awk -F'\t' 'NR>1{s+=$4}END{print s+0}' "$stages")
   local cached; cached=$(grep -c cached "$out"/*.log 2>/dev/null | awk -F: '{s+=$2}END{print s+0}')
   echo "[round] 机械阶段合计 ${total}s（预算 1200s）；含缓存命中 ${cached} 处（>0 时这一轮的时间不作数）"
-  echo "[round] 仍要模型做：merge/strengthen 行的正文改写 —— $out/resolved.json 里 action 非 move 的行；"
-  echo "        清单与净新增内容：$out/audit.md（按包派 writer，见 references/dream-agent-roster.md）"
+  echo "[round] 仍要模型做：merge/strengthen 行的正文改写（按包派 writer，并发上限 10）："
+  echo "        $PY -B $SKILL_DIR/scripts/apply.py taskbook --dir $out --packs-root $packs${mode:+ }$( [ "$mode" = test ] && echo --test)"
+  echo "        → 生成 $out/writers.md（每包一段可直接派的任务书）；回执要求见 references/dream-agent-roster.md"
 }
 
 if [ $plan_only -eq 1 ]; then
