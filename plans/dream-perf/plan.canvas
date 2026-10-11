@@ -108,7 +108,7 @@
    "width": 300,
    "height": 110,
    "color": "3",
-   "text": "### T-009#B-001\n定位并修掉「运行中的 Hermes 环境目录被回收」\n\n`ready` · @-\n\n实测证据链（2026-10-11）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（"
+   "text": "### T-009#B-001\n定位并修掉「运行中的 Hermes 环境目录被回收」\n\n`ready` · @-\n\n实测证据链（2026-10-11，11:02 更新）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:"
   }
  ],
  "edges": [

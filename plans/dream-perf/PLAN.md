@@ -2,7 +2,7 @@
 
 > 把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。
 
-**进度** 1/11 块（9%） · 状态 `active` · 更新于 2026-10-11 10:54
+**进度** 1/11 块（9%） · 状态 `active` · 更新于 2026-10-11 11:02
 
 **参与方** 本人(human)
 
@@ -106,13 +106,11 @@ flowchart LR
 
 ### T-009 运行期地基被拆：环境目录被回收 — 待认领
 - [ ] `T-009#B-001` **定位并修掉「运行中的 Hermes 环境目录被回收」** _impl_ — 待认领
-    - 做什么：实测证据链（2026-10-11）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（environments/ 的 mtime = 10:51:33，且该路径现在不存在，只剩 ef2099f3d36145779f2e00c200d4279a）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，一分钟内 498+362 行重试风暴；④ 该错只在**新建** httpx/openai 客户端时触发，所以内存里已导入模块的调用照旧能跑 —— 表现为部分子代理动、其余卡死；⑤ 裸 curl 走代理与直连均 200 级连通（http=401 缺鉴权），网络与 TLS 本身没问题；⑥ iron-proxy egress 未启用、配置里没有证书变量、disk-cleanup 日志只记 cache/scratch 类临时文件、不含 installs —— **删除者尚未定案**，候选是 Hermes 自己的环境 GC（新 env 在 01:49 建好、旧 env 在 10:51 被回收）或某次 install/update 的清理。做法：先定案「谁在什么条件下删 environments/*」，再让它在进程存活期间不回收（租约 / 锁 / 只回收未被任何活进程引用的环境），并在回收前检测引用。
-    - 判据：① 删除者的定案证据：能复现或能指到具体代码路径与触发条件（贴 file:line 或复现命令与输出）；② 修法落地且可验证：跑一个长任务跨越一次回收时机，该任务全程无 FileNotFoundError（贴改前改后的错误计数对比）；③ 回归闸：一条自检说明「被活进程引用的环境不回收」（贴命令与输出）；④ 本轮 10:51 之后的 retry 风暴不再出现在下一轮 cron 的 error log（贴 grep -c 原文）。
+    - 做什么：实测证据链（2026-10-11，11:02 更新）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（environments/ 的 mtime = 10:51:33，现在只剩 ef2099f3d36145779f2e00c200d4279a）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，到 11:02 的 15 分钟窗口内已有 API failed 71 · provider down 16 · FileNotFoundError 132；④ 该错只在**新建** httpx/openai 客户端时触发，内存里已导入模块的调用照旧能跑 —— 表现为部分子代理动、其余卡死（8/10 idle 超 10 分钟，最长 33.9 分钟）；⑤ 网络与证书本身正常：curl 直连与走代理都是 401（缺鉴权），iron-proxy egress 未启用，config 里没有证书变量；⑥ **强候选：App Store 在装 Xcode**——/Applications/Xcode.app mtime 10:59:02、install.log 里 appstoreagent 于 10:59:35 注册 bundle、load average 16.7/18.0/15.7、空闲内存仅 136MB、cp 占 88% CPU、mds_stores 占 43%（Spotlight 重建索引）。同期的吞吐单调衰减（31→29→13→11→9→4→1 次/5min，10:25 起）与资源争用时间吻合；⑦ 附带伤害：/usr/bin/python3 从 11:00 起直接不可用（Xcode 许可未同意，退出码 69），任何依赖它的脚本都会挂，本探针已改用 Hermes 工具 python 运行。做法：先定案分叉——回收是**资源压力/安装过程触发**的清理，还是 Hermes 自己的环境 GC（新 env 01:49 建好、旧 env 10:51 回收）？定案后在进程存活期间不回收（租约 / 引用检测），并在回收前检查是否有活进程在用。
+    - 判据：① 定案证据：给出回收触发者与阈值（能复现，或能指到 file:line 与触发条件）；② 修法落地且可验证：跑一个长任务跨越一次回收时机，全程无 FileNotFoundError（贴改前改后错误计数对比）；③ 回归闸：一条自检说明「被活进程引用的环境不回收」（贴命令与输出）；④ 下一轮 cron 的 error log 里不再出现 retry 风暴（贴 grep -c 原文）；⑤ 附带项已处理：/usr/bin/python3 可用（贴 python3 -V 输出）或已明确绕开方案并记录在案。
 
 ## 日志（近 20 条）
 
-- `2026-10-11 10:08` **agent** [block] 新增块 T-001#B-001「sweep-plan 用法下沉到 references，SKILL.md 禁止读脚本全文」
-- `2026-10-11 10:08` **agent** [block] 新增块 T-002#B-001「把本轮 ad-hoc 脚本固化成 sweep-plan.py 子命令并写进用法文档」
 - `2026-10-11 10:08` **agent** [block] 新增块 T-003#B-001「JEV 451 判为永久不可用：跳过重试并裁剪判官输入」
 - `2026-10-11 10:08` **agent** [block] 新增块 T-003#B-002「cron 审批闸写进 dream-hermes-routing（用户 2026-10-11 要求）」
 - `2026-10-11 10:08` **agent** [block] 新增块 T-004#B-001「一轮批次按 profile 拆成可独立跑完的单元」
@@ -131,6 +129,8 @@ flowchart LR
 - `2026-10-11 10:54` **agent** [task] 新增任务 T-009「运行期地基被拆：环境目录被回收」
 - `2026-10-11 10:54` **agent** [block] 新增块 T-009#B-001「定位并修掉「运行中的 Hermes 环境目录被回收」」
 - `2026-10-11 10:54` **agent** [decision] 定案纠正：10:25 之后的吞吐衰减不是端点排队。10:51:33 运行中的环境目录 installs/b200403c2b90970e/environments/51e7b11d... 被回收，此后任何新建 httpx 客户端都在 truststore 载入处 FileNotFoundError（monk 调用全部失败），表现为部分子代理卡死。T-008#B-001 的原文已从「事实」降回「待验证假设」，新开 T-009 追这一条。
+- `2026-10-11 11:02` **agent** [block] T-009#B-001 改了 做什么
+- `2026-10-11 11:02` **agent** [status] T-009#B-001: pending → pending（done_when 已更新）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-perf` 生成。
