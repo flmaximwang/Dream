@@ -27,8 +27,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "0",
-   "text": "### T-002#B-001\n删除 S9/S10 并改边界节\n\n`waiting` · @-\n\n在 skills/dream/SKILL.md（边界节、检查点、反例）、references/dream-method.md、README.md 里删掉 S9（全库去重 + 无类目归位）与 S10（合并/umbrella）；边界节写明「不属于本 skill：skill-pack 优化/整理 → SkillWeave（用"
+   "color": "4",
+   "text": "### T-002#B-001\n删除 S9/S10 并改边界节\n\n`done` · @-\n\n在 skills/dream/SKILL.md（边界节、检查点、反例）、references/dream-method.md、README.md 里删掉 S9（全库去重 + 无类目归位）与 S10（合并/umbrella）；边界节写明「不属于本 skill：skill-pack 优化/整理 → SkillWeave（用"
   },
   {
    "id": "T-003#B-001",
