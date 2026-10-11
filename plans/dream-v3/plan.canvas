@@ -1,0 +1,150 @@
+{
+ "nodes": [
+  {
+   "id": "T-001#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "4",
+   "text": "### T-001#B-001\n冻结 v3 口径（四条）\n\n`done` · @-\n\n把用户 2026-10-11 的四条口径写进 docs/scope.md：①不含「优化/整理 skill pack」这一步，SkillWeave 接手；②一轮 = 一个 profile（default），跑扫描当刻全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 "
+  },
+  {
+   "id": "T-001#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-001#B-002\n旧流程逐阶段耗时归因\n\n`ready` · @-\n\n取 2026-10-11 两轮实测（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完）＋ plans/dream-perf 的 T-001/T-002/T-004/T-006/T-008/T-009 结论，写成 docs/baseline-v2.md：逐阶段（枚举/判官/审计/写入/验证/重装/退役"
+  },
+  {
+   "id": "T-002#B-001",
+   "type": "text",
+   "x": 380,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-001\n删除 S9/S10 并改边界节\n\n`waiting` · @-\n\n在 skills/dream/SKILL.md（边界节、检查点、反例）、references/dream-method.md、README.md 里删掉 S9（全库去重 + 无类目归位）与 S10（合并/umbrella）；边界节写明「不属于本 skill：skill-pack 优化/整理 → SkillWeave（用"
+  },
+  {
+   "id": "T-003#B-001",
+   "type": "text",
+   "x": 380,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-001\n判官直连 deepseek-flash 分块判\n\n`waiting` · @-\n\n去掉 JEV 依赖与「每 8–12 条一个判官子代理」的接线，改为主 agent 直接对 judge-input-bodies.json 分块调 deepseek-flash（每块若干条、正文内联），产物仍是 verdicts-*.jsonl；dream-hermes-routing 里写明这条改法与 JEV 451 "
+  },
+  {
+   "id": "T-003#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 300,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-003#B-002\nmerge 覆盖率 100% 实测\n\n`waiting` · @-\n\n对 default 跑 sweep-plan.py merge，确认没有未判定/被拒收的行。"
+  },
+  {
+   "id": "T-004#B-001",
+   "type": "text",
+   "x": 720,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-001\n机械步骤进脚本（apply/verify/install/retire）\n\n`waiting` · @-\n\n把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文"
+  },
+  {
+   "id": "T-004#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 430,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-004#B-002\n主 run 上下文瘦身\n\n`waiting` · @-\n\n主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。"
+  },
+  {
+   "id": "T-005#B-001",
+   "type": "text",
+   "x": 380,
+   "y": 300,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-005#B-001\n20 分钟验收：default + deepseek-flash 跑一轮\n\n`waiting` · @-\n\n用 default profile + deepseek-flash 跑一轮完整 v3 流程（枚举 → 判落点 → 交叉审计 → 写入 → 独立验证 → 整包重装 → 退役），逐阶段计时。"
+  },
+  {
+   "id": "T-006#B-001",
+   "type": "text",
+   "x": 720,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-006#B-001\n推送 + 重装 + 回读\n\n`waiting` · @-\n\ngit push origin <sha>:main；hermes skills install/update flmaximwang/Dream/skills/dream 与 dream-hermes-routing（用 default profile 的已装版本做回读）。"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e0",
+   "fromNode": "T-001#B-002",
+   "toNode": "T-002#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e1",
+   "fromNode": "T-001#B-002",
+   "toNode": "T-003#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e2",
+   "fromNode": "T-002#B-001",
+   "toNode": "T-004#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e3",
+   "fromNode": "T-003#B-002",
+   "toNode": "T-004#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e4",
+   "fromNode": "T-004#B-002",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e5",
+   "fromNode": "T-005#B-001",
+   "toNode": "T-006#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  }
+ ]
+}
