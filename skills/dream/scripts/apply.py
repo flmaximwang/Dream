@@ -307,6 +307,9 @@ def do_taskbook(args) -> int:
     for repo, items in sorted(by_pack.items()):
         pack = pack_path(args, repo)
         md += [f"## {repo}（{len(items)} 行）", "", f"clone：`{pack}`", ""]
+        if sh(["git", "remote", "get-url", "origin"], cwd=str(pack)).returncode != 0:
+            md += ["⚠ **本包没有远端**：只在回执里报「要折什么」，**别提交**"
+                   "（本地积提交没人收，等它有了 origin 再走一次）", ""]
         for r, dest in items:
             a = audit.get(r["id"], {})
             src = pathlib.Path(r["_src"])

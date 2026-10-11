@@ -158,6 +158,9 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
   ① `walk_skill_dirs` 用 `rglob` 不跟符号链接 ⇒ **Skills-Manager 部署的技能（全是符号链接）被看成不存在**（default profile 漏 30 个技能、15 态少一整类 `local·mgr=yes·ext=no·same`）；已改 `os.walk(followlinks=True)` + realpath 防环。
   ② S6 只拿 `origin/main` 比提交 ⇒ `--no-push` 轮次 **74 行全假 FAIL**；已改成 origin/main 优先、本地 HEAD 兜底（`HEAD(未推)`）。
   ③ `taskbook` 不看 `--no-push` ⇒ 任务书还在让 writer `git push`；已按 `--no-push`/`--test` 改成"禁止 push"。
+- **没有"新建包"这一步**：试跑轮里 11 条落点指向还不存在的包（`AgentSkill-UsingPretext`、`UsingReddit`、`UsingRssFeeds`、`UISketching`、`UsingJev`、`CredentialVerification`、`UsingBilibili`、`UsingDrawio`、`UsingExcalidraw`、`UsingArchify`、`FilenamePortability`），S5 只报不落 —— 要么补一步建包（建仓 + 空 README + category 层），要么把落点收进已有包，得先定。
+- **扫描闸会挡掉自己的 hermes-ops 技能**：试跑轮 106 条里 12 条被挡（6 dangerous + 6 caution），命中多是 `hermes_env_access` / `read_secrets_file` / `sudo_usage` —— 这些技能本来就该提 `~/.hermes/.env` 和 sudo。这个闸原本是给"从 hub 装别人的技能"用的，用在自己的技能上尺度过紧，待定：放宽/白名单/改写措辞。
+- **没远端的包不该积本地提交**：`AgentSkill-UsingEagle` 没有 origin，writer 那次提交没人收。apply 早就有"没远端只报不建"的闸，`taskbook` 本轮才补上（现在会在该包的任务书里写明"别提交，只报要折什么"）。
 - **S7 装回只有两条路的实现细节待跑实**：命令清单已按三条路生成（`--skills-manager` 开 → 交 Skills-Manager 从本地包装；关 → 直接复制；profile 里是符号链接的 → 交 Skills-Manager 更新），但**还没真跑**过一遍：
   `skills-manager-cli skills install --local` 这条参数组合只在文档里对过，没有实测回读。
 - **S5 的形态（2026-10-12 定）**：不做 frontmatter 归一；**新技能只拷贝**，入口就是它自己的 `SKILL.md`，脚本只机械查 name/desc 与包内已有是否撞车（撞了跳过该行、报出来，改名/改 desc 后重跑）；**已有技能被改就只看 diff 交代理合并，不做回归测试**；不给包额外加 L1 入口——包结构优化整段归 SkillWeave。改动清单默认在会话里报，`--changes-out <路径>` 可落盘。
@@ -205,3 +208,17 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | S7 装回 | 🟡 命令清单已按三条路生成（`--skills-manager` 开关已加；不再出现 hermes 自己的安装命令），**未真跑** |
 | S8 退役 | ⏳ 未真跑；口径要按"装回有多个所有者"重写（Skills-Manager 装的那份不该由 dream 删） |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
+
+## 试跑轮实测（2026-10-12，真包 AgentSkill，全轮 `--no-push`）
+
+| 阶段 | 实测 | 结论 |
+|---|---|---|
+| S1 | 11s · 技能 232（修完符号链接 bug 后）· 落点池 300 包 · 候选 106 | ✓ |
+| S2 | 337s · 106/106（deepseek-flash，8 块） | ✓ |
+| S3 | 0.1s · 重叠行 5 · claims 31 · already-there 11 | ✓ |
+| S4 | 4s · 决议 106（101 新建 / 5 并入）· stale 0 · 装回命令按三条路生成 | ✓ |
+| S5 | 114s · 写入 78 行（真包，只提交不推）· 扫描闸挡 12 行 · 5 条 merge 派 5 个 writer，5/5 交卷并核实（sha=HEAD、工作区干净、没推、只动自己的目录、frontmatter 0 改动） | ✓ |
+| S6 | PASS 78 · FAIL 0 | ✓ |
+| 缺口 | 11 条落点指向不存在的包（无建包步骤）· 12 条被扫描闸挡 | 待定 |
+
+一轮从 `scan` 到 `verify` 实测约 **8 分钟**（S2 占 5.6 分钟），达成"≤20 分钟"的预算。
