@@ -16,7 +16,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
   一轮会话自己的收获（→ `recruit-learning-in-session`）。
 - **也不属于本 skill：技能库/pack 的整理与优化（已交接）**——去重 / 无类目归位 / 多条合并（umbrella）/
   正文下沉 / `description` 改写，全部归 **SkillWeave**（`github.com/flmaximwang/SkillWeave`，契约
-  `docs/contract.md`，命令 `<SkillWeave>/scripts/weave.py layers|checks|propose <pack>`）。dream 只做两件事：
+  `docs/contract.md`，命令：SkillWeave 的 `weave.py`（`layers|checks|propose <pack>`））。dream 只做两件事：
   把「没有仓库归属的本地技能」收编进包仓库并装回（S1–S8），以及**读 profile 的数、守 profile 的闸门**
   （`MAX_AGENT_SKILLS`）。**反向**：profile 级读数与闸门不进 SkillWeave。
 - **固定顺序**：`dream 收编（跨包归属）→ SkillWeave 分层（包内结构）→ darwin 磨 description（单技能效果）`。
@@ -179,7 +179,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | `MAX_AGENT_SKILLS` | 120 | **profile** 技能总数 → S7 装前闸门（`apply.py install`） |
 
 **包内形状（行数 / 字节 / doc 字节 / 第一层条目）一律由 SkillWeave 量**——repo 侧只留 one 实现，dream 不重复实现第二套：
-命令 `<SkillWeave>/scripts/weave.py layers|checks <pack 目录>`（仓库见下面「边界」节）。
+命令：SkillWeave 的 `weave.py layers|checks <pack 目录>`（仓库见下面「边界」节）。
 
 ## 文档树
 
