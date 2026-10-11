@@ -23,7 +23,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **产出目录** | `--out <dir>`；不给就 `~/.hermes/cache/scratch/sweep-<时间戳>/` | 一轮的所有产物都落这里 |
 | **判官凭据** | `~/.hermes/.env` 的 `DEEPSEEK_API_KEY`（**从不打印**）+ `--model`（默认 `deepseek-flash`）/ `--base-url` | 判官直调 API，不经 JEV |
 | **兄弟解析器** | `load-external-skill-index/scripts/skill-index.py` | frontmatter 解析**必须**用它（YAML 坑是真的）；回退链：worktree 旁边 → profile（两种布局）→ Skills-Manager 中央库 → external_dirs 包内 |
-| **模式与开关** | `--test` / `--formal` / `--plan`；`--skills-manager`（本次运行是否把该 profile 的技能交给 Skills-Manager 管，决定 S7 走第②还是第③条路） | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
+| **模式与开关** | `--test` / `--formal` / `--plan`；`--exclude <前缀>`（重复可给，命中的技能本轮一律不动）；`--skills-manager`（本次运行是否把该 profile 的技能交给 Skills-Manager 管，决定 S7 走第②还是第③条路） | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
 
 一条命令跑完整轮：`bash skills/dream/scripts/round.sh [--test|--formal] [--profile <名>] [--out <dir>]`。
 
@@ -154,6 +154,10 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 ## 7 · 已知缺口（下一步要补）
 
+- **试跑轮（2026-10-12，真包 AgentSkill）实测修掉的三个真 bug**：
+  ① `walk_skill_dirs` 用 `rglob` 不跟符号链接 ⇒ **Skills-Manager 部署的技能（全是符号链接）被看成不存在**（default profile 漏 30 个技能、15 态少一整类 `local·mgr=yes·ext=no·same`）；已改 `os.walk(followlinks=True)` + realpath 防环。
+  ② S6 只拿 `origin/main` 比提交 ⇒ `--no-push` 轮次 **74 行全假 FAIL**；已改成 origin/main 优先、本地 HEAD 兜底（`HEAD(未推)`）。
+  ③ `taskbook` 不看 `--no-push` ⇒ 任务书还在让 writer `git push`；已按 `--no-push`/`--test` 改成"禁止 push"。
 - **S7 装回只有两条路的实现细节待跑实**：命令清单已按三条路生成（`--skills-manager` 开 → 交 Skills-Manager 从本地包装；关 → 直接复制；profile 里是符号链接的 → 交 Skills-Manager 更新），但**还没真跑**过一遍：
   `skills-manager-cli skills install --local` 这条参数组合只在文档里对过，没有实测回读。
 - **S5 的形态（2026-10-12 定）**：不做 frontmatter 归一；**新技能只拷贝**，入口就是它自己的 `SKILL.md`，脚本只机械查 name/desc 与包内已有是否撞车（撞了跳过该行、报出来，改名/改 desc 后重跑）；**已有技能被改就只看 diff 交代理合并，不做回归测试**；不给包额外加 L1 入口——包结构优化整段归 SkillWeave。改动清单默认在会话里报，`--changes-out <路径>` 可落盘。
