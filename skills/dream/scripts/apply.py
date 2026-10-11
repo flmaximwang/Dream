@@ -96,10 +96,12 @@ def scan_verdict(skill_dir: pathlib.Path) -> tuple:
     return (lines[0] if lines else "unknown"), lines[1:]
 
 
-def pack_status(pack_dir: pathlib.Path, pathspec: str) -> tuple:
-    """→ (ok, 说明)。工作区有别人的改动就不动这个包。"""
+def pack_status(pack_dir: pathlib.Path, pathspec: str, require_remote: bool = False) -> tuple:
+    """→ (ok, 说明)。工作区有别人的改动就不动这个包；要真推时还得先有远端。"""
     if not (pack_dir / ".git").exists():
         return False, "not a git checkout"
+    if require_remote and sh(["git", "remote", "get-url", "origin"], cwd=str(pack_dir)).returncode != 0:
+        return False, "包没有远端（origin 不存在）⇒ 只报不建，别在本地悄悄积提交"
     st = sh("git status --porcelain", cwd=str(pack_dir)).stdout.splitlines()
     dirty = [l[3:] for l in st if l.strip() and not l[3:].startswith(pathspec)]
     if dirty:
@@ -144,7 +146,7 @@ def do_apply(args) -> int:
         by_pack.setdefault(pack, []).append((r, src, dst))
     for pack, items in sorted(by_pack.items(), key=lambda kv: kv[0].name):
         path_spec = f"skills/{items[0][2].name}"
-        ok, why = pack_status(pack, "skills/")
+        ok, why = pack_status(pack, "skills/", require_remote=not args.no_push)
         if not ok:
             print(f"[apply] ✗ {pack.name}: {why} ⇒ 跳过 {len(items)} 行")
             results += [(r["id"], "SKIP", why) for r, _, _ in items]
