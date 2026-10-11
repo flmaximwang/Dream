@@ -29,6 +29,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import subprocess
 import sys
 
 SKIP_DIRS = {".git", ".hub", ".archive", "quarantine", ".trash", "__pycache__", "node_modules",
@@ -183,6 +184,42 @@ def cmd_check(args) -> int:
     return 0
 
 
+def cmd_repos_from_manager(args) -> int:
+    """Skills-Manager 的「被维护仓库列表」：它的 clone 缓存 + 中央技能库。
+
+    权威来源是 `skills-manager-cli --json skills list`（source_ref 是 URL/registry 条目），
+    本地对等物就是它自己的 clone（`<base>/cache/repos/<hash>`，origin == source_ref）与规范副本库
+    （`<base>/skills`）。不带 --json 时一行一个路径，直接喂 `check --repos-from`。
+    """
+    base = pathlib.Path(args.manager_base).expanduser()
+    central = base / "skills"
+    clones = []
+    for d in sorted((base / "cache" / "repos").glob("*")):
+        if not d.is_dir() or d.name.endswith(".lock") or "-sparse" in d.name:
+            continue
+        r = subprocess.run(["git", "-C", str(d), "remote", "get-url", "origin"],
+                           capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout.strip():
+            clones.append((r.stdout.strip(), str(d)))
+    managed = []
+    r = subprocess.run([str(base / "bin" / "skills-manager-cli"), "--json", "skills", "list"],
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        managed = json.loads(r.stdout or "[]")
+    paths = [p for _, p in clones] + [str(central)]
+    if args.json:
+        print(json.dumps(dict(manager_base=str(base), central=str(central),
+                              clones=[dict(origin=o, path=p) for o, p in clones],
+                              managed_skills=len(managed),
+                              sources=sorted({s.get("source_ref", "") for s in managed})),
+                         ensure_ascii=False, indent=2))
+    else:
+        print("\n".join(paths))
+    print(f"[mirror] 仓库 {len(paths)} 个（clone {len(clones)} + 中央库 1）· 管理中的技能 {len(managed)} 个",
+          file=sys.stderr)
+    return 0
+
+
 def self_test() -> int:
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -233,6 +270,8 @@ def main() -> int:
     s.add_argument("--skill-dir", default="")
     c = sub.add_parser("check"); c.add_argument("profile"); c.add_argument("--repo", action="append")
     c.add_argument("--repos-from"); c.add_argument("--skill-dirs", nargs="*"); c.add_argument("--json", action="store_true")
+    m = sub.add_parser("repos-from-manager"); m.add_argument("--manager-base", default="~/.skills-manager")
+    m.add_argument("--json", action="store_true")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
@@ -243,6 +282,8 @@ def main() -> int:
         return cmd_same(args)
     if args.cmd == "check":
         return cmd_check(args)
+    if args.cmd == "repos-from-manager":
+        return cmd_repos_from_manager(args)
     ap.print_help()
     return 2
 
