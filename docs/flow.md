@@ -71,7 +71,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
 | **S6 独立验证** | 脚本（只读，0 次模型调用） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 + S5 的报告 | 逐行 PASS/FAIL（日志可留下，如 `verify-r1.log`） | 见下方「S6 逐行核什么」；有 FAIL → exit 1，回 S5 修 |
-| **S7 装回** | 脚本 | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave，不自己 `git mv` |
+| **S7 装回** | 脚本（按归属分三条路，见下） | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile + 启动时的 `--skills-manager` 开关 | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave、不自己 `git mv` |
 | **S8 退役** | 脚本 + 汇报 | `apply.py retire --dir <out> --backup ~/.hermes/backups/dream-retire` | verify 通过的行 | 先 `tar czf` 备份（路径写进汇报）再删 profile 副本 | 只对**回读通过**的行动手；修不动的那行跳过，副本不删 |
 | **收尾汇报** | 主 agent | —— | 上面全部产物 | 四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事 | 只读产出与真写入**分开写**（只读：N 行涉及 M 个包名／真写入：K 个包 + 各自 sha） |
 
@@ -92,6 +92,16 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 7. **技能树指纹比对**：S1 记下的每个技能目录的哈希当场回读一次，变了就写 `profile-stale.json`。
 
 产出里 `install-cmds.sh` 只是**命令清单**，S4 不执行任何一条；真正装回是 S7。
+
+### S7 装回的三条路（按 S1 算出的归属 + 启动参数）
+
+装回不只有一条路，"谁来装"由 S1 的归属和本次运行的参数决定：
+
+1. **该技能归 Skills-Manager 管**（B 轴 = yes）→ 交 Skills-Manager 装（`skills-manager-cli skills install/update`，它按自己的来源取件）；装完回读它自己的记录（该技能的中央库路径与已部署到哪个 agent）。
+2. **不归它管，但本次运行传了 `--skills-manager`**（说明这个 profile 的技能交给 Skills-Manager 管）→ 让 Skills-Manager **从本地那份包**装：把本地包当作来源（本地路径，或就地改指向），再 install/deploy；装完同样回读它的记录。
+3. **不归它管、也没传 `--skills-manager`** → 不经过 Skills-Manager，直接把技能目录从本地包复制进 profile 的 `skills/<类目>/<名>/`；装完回读 profile 目录，并与包内那份逐文件比对。
+
+三条路都要先过**装前总量闸**（现有 ∪ 新装 ≤ 上限），装完都要跑**形状断言**。
 
 ### S6 逐行核什么（不采信 S5 的自述，重新去包里读）
 
@@ -144,9 +154,10 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 ## 7 · 已知缺口（下一步要补）
 
-- **S7 还在发 `hermes --profile <名> skills install/update`**（`merge` 生成的 `install-cmds.sh`），
-  与 `scope.md` §6「装回只交 Skills-Manager」不一致。要改：`install-cmds.sh` 生成 `skills-manager-cli skills install/update/deploy`，
-  `install` 走 manager 并回读它自己的账（`deployed_to`）。
+- **S7 还是单条路**：`install-cmds.sh` 现在生成的是 `hermes --profile <名> skills install/update`，没有按上面的三条路分。
+  改成按 S1 的归属分支，并让"交 Skills-Manager 装"的两条路回读它自己的记录（中央库路径 / 已部署的 agent）。
+- **`--skills-manager` 这个开关还不存在**：现在对 Skills-Manager 的检测是无条件做的，所以 S7 的第 2、3 条路分不开。
+  要加这个参数（语义：本次运行是否把该 profile 的技能交给 Skills-Manager 管）。
 - **`reconcile` / `patch-package` / `patch-or-restore` 没有对应阶段**：15 态里这四类动作现在只在
   `states.json` 里列出来，S2–S8 没有任何一步会去执行它们（建 patch 包、判方向、让 manager 重装）。
 - **S7 仍发 `hermes … skills install/update`**（见上一条缺口）。
@@ -187,5 +198,5 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | 输入口径（`DREAM_EXTERNAL_DIRS` JSON + `external-dirs.py`） | ✅ 落地 |
 | 15 态 / 7 态分类与逐态去向 | 🟡 **半落地**：S1 算出来并落报表；**S2 已按 `action` 接线**（候选只取 `judge-destination`，题面带归类）。未落地：`reconcile`/`patch-package`/`patch-or-restore` 仍无承接阶段 |
 | S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
-| S7–S8 | ⏳ 未真跑（要人点头；且 S7 待改走 Skills-Manager） |
+| S7–S8 | ⏳ 未真跑（要人点头）。S7 的口径已定成三条路（见上），但代码仍是单条路 + 缺 `--skills-manager` 开关 |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
