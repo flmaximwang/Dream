@@ -11,14 +11,14 @@
 
 | # | 口径 | 含义与边界 |
 |---|---|---|
-| ① | **不含「优化/整理 skill pack」这一步** | 删除 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）。**SkillWeave** 项目接手这件事，dream 不再碰包内结构的整理。dream 只负责「把没有仓库归属的本地技能收编进包仓库并装回」。 |
+| ① | **不含「优化/整理 skill pack」这一步 — 已交接（2026-10-11）** | dream 侧已把 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）**连脚本一起删除**：① 移交的动作清单 = 去重 / 无类目归位 / 合并 umbrella / 正文下沉 / `description` 改写；② 接手方 = **SkillWeave**（`https://github.com/flmaximwang/SkillWeave`，契约文件 `docs/contract.md`，命令 `python3 scripts/weave.py layers|checks <pack>`；本技能被删的 S9/S10 两节即对应它的 `propose` 里的「并 / 分」两类动作）；③ 反向：**profile 级读数与闸门（`MAX_AGENT_SKILLS = 120`）不进 SkillWeave**，那是 dream 的活。 |
 | ② | **一轮 = 一个 profile** | 运行单位是单个 profile（验收用 `default`），跑扫描当刻的**全量** local 候选，**不抽样**。 |
 | ③ | **判官 = deepseek-flash** | JEV 稳定 451（地域限制），不再作为默认判官，也不做重试降级链；判官直接调 deepseek-flash。 |
 | ④ | **判据 = wall clock ≤ 20 min** | 从起跑到「退役完成」，含装回与退役，贴实测时间戳与逐阶段耗时表。 |
 
 ## 3 · 不属于本版（明确排除）
 
-- 包内技能的结构整理：合并 / umbrella / 归类 / 无类目归位（S9、S10）→ **SkillWeave**。
+- 包内技能的结构整理：合并 / umbrella / 归类 / 无类目归位（S9、S10）→ **SkillWeave**（`flmaximwang/SkillWeave`，契约 `docs/contract.md`；dream 侧只剩一行转指）。
 - 单个技能的收编 → `recruit-learning-in-profile`；装/更/卸机制 → `install-` / `update-` / `remove-hermes-skills`；
   profile 间补齐 → `maintain-hermes-profile-skill-parity`。
 - 全 profile 一波（v2 的「为所有 profile 跑一遍」）→ 已从本轮单位中拿掉；多 profile 由「跑 N 轮」表达。
