@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 16:12
+**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 16:21
 
 **参与方** 本人(human)
 
@@ -143,7 +143,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:47` **agent** [status] T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）
 - `2026-10-11 14:55` **agent** [status] T-004#B-001: pending → running（apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。）
 - `2026-10-11 14:55` **agent** [decision] apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。
@@ -163,6 +162,7 @@ flowchart LR
 - `2026-10-11 15:55` **agent** [block] 新增块 T-006#B-002「收尾：合并后清理工作树（Dream 仓库）」
 - `2026-10-11 16:12` **agent** [status] T-004#B-002: running → running（测试轮实测（sweep-20261011_160730，default + deepseek-flash，副本面）：主 run 每条工具结果最大值 = 632 B（S1 的 tail-3；脚本全文最长 15.4 KB 也不进主 run）；本 skill 文档面 SKILL.md 15.9 KB + 单份 references ≤11.8 KB。无 >40 KB 的上下文炸弹。真实 prompt 峰值（网关会话 usage 行）留 T-005。）
 - `2026-10-11 16:12` **agent** [summary] T-005 预演（--test 面，副本 + --no-push）：S1 6s / S2 判官 259s（99/99）/ S3 1s / S4 0s / S5 写入 9s（写入 67 行、阻断 11 行）/ S6 验证 4s（PASS 67 · FAIL 0）→ 机械阶段合计 279s（4.65 min，预算 1200s）。决议形状：move 82 / merge 15 / strengthen 2 → 还有 17 行要模型改正文、跨 10 个包（唯一剩下的扇出，正式轮要计时）。审计 17 行 / already-there 43 条带 file:line / 零命中 4。产物 ~/.hermes/cache/scratch/sweep-20261011_160730（stages.tsv = 逐阶段表）。
+- `2026-10-11 16:21` **agent** [summary] writer 扇出实测（测试面副本）：2 个包并行 54.5s / 94.7s，单元 wall 94.8s。两个 writer 都落了 commit（UsingGit fac28ca / UsingZotero 82b8f9e）、工作区干净、扫描 verdict 双 safe、net-new 逐条 grep 验证在位（filter-repo/core.quotepath/clone --no-local/count-objects、saveItems/localAPIKeys/zot search/Zotero-Server-ID 各 1 处）。按并发上限 10 外推：writer 阶段 wall ≈ 最慢那条 ≈ 95–150s ⇒ 全轮 ≈ 279s + ~150s + install/retire ≈ 8 min，20 分钟预算有余量。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
