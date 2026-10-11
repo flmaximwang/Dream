@@ -285,8 +285,10 @@ def hermes_source(n: str, tp: dict, manifest: dict, lock: set) -> str:
     return "local"
 
 
-def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict) -> dict:
-    """一条 profile 技能的 15 态归属：source/A/B/C/D + action。"""
+def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict,
+                exclude: tuple = ()) -> dict:
+    """一条 profile 技能的 15 态归属：source/A/B/C/D + action。
+    exclude 里是技能名前缀：命中的本轮一律不动（`--exclude loomerto`＝这人正在手改，别碰）。"""
     n = r["name"]; d = r["_md"].parent
     source = hermes_source(n, tp, manifest, r.get("lock_names", set()))
     mgr = "yes" if n in manager_dirs else "no"
@@ -309,9 +311,12 @@ def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, mani
         owners.append(tp[n][0]); same = same or mirror.diff_dirs(d, tp[n][1])["identical"]
     D = "fold" if not owners else ("same" if same else "differs")
     A = "local" if source == "local" else "third"
+    action = STATE_ACTIONS[(A, mgr, ext, D)]
+    if action != "noop" and exclude and n.lower().startswith(exclude):
+        action = "noop"          # 被 --exclude 点名：连动作都不给，免得下游接手
     return dict(state_source=source, A=A, mgr=mgr, ext=ext, D=D,
                 state=f"{A}·{source}·mgr={mgr}·ext={ext}·{D}",
-                action=STATE_ACTIONS[(A, mgr, ext, D)], comparators=owners)
+                action=action, comparators=owners)
 
 
 def find_dups(rows: list) -> dict:
@@ -354,7 +359,12 @@ def prescreen(args, packs, rows, local, mirror) -> None:
         if "_md" not in r:                                    # 自检里的合成行没有真实目录，跳过
             continue
         r["lock_names"] = lock_names
-        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest))
+        ex = tuple(x.strip().lower() for x in (getattr(args, "exclude", None) or []) if x.strip())
+        r["excluded"] = any(r["name"].lower().startswith(pfx) for pfx in ex)
+        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest, exclude=ex))
+    off = [r["name"] for r in rows if r.get("excluded")]
+    if off:
+        print(f"[sweep-plan] --exclude 命中 {len(off)} 条，本轮一律不动：{', '.join(sorted(off))}")
     for r in local:
         if r["name"] in managed:
             r["verdict"], r["matched"] = "managed", "skills-manager"
@@ -1016,6 +1026,8 @@ def main() -> int:
                    help="DREAM_EXTERNAL_DIRS 那份 JSON：列出的目录（或它们的直接子目录）就是落点候选池")
     s.add_argument("--out", required=True, help="scratch dir: inventory.tsv / judge-input.json / packs.json")
     s.add_argument("--parser-script", default="", help="override the sibling skill-index.py path")
+    s.add_argument("--exclude", action="append", default=[],
+                   help="技能名前缀，重复可给多个；命中的本轮一律不动（如 --exclude loomerto）")
     s.add_argument("--repo-stem", default="", help=argparse.SUPPRESS)   # accepted, unused: kept for CLI stability
     s.set_defaults(func=cmd_scan)
     m = sub.add_parser("merge", help="judge verdicts (JSONL) -> plan.md + install-cmds.sh")
