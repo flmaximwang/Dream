@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -414,9 +415,40 @@ def do_verify(args) -> int:
     return 0 if not fails else 1
 
 
-def profile_skill_names(root: pathlib.Path) -> set:
-    return {md.parent.name for md in root.rglob("SKILL.md")
-            if not (set(md.parts) & SKIP_DIRS)}
+def profile_skill_names(root: pathlib.Path, out: pathlib.Path = None) -> set:
+    """profile 里现在有哪些技能。**必须跟着符号链接走**：Skills-Manager 部署的就是符号链接，
+    `rglob` 看不见它们，那样闸门的分母会凭空少 30（实测 232 被算成 202）。
+    顺带把"符号链接"与"本地目录"分开报，装回后要看这两者的比例。"""
+    names, linked = set(), set()
+    for md in walk_skill_mds(root):
+        names.add(md.parent.name)
+        if md.parent.is_symlink():
+            linked.add(md.parent.name)
+    if out is not None:
+        (out / "install-current.json").write_text(json.dumps(
+            {"total": len(names), "symlinked": sorted(linked), "local_dirs": sorted(names - linked)},
+            ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return names
+
+
+def walk_skill_mds(root: pathlib.Path) -> list:
+    """跟着符号链接把 profile 底下的 SKILL.md 找齐（口径与 sweep-plan.walk_skill_dirs 一致）。"""
+    found, seen = [], set()
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
+        rel = pathlib.Path(dirpath).relative_to(root).parts
+        dirnames[:] = [x for x in dirnames if x not in SKIP_DIRS and not x.startswith(".")]
+        if len(rel) > 4:
+            dirnames[:] = []
+            continue
+        key = os.path.realpath(dirpath)
+        if key in seen:
+            dirnames[:] = []
+            continue
+        seen.add(key)
+        if "SKILL.md" in filenames:
+            found.append(pathlib.Path(dirpath) / "SKILL.md")
+            dirnames[:] = []
+    return found
 
 
 def do_install(args) -> int:
@@ -428,9 +460,12 @@ def do_install(args) -> int:
     text = script.read_text()
     n = len([l for l in text.splitlines() if l.strip() and not l.startswith("#")])
     # 这次要动到的技能名：install 的 <id>/skills/<名> 与 update 的名字（update 的必然已在装，不会顶高总数）
-    incoming = set(re.findall(r'skills install\s+"?[^"]*/skills/([^"/]+)', text))
+    # 要从生成的命令里认出新装的技能名：现在两条路都写得出名字 —— `--name "X"`（交 manager 从本地包装）
+    # 与 `cp -R ".../skills/<名>"`（直接复制）。只认老格式的话会算出"装回 0"，闸门等于失效（实测）。
+    incoming = set(re.findall(r'--name "([^"]+)"', text)) | set(re.findall(r'/skills/([^"/]+)"', text))
+    incoming -= set(re.findall(r'^\s*skills-manager-cli\s+skills\s+update "([^"]+)"', text, re.M))
     prof = HERMES_HOME / "skills"
-    current = profile_skill_names(prof)
+    current = profile_skill_names(prof, d)
     # 分母要扣掉本轮"搬进包、装完就退役"的那些本地副本：它们不是净增（S8 会把本地那份删掉）。
     # 不扣的话，凡是一轮正常搬迁都会被这道闸挡住（实测 232 + 89 > 300）。
     retiring = set()
@@ -455,8 +490,40 @@ def do_install(args) -> int:
         return 3
     print(f"[install] 装前闸门 ok：现有 {len(current)} − 本轮将退役 {gate['retiring']} + 装回 {gate['incoming']}"
           f"（其中真新增 {gate['net_new']}）= {len(post)} ≤ {limit}（{d/'install-gate.json'}）")
-    print(f"[install] 执行 {script}（{n} 条命令）")
-    r = sh(["sh", str(script)], cwd=str(d))
+    # merge 是按**计划**生成命令的：被扫描闸挡掉的行、以及 merge 行的源技能，命令里也会出现，
+    # 照着跑就是 `skill not found`（实测 34 条）。这里只保留"落点真在磁盘上"的那几行。
+    def _names(line: str) -> set:
+        """这行命令在装哪几枚技能：install 的 `--name "X"` / 路径尾巴，以及 deploy/update 的 `"X"`。"""
+        return (set(re.findall(r'--name "([^"]+)"', line))
+                | set(re.findall(r'/skills/([^"/]+)"', line))
+                | set(re.findall(r'skills (?:deploy\s+--agent\s+\S+|update)\s+"([^"]+)"', line)))
+
+    kept, dropped, missing_names = [], [], set()
+    for line in text.splitlines():                      # 第一遍：落点路径不在磁盘上的 install/cp 行 → 丢，并记下名字
+        if not line.strip() or line.lstrip().startswith("#"):
+            kept.append(line)
+            continue
+        paths = [x for x in re.findall(r'"([^"]*)"', line)
+                 if "/skills/" in x or x.startswith("/") or x.startswith("~")]
+        if paths and any(not pathlib.Path(x).expanduser().exists() for x in paths):
+            missing_names |= _names(line)
+            dropped.append(line)
+            continue
+        kept.append(line)
+    once = kept                                   # 第二遍：这批名字的 deploy / update 行也一并丢
+    kept = []
+    for line in once:
+        if _names(line) & missing_names:
+            dropped.append(line)
+            continue
+        kept.append(line)
+    run_script = d / "install-cmds.filtered.sh"
+    run_script.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    if dropped:
+        print(f"[install] 跳过 {len(dropped)} 条落点不在磁盘上的命令（被闸挡的行 / merge 行的源技能）："
+              f"{', '.join(sorted({x.strip()[:60] for x in dropped})[:3])}…")
+    print(f"[install] 执行 {run_script}（{len([l for l in kept if l.strip() and not l.startswith('#')])} 条命令）")
+    r = sh(["sh", str(run_script)], cwd=str(d))
     (d / "install.log").write_text(r.stdout + "\n--- stderr ---\n" + r.stderr)
     print(r.stdout[-2000:])
     if r.returncode != 0:

@@ -209,6 +209,27 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | S8 退役 | ⏳ 未真跑；口径要按"装回有多个所有者"重写（Skills-Manager 装的那份不该由 dream 删） |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
 
+## S7 装回 / S8 退役 的实测次序（2026-10-12 真跑出来的）
+
+**装回是两拍，不是一次**（Skills-Manager 的真实行为，不是可选）：
+
+1. `skills install --local --name <名> <本地包里的技能目录>` → 进中央库（这一步总成功）。
+2. `skills deploy --agent <agent> <名>` → **会被拒**：profile 里那份还是本地目录，它报
+   `Refusing to replace …: it is not managed by Skills Manager`。
+3. 所以要先 S8 退役（tar.gz 备份 → 删掉 profile 里的本地副本）。
+4. 再跑一次第 2 步（`update`/`deploy`）→ 挂上，profile 里变成指向中央库的**符号链接**。
+
+**同一份 merge 生成的命令会随 profile 现状换形**：profile 里已是符号链接的技能生成 `update`，
+还不是的生成 `install --local`。重跑 `merge` 会把上一轮生成的 `install` 换成 `update`
+（本轮实测 86 条从 install 变成 update）——所以 merge 要在装回前重跑一次。
+
+**两条硬要求**（都踩过）：
+- 生成的命令必须用 **CLI 绝对路径**（`$HOME/.skills-manager/bin/skills-manager-cli`）：
+  非交互 shell 的 PATH 里没有它，写裸名字会整段 `command not found`（exit 127）。
+- `install` 只跑**落点真在磁盘上**的命令：merge 是按计划生成的，被扫描闸挡掉的行、以及
+  merge 行的源技能（它们的正文并进了接收方，本就不该单独装）都在里面，照着跑就是
+  `skill not found`（本轮 30 条）。`apply install` 会先过滤出 `install-cmds.filtered.sh` 再跑。
+
 ## 试跑轮实测（2026-10-12，真包 AgentSkill，全轮 `--no-push`）
 
 | 阶段 | 实测 | 结论 |
@@ -219,6 +240,10 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | S4 | 4s · 决议 106（101 新建 / 5 并入）· stale 0 · 装回命令按三条路生成 | ✓ |
 | S5 | 114s · 写入 78 行（真包，只提交不推）· 扫描闸挡 12 行 · 5 条 merge 派 5 个 writer，5/5 交卷并核实（sha=HEAD、工作区干净、没推、只动自己的目录、frontmatter 0 改动） | ✓ |
 | S6 | PASS 78 · FAIL 0 | ✓ |
-| 缺口 | 11 条落点指向不存在的包（无建包步骤）· 12 条被扫描闸挡 | 待定 |
+| 建包 | 11 条落点=新包的行走通：apply 建本地仓（README + skills/ + git init + 初始提交），写入 8 条、3 条被扫描闸挡 | ✓ |
+| S7 装回 | 两拍：84 条进中央库 → 退役 → 84 条挂成符号链接（0 错误）；15 条被闸挡/源技能行跳过 | ✓ |
+| S8 退役 | 86 行退役，tar.gz 备份 880K 在 `~/.hermes/backups/dream-retire/` | ✓ |
+| 装完 profile | 231 技能 = 115 个 manager 符号链接 + 116 个本地目录 | — |
+| 缺口 | 15 条被扫描闸挡（hermes_env_check/read_secrets_file/sudo_usage 命中）· 116 个本地目录仍是 dream/manager 之外的第三态 | 待定 |
 
 一轮从 `scan` 到 `verify` 实测约 **8 分钟**（S2 占 5.6 分钟），达成"≤20 分钟"的预算。

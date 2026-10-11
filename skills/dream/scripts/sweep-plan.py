@@ -787,6 +787,7 @@ def cmd_merge(args) -> int:
     #   ① 归 Skills-Manager 管 → 交它装（它按自己的来源取件）
     #   ② 不归它管、但本次运行传了 --skills-manager → 交它从本地那份包装（install --local）
     #   ③ 两者都不是 → 直接复制（与 agent 无关）
+    mgr_cli = str(pathlib.Path.home() / ".skills-manager" / "bin" / "skills-manager-cli")   # 绝对路径：非交互 shell 的 PATH 里没有它
     mgr_flag = bool(getattr(args, "skills_manager", False))
     agent = getattr(args, "manager_agent", "") or f"hermes-{args.profile}"
     prof_skills = profile_root(args.profile) / "skills"
@@ -802,10 +803,10 @@ def cmd_merge(args) -> int:
         """一枚技能按三条路择一，写进清单。"""
         entry = prof_skills / name
         if entry.is_symlink():                                  # profile 里是符号链接 = 它部署的
-            via_mgr.append(f'skills-manager-cli skills update "{name}"        # {why}·profile 里是它部署的符号链接')
+            via_mgr.append(f'"{mgr_cli}" skills update "{name}"        # {why}·profile 里是它部署的符号链接')
         elif mgr_flag:
-            via_mgr.append(f'skills-manager-cli skills install --local --name "{name}" "{local}"   # {why}·从本地包装')
-            via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
+            via_mgr.append(f'"{mgr_cli}" skills install --local --name "{name}" "{local}"   # {why}·从本地包装')
+            via_mgr.append(f'"{mgr_cli}" skills deploy --agent {agent} "{name}"')
         else:
             via_copy.append(f'cp -R "{local}" "{prof_skills}/"        # {why}·直接复制（与 agent 无关）')
 
@@ -827,10 +828,11 @@ def cmd_merge(args) -> int:
             local = pathlib.Path(pk["path"]) / "skills" / name
             managed = "mgr=yes" in (r.get("state") or "")
             if managed:
-                via_mgr.append(f'skills-manager-cli skills update "{name}"        # 第①路：归它管，它按自己的来源取件')
-                via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
-            else:
+                via_mgr.append(f'"{mgr_cli}" skills update "{name}"        # 第①路：归它管，它按自己的来源取件')
+                via_mgr.append(f'"{mgr_cli}" skills deploy --agent {agent} "{name}"')
+            elif action == "move":
                 emit(name, local, "第②/③路")
+            # action=merge：正文并进了接收方技能，不单独装（接收方作为本包既有成员会整包重装）
             if action == "merge" and str(res.get("dest_skill") or "") not in ("", "__new__"):
                 notes.append(f"# {r['skill']}: 正文并进 {dest}/{res['dest_skill']}（writer 改正文；装回按上面同一枚技能的清单走）")
         for name in sorted(pk["installed"]):        # 整包重装：本包既有成员
