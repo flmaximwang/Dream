@@ -79,8 +79,13 @@
 | 第三方 · mgr=yes · ext=yes · same | 不动 |
 | 第三方 · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
 
-**装回只有一个所有者**：装/更新一律交 **Skills-Manager**（`skills-manager-cli skills install/update/deploy`）；
-dream **不再用 `hermes skills install`**，也不 retire 它装的东西（否则会与它部署的 symlink 打架）。
+**装回按归属分三条路**（默认做法，可改；细节见 `docs/flow.md` §3「S7 装回的三条路」）：
+① 归 Skills-Manager 管的 → 交它装（`skills-manager-cli skills update` + `deploy`）；
+② 不归它管、但本次运行传了 `--skills-manager` → 交它**从本地那份包**装（`skills install --local` + `deploy`）；
+③ 两者都不是 → **直接复制**技能目录进 profile（与 agent 无关）。
+dream 不走 agent 自己的安装命令（`hermes … skills install`）——那套没有跨 agent 的普适性；
+代价是自己要负责"装到哪、类目怎么放"，好处是换 agent 不用改流程。
+装/更新的**所有者只有一个**：同一枚技能要么由 Skills-Manager 管，要么由直接复制管，别同时动。
 
 **判方向（只在 differs 时需要）**：拿 profile 那份去撞**所有者那一侧的历史版本**——
 ① 命中某历史版本 ⇒ **本地旧**（远端新，动作＝更新本地）；

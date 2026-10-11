@@ -755,40 +755,60 @@ def cmd_merge(args) -> int:
         lines.append("")
     (out / "resolved.json").write_text(json.dumps(resolved, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    # Phase 7 helper: the reinstall commands, from lock evidence, printed for approval — never executed here.
-    installs, updates, touched = [], [], []
+    # S7 的装回命令清单（只生成、不执行）。2026-10-12 起不走 agent 自己的安装命令（hermes 那套没有跨 agent 的普适性），
+    # 按归属分三条路（docs/flow.md §3「S7 装回的三条路」）：
+    #   ① 归 Skills-Manager 管 → 交它装（它按自己的来源取件）
+    #   ② 不归它管、但本次运行传了 --skills-manager → 交它从本地那份包装（install --local）
+    #   ③ 两者都不是 → 直接复制（与 agent 无关）
+    mgr_flag = bool(getattr(args, "skills_manager", False))
+    agent = getattr(args, "manager_agent", "") or f"hermes-{args.profile}"
+    prof_skills = profile_root(args.profile) / "skills"
+    touched, notes, via_mgr, via_copy = [], [], [], []
+
+    def emit(name: str, local: pathlib.Path, why: str) -> None:
+        """一枚技能按三条路择一，写进清单。"""
+        entry = prof_skills / name
+        if entry.is_symlink():                                  # profile 里是符号链接 = 它部署的
+            via_mgr.append(f'skills-manager-cli skills update "{name}"        # {why}·profile 里是它部署的符号链接')
+        elif mgr_flag:
+            via_mgr.append(f'skills-manager-cli skills install --local --name "{name}" "{local}"   # {why}·从本地包装')
+            via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
+        else:
+            via_copy.append(f'cp -R "{local}" "{prof_skills}/"        # {why}·直接复制（与 agent 无关）')
+
     for dest, items in groups.items():
         if dest == UNJUDGED:
             continue
         if info[dest]["is_new_pack"]:
-            installs.append(f"# {dest}: 新包，先 gh repo create + 写技能 + push，再 "
-                            f"hermes --profile {args.profile} skills install \"<owner>/{dest}/skills/<名>\" -y")
+            notes.append(f"# {dest}: 新包——先建仓库、写技能、push，再按三条路装回（新包没有远端标识符时只有第 ③ 条可用）")
             continue
         pk = packs[dest]                           # not a new pack => the directory is on disk
         if pk["empty"]:
-            installs.append(f"# {dest}: 空壳落点（无 SKILL.md），写入后 MANUAL 安装（远端标识符："
-                            f"{pk['identifier'] or '无'}）")
+            notes.append(f"# {dest}: 空壳落点（无 SKILL.md）——写入后按三条路装回（远端标识符：{pk['identifier'] or '无'}）")
             continue
-        cat = (pk["categories"] or ["<category>"])[0]
         touched.append(dest)
         for r, v, action, res in sorted(items, key=lambda t: int(t[0]["id"][1:])):
-            target = res.get("dest_skill") or ""
-            if action == "merge" and target and not target.startswith("__"):
-                updates.append(f"hermes --profile {args.profile} skills update {target}   # 承接 {r['skill']} 的内容")
-                continue
             name = r["skill"]
-            if name in pk["installed"]:
-                updates.append(f"hermes --profile {args.profile} skills update {name}   # 已在装，改动经 update 到达")
-            elif pk["identifier"]:
-                installs.append(f'hermes --profile {args.profile} skills install '
-                                f'"{pk["identifier"]}/skills/{name}" --category {cat} -y')
+            local = pathlib.Path(pk["path"]) / "skills" / name
+            managed = "mgr=yes" in (r.get("state") or "")
+            if managed:
+                via_mgr.append(f'skills-manager-cli skills update "{name}"        # 第①路：归它管，它按自己的来源取件')
+                via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
             else:
-                installs.append(f"# {r['skill']}: clone `{dest}` 无远端，落进包后 MANUAL 安装（无远端没有三段式标识符）")
-        for name in sorted(pk["installed"]):
-            updates.append(f"hermes --profile {args.profile} skills update {name}   # 本包既有成员（整包重装）")
-    cmds = ["#!/bin/sh", f"# reinstall the affected packs into {args.profile!r}",
-            "# 顺序：先 install 新成员，再 update 改动过的（update 对未装的名字无效，install 对新名字才是唯一入口）",
-            ""] + sorted(set(installs)) + [""] + sorted(set(updates)) + [""]
+                emit(name, local, "第②/③路")
+            if action == "merge" and str(res.get("dest_skill") or "") not in ("", "__new__"):
+                notes.append(f"# {r['skill']}: 正文并进 {dest}/{res['dest_skill']}（writer 改正文；装回按上面同一枚技能的清单走）")
+        for name in sorted(pk["installed"]):        # 整包重装：本包既有成员
+            emit(name, pathlib.Path(pk["path"]) / "skills" / name, "本包既有成员")
+    cmds = ["#!/bin/sh",
+            f"# 装回 {args.profile!r} —— 三条路：① 交 Skills-Manager ② 它从本地包装 ③ 直接复制（不走 agent 自己的安装命令）",
+            f"# 本次 --skills-manager={'yes' if mgr_flag else 'no'} · manager agent={agent} · 类目层由装它的人决定",
+            ""] + notes
+    if via_mgr:
+        cmds += ["", "# ① / ② 交 Skills-Manager："] + sorted(set(via_mgr))
+    if via_copy:
+        cmds += ["", "# ③ 直接复制到 profile（与 agent 无关）："] + sorted(set(via_copy))
+    cmds += [""]
     (out / "install-cmds.sh").write_text("\n".join(cmds) + "\n", encoding="utf-8")
 
     if bad:                                        # reject BEFORE emitting a plan nobody should consume
@@ -940,7 +960,8 @@ def self_test() -> int:
         assert plan.count("## 新包 ") == 1, plan
         assert "## 新包 AgentSkill-RunningLocalBatches" in plan, plan
         assert "- `AgentSkill-RunningLocalBatches` · 轴 topic · 2 条" in plan, plan
-        assert 'skills install "flmaximwang/AgentSkill-UsingFake/skills/rootskill" --category cat -y' in cmds, cmds
+        assert "skills-manager-cli skills" in cmds or "cp -R" in cmds, cmds     # 装回只走三条路，不再有 hermes 命令
+        assert "hermes " not in cmds.replace("hermes-", ""), cmds               # 不留 hermes 自己的安装命令
         assert "# AgentSkill-RunningLocalBatches: 新包" in cmds, cmds
         assert "AgentSkill-Empty" not in cmds, cmds     # 空壳落点不许生成 install 命令
         # 顺序类不变量：install 段必须整体排在 update 段之前（update 对未装的名字无效）
@@ -999,6 +1020,9 @@ def main() -> int:
     s.set_defaults(func=cmd_scan)
     m = sub.add_parser("merge", help="judge verdicts (JSONL) -> plan.md + install-cmds.sh")
     m.add_argument("--dir", required=True, help="the --out dir from scan")
+    m.add_argument("--skills-manager", action="store_true",
+                   help="本次运行是否把该 profile 的技能交给 Skills-Manager 管（决定装回走第②路还是第③路）")
+    m.add_argument("--manager-agent", default="", help="Skills-Manager 侧这个 profile 的 agent 名（默认 hermes-<profile>）")
     m.add_argument("--profile", default="default")
     m.add_argument("--verdicts", action="append", default=[],
                    help="verdict JSONL file (repeatable); default = <dir>/verdicts*.jsonl")

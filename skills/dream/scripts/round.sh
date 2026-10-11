@@ -16,14 +16,14 @@ SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # scan 要一个兄弟技能里的解析器；在 worktree 里开发时它不在旁边，就退回 profile 里装好的那份。
 PARSER="$SKILL_DIR/../load-external-skill-index/scripts/skill-index.py"
 # 两种布局都认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后会长成后者）
-[ -f "$PARSER" ] || PARSER=$(ls "$HOME/.hermes/skills"/*/load-external-skill-index/scripts/skill-index.py \
-                                 "$HOME/.hermes/skills"/load-external-skill-index/scripts/skill-index.py \
-                                 "$HOME/.skills-manager/skills/load-external-skill-index/scripts/skill-index.py" \
-                                 "$HOME"/Documents/AgentSkill/*/skills/*/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
+# 两种布局都认，且 profile / Skills-Manager 中央库 / external_dirs 包内都可能是唯一副本
+[ -f "$PARSER" ] || PARSER=$(find "$HOME/.hermes/skills" "$HOME/.skills-manager/skills" "$HOME/Documents/AgentSkill" \
+                                 -maxdepth 6 -name skill-index.py -path '*load-external-skill-index*' 2>/dev/null | head -1)
 if [ ! -f "$PARSER" ]; then echo "[round] 找不到 load-external-skill-index 的 skill-index.py（scan 的兄弟依赖）" >&2; exit 2; fi
 
 profile=default
 mode=formal
+sm=0
 plan_only=0
 out=""
 while [ $# -gt 0 ]; do
@@ -32,6 +32,7 @@ while [ $# -gt 0 ]; do
     --formal) mode=formal ;;
     --profile) profile="$2"; shift ;;
     --out) out="$2"; shift ;;
+    --skills-manager) sm=1 ;;
     --plan) plan_only=1 ;;
     -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
@@ -105,7 +106,7 @@ if [ $plan_only -eq 1 ]; then
   S1 枚举      sweep-plan.py scan   --profile $profile --out $out ${loc_arg[*]}
   S2 判官      judge.py             --dir $out --chunk-bytes 140000 --workers 2
   S3 交叉审计  audit.py             --dir $out
-  S4 决议      sweep-plan.py merge  --dir $out --profile $profile
+  S4 决议      sweep-plan.py merge  --dir $out --profile $profile $([ "$sm" = 1 ] && echo --skills-manager)
   S5 写入      apply.py apply       --dir $out ${loc_arg[*]} ${apply_extra[*]:-（真推）}
   S6 验证      apply.py verify      --dir $out ${loc_arg[*]}
   $([ "$mode" = test ] && echo "  S7/S8        测试轮跳过（不 install、不 retire）" || echo "  S7 重装      apply.py install --dir $out
@@ -117,7 +118,7 @@ fi
 run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" "${loc_arg[@]}" --parser-script "$PARSER"
 run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out" --chunk-bytes 140000 --workers 2
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
-run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile"
+run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile" "$([ "$sm" = 1 ] && echo --skills-manager)"
 run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"
 run "S6 验证"      "$PY" -B "$SKILL_DIR/scripts/apply.py" verify --dir "$out" "${loc_arg[@]}"
 if [ "$mode" = formal ]; then

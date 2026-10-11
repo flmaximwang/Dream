@@ -138,6 +138,10 @@ python3 -B skills/dream/scripts/apply.py verify --dir <scan 的 --out 目录>  #
 python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录>   # 跑 install-cmds.sh，日志落盘
 ```
 
+`install-cmds.sh` 由 `merge` 按**归属**生成，只有三条路（不再出现 agent 自己的安装命令）：① 归 Skills-Manager 管的
+→ 交它 `update`+`deploy`；② 不归它管但本次传了 `--skills-manager` → 交它 `install --local`（从本地那份包）+ `deploy`；
+③ 都不是 → 直接复制进 profile。口径与代价：`docs/flow.md` §3「S7 装回的三条路」。
+
 先数条数写进汇报（一包 20 行 = 20 个 prompt 行，是代价）。先 `install` 新成员，再 `update` 改动过的与
 **本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：`dream-hermes-routing`。
 

@@ -23,7 +23,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **产出目录** | `--out <dir>`；不给就 `~/.hermes/cache/scratch/sweep-<时间戳>/` | 一轮的所有产物都落这里 |
 | **判官凭据** | `~/.hermes/.env` 的 `DEEPSEEK_API_KEY`（**从不打印**）+ `--model`（默认 `deepseek-flash`）/ `--base-url` | 判官直调 API，不经 JEV |
 | **兄弟解析器** | `load-external-skill-index/scripts/skill-index.py` | frontmatter 解析**必须**用它（YAML 坑是真的）；回退链：worktree 旁边 → profile（两种布局）→ Skills-Manager 中央库 → external_dirs 包内 |
-| **模式** | `--test` / `--formal` / `--plan` | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
+| **模式与开关** | `--test` / `--formal` / `--plan`；`--skills-manager`（本次运行是否把该 profile 的技能交给 Skills-Manager 管，决定 S7 走第②还是第③条路） | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
 
 一条命令跑完整轮：`bash skills/dream/scripts/round.sh [--test|--formal] [--profile <名>] [--out <dir>]`。
 
@@ -68,7 +68,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 候选 = `action=judge-destination` 那一类（**当前实现是旧的 `verdict=local`，今天两者恰好等价，两套判据并存**）；同名多份会被显式报出；解析器找不到 → exit 2 |
 | **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因） |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
-| **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
+| **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名> [--skills-manager] [--manager-agent <名>]` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
 | **S6 独立验证** | 脚本（只读，0 次模型调用） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 + S5 的报告 | 逐行 PASS/FAIL（日志可留下，如 `verify-r1.log`） | 见下方「S6 逐行核什么」；有 FAIL → exit 1，回 S5 修 |
 | **S7 装回** | 脚本（按归属分三条路，见下） | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile + 启动时的 `--skills-manager` 开关 | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave、不自己 `git mv` |
@@ -154,10 +154,9 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 ## 7 · 已知缺口（下一步要补）
 
-- **S7 还是单条路**：`install-cmds.sh` 现在生成的是 `hermes --profile <名> skills install/update`，没有按上面的三条路分。
-  改成按 S1 的归属分支，并让"交 Skills-Manager 装"的两条路回读它自己的记录（中央库路径 / 已部署的 agent）。
-- **`--skills-manager` 这个开关还不存在**：现在对 Skills-Manager 的检测是无条件做的，所以 S7 的第 2、3 条路分不开。
-  要加这个参数（语义：本次运行是否把该 profile 的技能交给 Skills-Manager 管）。
+- **S7 装回只有两条路的实现细节待跑实**：命令清单已按三条路生成（`--skills-manager` 开 → 交 Skills-Manager 从本地包装；关 → 直接复制；profile 里是符号链接的 → 交 Skills-Manager 更新），但**还没真跑**过一遍：
+  `skills-manager-cli skills install --local` 这条参数组合只在文档里对过，没有实测回读。
+- **S5 的形态待定**：倾向是"机械地给被改动的包加一个带 SKILL.md 的 L1 入口 + 列出哪些技能被改过"，之后批量交给 SkillWeave 完善；dream 不对包结构做严格要求。这条还没实现（等讨论定稿）。
 - **`reconcile` / `patch-package` / `patch-or-restore` 没有对应阶段**：15 态里这四类动作现在只在
   `states.json` 里列出来，S2–S8 没有任何一步会去执行它们（建 patch 包、判方向、让 manager 重装）。
 - **S7 仍发 `hermes … skills install/update`**（见上一条缺口）。
@@ -198,5 +197,6 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | 输入口径（`DREAM_EXTERNAL_DIRS` JSON + `external-dirs.py`） | ✅ 落地 |
 | 15 态 / 7 态分类与逐态去向 | 🟡 **半落地**：S1 算出来并落报表；**S2 已按 `action` 接线**（候选只取 `judge-destination`，题面带归类）。未落地：`reconcile`/`patch-package`/`patch-or-restore` 仍无承接阶段 |
 | S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
-| S7–S8 | ⏳ 未真跑（要人点头）。S7 的口径已定成三条路（见上），但代码仍是单条路 + 缺 `--skills-manager` 开关 |
+| S7 装回 | 🟡 命令清单已按三条路生成（`--skills-manager` 开关已加；不再出现 hermes 自己的安装命令），**未真跑** |
+| S8 退役 | ⏳ 未真跑；口径要按"装回有多个所有者"重写（Skills-Manager 装的那份不该由 dream 删） |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
