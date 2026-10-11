@@ -39,3 +39,7 @@
 （APFS clonefile，秒级、几乎不占额外磁盘），把每个仓的 `origin` 摘掉（`git remote remove origin`，这样任何误推都会当场失败），
 再让 apply/verify 跑 `--packs-root ~/Documents/AgentSkill-copy`；**测完 `rm -rf` 删掉副本**。
 真包在工作区的改动数就是判据：跑完测试 `git -C ~/Documents/AgentSkill/<包> status --porcelain` 必须是 0 项（他人的在途改动除外）。
+
+**开发期一律 `--no-push`**（用户 2026-10-11：包仓库既然是测试用的，肯定是 no-push）——测试轮跑到 `verify` 就停，
+不推、也**不 retire**（retire 删的是 profile 里的真副本，不是测试面）。真推与退役留给正式那一轮。
+**Dream 仓库收尾**：开发完成后把 `dream-v3` 与主 clone 上别人的提交合并（`git -C Repo/Dream merge`），再按指示推。
