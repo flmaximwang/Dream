@@ -47,8 +47,8 @@
    "y": 300,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-003#B-002\nmerge 覆盖率 100% 实测\n\n`ready` · @-\n\n对 default 跑 sweep-plan.py merge，确认没有未判定/被拒收的行。"
+   "color": "4",
+   "text": "### T-003#B-002\nmerge 覆盖率 100% 实测\n\n`done` · @-\n\n对 default 跑 sweep-plan.py merge，确认没有未判定/被拒收的行。"
   },
   {
    "id": "T-004#B-001",
