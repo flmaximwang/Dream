@@ -107,6 +107,9 @@ def load(path: pathlib.Path) -> dict:
     data = json.loads(path.read_text())
     if data.get("schema") != SCHEMA:
         sys.exit(f"external-dirs：{path} 的 schema 是 {data.get('schema')!r}，本脚本只认 {SCHEMA!r}")
+    for d in data.get("dirs", []):
+        if not d.get("path"):
+            sys.exit(f"external-dirs：{path} 里有一条没有 path 的目录项")
     return data
 
 
@@ -186,7 +189,11 @@ def cmd_show(args) -> int:
     print(f"[external-dirs] {p} · schema {data['schema']} · {len(data['dirs'])} 个目录"
           f" · 生成 {data.get('generated_at')}（{data.get('generated_from')}）")
     for d in data["dirs"]:
-        print(f"  {d['kind']:14} {d['name']:32} 技能 {d['skill_count']:3} · {d['path']}")
+        path = pathlib.Path(d["path"]).expanduser()          # 手写的清单没有 kind/skill_count，现算
+        n = d.get("skill_count")
+        if n is None:
+            n = count_skills(path, d.get("skills_subdir", "")) if path.is_dir() else 0
+        print(f"  {d.get('kind', 'manual'):14} {d.get('name') or path.name:32} 技能 {n:3} · {path}")
     return 0
 
 
