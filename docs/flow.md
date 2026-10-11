@@ -68,7 +68,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 候选 = `action=judge-destination` 那一类（**当前实现是旧的 `verdict=local`，今天两者恰好等价，两套判据并存**）；同名多份会被显式报出；解析器找不到 → exit 2 |
 | **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因） |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
-| **S4 自动决议** | 脚本（只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | 判官结果 + `inputs.json` | `resolved.json`（逐行机器可读决议，带 `input_commit`/`stale`）· `plan.md` · `install-cmds.sh` · `stale.json` · `profile-stale.json` | 覆盖率 100%，否则 exit 4；上游/profile 变了 → 标 stale，别在旧结论上动手 |
+| **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
 | **S6 独立验证** | 脚本（只读） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 | 逐行 PASS/FAIL（`verify-r1.log` 之类） | 有 FAIL → exit 1，回 S5 修 |
 | **S7 装回** | 脚本 | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave，不自己 `git mv` |
@@ -78,6 +78,20 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 逐阶段计时落 `stages.tsv`（`round.sh` 自动记），这就是「20 分钟」的证据形状。
 
 ---
+
+### S4 校验什么（逐行，机械检查）
+
+S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一条**的决议，同时对每行做这几项检查，不合格就拒收该行：
+
+1. **落点在答案空间内**：判官给的包名必须出现在"所有包的目录名"清单里（名字写错 → 拒收）。
+2. **落点＝已有技能时**，`dest_skill` 必须在那个包的技能清单里。
+3. **落点＝新建包时**，必须给出主语轴（软件/工具 or 任务/学科）与**边界**（这个包不吃什么）——缺一个就拒收。
+4. **不接受"留本地"**：本版没有这个答案，给了就拒收。
+5. **覆盖率 100%**：每条候选都要有一行决议；有未判定或被拒收的行 → 整个 S4 以 exit 4 结束，先回去补判。
+6. **每行带上"评估时那个包的位置"**（`input_commit`），并当场回读该包现在的状态：变了就标 `stale`（写 `stale.json`），这些行在 S5 会被跳过。
+7. **技能树指纹比对**：S1 记下的每个技能目录的哈希当场回读一次，变了就写 `profile-stale.json`。
+
+产出里 `install-cmds.sh` 只是**命令清单**，S4 不执行任何一条；真正装回是 S7。
 
 ## 4 · 哪几步仍然要模型（其余全是脚本）
 
