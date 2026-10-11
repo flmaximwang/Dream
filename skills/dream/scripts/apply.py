@@ -22,11 +22,16 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
 import time
+
+# profile 级那一个常量（包内形状由 SkillWeave 量，dream 不实现第二套）。
+MAX_AGENT_SKILLS = 120
+SKIP_DIRS = {".hub", ".git", ".archive", "__pycache__", "quarantine", ".trash"}
 
 HERMES_HOME = pathlib.Path.home() / ".hermes"
 HERMES_REPO = HERMES_HOME / "hermes-agent"
@@ -146,6 +151,15 @@ def do_apply(args) -> int:
         by_pack.setdefault(pack, []).append((r, src, dst))
     for pack, items in sorted(by_pack.items(), key=lambda kv: kv[0].name):
         path_spec = f"skills/{items[0][2].name}"
+        # T-004#B-001：拿「决议时的 input_commit」比一次当前 HEAD。上游动过 ⇒ 这些行的结论作废。
+        rec = {r.get("input_commit") for r, _, _ in items if r.get("input_commit")}
+        head_now = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()
+        if rec and head_now not in rec:
+            was = sorted(rec)[0]
+            print(f"[apply] ✗ {pack.name}: 上游变了（HEAD {head_now[:9]} ≠ 决议时 {was[:9]}）"
+                  f" ⇒ 跳过 {len(items)} 行，先重跑 scan+merge")
+            results += [(r["id"], "STALE", f"pack HEAD {head_now[:9]} ≠ 决议时 {was[:9]}") for r, _, _ in items]
+            continue
         ok, why = pack_status(pack, "skills/", require_remote=not args.no_push)
         if not ok:
             print(f"[apply] ✗ {pack.name}: {why} ⇒ 跳过 {len(items)} 行")
@@ -278,12 +292,36 @@ def do_verify(args) -> int:
     return 0 if not fails else 1
 
 
+def profile_skill_names(root: pathlib.Path) -> set:
+    return {md.parent.name for md in root.rglob("SKILL.md")
+            if not (set(md.parts) & SKIP_DIRS)}
+
+
 def do_install(args) -> int:
+    """S7：装前总量闸门（≤ MAX_AGENT_SKILLS）→ 跑 install-cmds.sh → 装后形状断言（类目层 + local=0）。"""
     d = pathlib.Path(args.dir).expanduser()
     script = d / "install-cmds.sh"
     if not script.exists():
         sys.exit("no install-cmds.sh — run sweep-plan.py merge first")
-    n = len([l for l in script.read_text().splitlines() if l.strip() and not l.startswith("#")])
+    text = script.read_text()
+    n = len([l for l in text.splitlines() if l.strip() and not l.startswith("#")])
+    # 这次要动到的技能名：install 的 <id>/skills/<名> 与 update 的名字（update 的必然已在装，不会顶高总数）
+    incoming = set(re.findall(r'skills install\s+"?[^"]*/skills/([^"/]+)', text))
+    prof = HERMES_HOME / "skills"
+    current = profile_skill_names(prof)
+    post = current | incoming
+    limit = args.max_skills
+    gate = dict(max=limit, current=len(current), incoming=len(incoming - current),
+                post_install=len(post), blocked=len(post) > limit)
+    (d / "install-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if gate["blocked"]:
+        over = len(post) - limit
+        print(f"[install] ⛔ 装前闸门：装完 {len(post)} 个技能 > MAX_AGENT_SKILLS={limit}"
+              f"（现有 {len(current)} + 新装 {gate['incoming']}）⇒ 不装。超 {over} 个。")
+        print(f"[install] 差额与候选清单 → {d/'install-gate.json'}；先退役/清退再装，或由人改上限。")
+        return 3
+    print(f"[install] 装前闸门 ok：现有 {len(current)} + 新装 {gate['incoming']} = {len(post)}"
+          f" ≤ {limit}（{d/'install-gate.json'}）")
     print(f"[install] 执行 {script}（{n} 条命令）")
     r = sh(["sh", str(script)], cwd=str(d))
     (d / "install.log").write_text(r.stdout + "\n--- stderr ---\n" + r.stderr)
@@ -291,6 +329,31 @@ def do_install(args) -> int:
     if r.returncode != 0:
         print(r.stderr[-800:])
     print(f"[install] exit={r.returncode} · log={d/'install.log'}")
+    # 装后回读：① 每个技能都在类目下（skills/<类目>/<name>/）② profile 里 local = 0。
+    # 越界只报不动手：归位是仓库侧的动作 → SkillWeave（自己 git mv 会再次越界）。
+    shape = dict(not_under_category=[], local=[])
+    if r.returncode == 0:
+        names = set()
+        for md in prof.rglob("SKILL.md"):
+            rel = md.relative_to(prof)
+            if set(rel.parts) & SKIP_DIRS:
+                continue
+            if len(rel.parts) < 3:
+                shape["not_under_category"].append(str(rel))
+            names.add(md.parent.name)
+        lock = json.loads((prof / ".hub" / "lock.json").read_text()).get("installed", {}) \
+            if (prof / ".hub" / "lock.json").is_file() else {}
+        bundled = {l.split(":")[0].strip() for l in (prof / ".bundled_manifest").read_text().splitlines()
+                   if l.strip()} if (prof / ".bundled_manifest").is_file() else set()
+        shape["local"] = sorted(names - set(lock) - bundled)
+        (d / "install-shape.json").write_text(json.dumps(shape, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if shape["not_under_category"] or shape["local"]:
+            print(f"[install] ⚠ 装后形状：{len(shape['not_under_category'])} 个技能不在类目下"
+                  f"（{shape['not_under_category'][:3]}…）· local {len(shape['local'])} 个"
+                  f"（{shape['local'][:3]}…）→ {d/'install-shape.json'}")
+            print("[install] 归位是仓库侧的事 → 报给 SkillWeave；dream 不自己 git mv。")
+        else:
+            print("[install] 装后形状 ok：技能都在类目下、local = 0")
     return r.returncode
 
 
@@ -349,6 +412,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--test", action="store_true", help="taskbook：按测试面写（禁 push）")
+    ap.add_argument("--max-skills", type=int, default=MAX_AGENT_SKILLS,
+                    help="S7 装前闸门的上限（默认 MAX_AGENT_SKILLS=120；这是给人留的校准旋钮）")
     a = ap.parse_args()
     if a.cmd == "--self-test":
         return self_test()

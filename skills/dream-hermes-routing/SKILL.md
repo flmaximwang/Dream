@@ -33,7 +33,7 @@ profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
   HoldingConversations / JobHunt / LabProject / ObsidianManagement / PlasmidEngineer / ProteinDesign /
   QuantInvestment / SoftwareDev / StructuredResponse / TravelGuide / WatchingVideo / WebInspection）。
 - 落点根 = **`DREAM_SKILL_ROOTS`**：Hermes 环境配置里的一个键，值是冒号分隔的绝对路径（当前两个：
-  `/Users/maxim/Documents/AgentSkill` 与 `/Users/maxim/Repositories/Repo`）。它只是**路径清单**，
+  `~/Documents/AgentSkill` 与 `~/Repositories/Repo`）。它只是**路径清单**，
   本技能不读任何密钥、也不读任何配置文件的内容。
 - `routable`（有 remote + 本机真有 `SKILL.md`）**只决定能不能 `install` 回来，不限制它能否当落点**。
 
@@ -74,7 +74,7 @@ python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录> [--workers 2]
 - 它在 `judge-input-bodies.json`（正文内联那份）上按字节分块，**每块一次非流式 deepseek-flash 请求**，
   落 `verdicts-deepseek-flash.jsonl`；`source` / `model` 由脚本写死（`deepseek` / 实际模型名）。
 - **逐块落盘 + 断点续跑**：被打断后重跑同一条命令，已判完的块直接复用。**不要**手写别的判官脚本去绕它。
-- 题面、形状、复核口径：方法本体的 `references/dream-judge-routing.md`。
+- 题面、形状、复核口径：方法本体的 `skills/dream/references/dream-judge-routing.md`。
 
 **为什么不用 JEV**：`TYPESAFE_API_KEY` 在不在都一样 —— 本机对 `api.typesafe.ai` 稳定返回 **451**
 （`Typesafe is not available in your region`）。451 是**区域限制**，不是限流：重试到超时只是白花时间。

@@ -14,9 +14,14 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 - 不属于本 skill：单个 skill 的收编（→ `recruit-learning-in-profile`）、装/更/卸机制（→ `install-` /
   `update-` / `remove-hermes-skills`）、跨 profile 补齐（→ `maintain-hermes-profile-skill-parity`）、
   一轮会话自己的收获（→ `recruit-learning-in-session`）。
-- **也不属于本 skill：技能库/pack 的整理与优化**——包内多条合并 / umbrella、与包同名的本地副本清退、
-  无类目技能归位。那是 **SkillWeave**（用户在建的项目）的活。dream 只做一件事：把「没有仓库归属的本地技能」
-  收编进包仓库并装回（S1–S8），批次收尾就是退役与汇报。
+- **也不属于本 skill：技能库/pack 的整理与优化（已交接）**——去重 / 无类目归位 / 多条合并（umbrella）/
+  正文下沉 / `description` 改写，全部归 **SkillWeave**（`github.com/flmaximwang/SkillWeave`，契约
+  `docs/contract.md`，命令 `<SkillWeave>/scripts/weave.py layers|checks|propose <pack>`）。dream 只做两件事：
+  把「没有仓库归属的本地技能」收编进包仓库并装回（S1–S8），以及**读 profile 的数、守 profile 的闸门**
+  （`MAX_AGENT_SKILLS`）。**反向**：profile 级读数与闸门不进 SkillWeave。
+- **固定顺序**：`dream 收编（跨包归属）→ SkillWeave 分层（包内结构）→ darwin 磨 description（单技能效果）`。
+  **同一个对象上，下游不许越过上游改**：SkillWeave 改过路径后 dream 的落点映射就是 stale（`input_commit` 会拦），
+  而 description 的打磨不该发生在路径还在动的时候。
 - **本 skill 不把任何 agent 当主语**：某 agent 的容器判据（哪些 skill 算「没有仓库归属」）、安装/更新/卸载命令、
   判官接线、私有路径，一律由**该 agent 的适配技能**提供。**Hermes 的落点见同族 `dream-hermes-routing`**
   （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = 分块直调语言模型）。
@@ -24,12 +29,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 
 ## 主 run 的上下文纪律（决定这一轮跑不跑得完）
 
-主 run 只做三件事：**跑一条命令（一轮 = `bash scripts/round.sh`）· 读那段摘要 · 按规则决议**。判断与读写都在脚本和子代理里，不在主 run 的上下文里。
-
-- **不读源码**：`scripts/*.py` 一律不整篇读（要用法/形状读 `references/`，要看实现就 `--help` 或 `--self-test`）。
-- **不读长清单**：`plan.md` / `audit.md` / `install.log` 只读脚本打印的**摘要行**；要看某一行用 `grep`/`sed -n` 取那几行。
-- **不灌正文**：候选正文只随 `judge.py` 的分块请求走（脚本内联，不进主 run）；主 run 只看 counts 与 verdict 摘要。
-- 每次工具调用的结果都应是**十几行以内**的摘要；单个结果 >40KB 就是设计错了，回去改脚本的输出。
+主 run 只做三件事：**跑一条命令（一轮 = `bash scripts/round.sh`）· 读那段摘要 · 按规则决议**。
+不读源码、不读长清单、不灌正文，单次工具结果保持十几行以内 —— 四条禁令与理由见 `references/dream-method.md` s0。
 
 ## Agent 分工（本 skill 的主体，先读这张表）
 
@@ -100,6 +101,8 @@ python3 -B skills/dream/scripts/audit.py --dir <scan 的 --out 目录>   # 实�
 
 `sweep-plan.py merge` → `plan.md`（按落点分组）+ `resolved.json`（逐行机器可读决议）+ `install-cmds.sh`
 （S7 的命令清单，脚本生成、**不执行**）。主 agent 按「无人值守」逐行决议、不等人。
+每条决议带 `input_commit`（评估时该包的 HEAD）：S5 写入前拿它比一次，上游变了就**跳过整包**并让你重跑
+`scan`+`merge`——不许在旧结论上动手（`stale.json` / `plan.md` 的「输入指纹」段）。
 判据：`merge` 覆盖率必须 100%（有未判定或被拒收的行 exit 4），且没有落点落在 `answer-space.json` 之外。
 
 ## S5 · 写入
@@ -131,6 +134,11 @@ python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录>  
 
 先数条数写进汇报（一包 20 行 = 20 个 prompt 行，是代价）。先 `install` 新成员，再 `update` 改动过的与
 **本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：`dream-hermes-routing`。
+
+`install` 里带两条**只有 dream 能做**的闸（它才看得到 profile）：**装前总量闸门**（`≤ MAX_AGENT_SKILLS`，
+超了就不装、exit 3，落 `install-gate.json`）与**装后形状断言**（技能都在 `skills/<类目>/<name>/` · `local = 0`，
+越界只报给 SkillWeave、不自己 `git mv`，落 `install-shape.json`）。判据与命令：`references/dream-method.md` s7；
+上限可用 `--max-skills <n>` 改（给人留的校准旋钮）。
 
 ## S8 · 退役与汇报
 
@@ -171,7 +179,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | `MAX_AGENT_SKILLS` | 120 | **profile** 技能总数 → S7 装前闸门（`apply.py install`） |
 
 **包内形状（行数 / 字节 / doc 字节 / 第一层条目）一律由 SkillWeave 量**——repo 侧只留 one 实现，dream 不重复实现第二套：
-`python3 scripts/weave.py layers <pack 目录>` / `python3 scripts/weave.py checks <pack 目录>`（仓库见下面「边界」节）。
+命令 `<SkillWeave>/scripts/weave.py layers|checks <pack 目录>`（仓库见下面「边界」节）。
 
 ## 文档树
 

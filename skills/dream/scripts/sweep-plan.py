@@ -37,12 +37,14 @@ Exit codes: 0 ok | 2 no candidates, no packs, or missing sibling | 3 profile not
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
 import pathlib
 import subprocess
 import sys
+import time
 from typing import NoReturn
 
 HERMES_HOME = pathlib.Path(os.environ.get("HERMES_HOME") or pathlib.Path.home() / ".hermes")
@@ -119,6 +121,19 @@ def git(repo: pathlib.Path, *args: str) -> str:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"<git failed: {exc}>"
     return out.stdout.strip() if out.returncode == 0 else f"<git error: {out.stderr.strip()[:80]}>"
+
+
+def sha256_file(p: pathlib.Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def file_digests(out: pathlib.Path, names) -> dict:
+    """只给真实存在的文件算指纹（缺的不写空值，免得把「没有」当成「变了」）。"""
+    return {n: sha256_file(out / n) for n in names if (out / n).is_file()}
 
 
 def identifier(remote: str) -> str:
@@ -198,6 +213,8 @@ def cmd_scan(args) -> int:
         # Every SKILL.md under skills/, at whatever depth the pack lays its categories out.
         skills = sorted({md.parent.name for md in walk_skill_dirs(pk_skills_dir)}) if pk_skills_dir.is_dir() else []
         packs.append(dict(repo=pack.name, path=str(pack), identifier=identifier(remote), remote=remote,
+                          # T-004#B-001：评估时的 HEAD —— 下游拿它当「结论是在哪个上游状态上得出的」
+                          head=git(pack, "rev-parse", "HEAD").strip(),
                           has_git=(pack / ".git").exists(),
                           branch=git(pack, "branch", "--show-current"), skills=skills,
                           # An `AgentSkill-*` directory with no SKILL.md anywhere is a placeholder: it is a
@@ -252,6 +269,13 @@ def cmd_scan(args) -> int:
             index_blocks.append(f"## {pk['repo']}  ({pk['identifier'] or 'no-remote'})\n{body}")
     (out / "pack-index.txt").write_text("\n\n".join(index_blocks) + "\n", encoding="utf-8")
     (out / "packs.json").write_text(json.dumps(packs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # T-004#B-001 输入指纹：评估时的每个 pack HEAD + 本次产出里会被下游消费的文件的 sha256。
+    # 下游（判官 / merge / apply）先比这里，再决定要不要在旧结论上动手。
+    (out / "inputs.json").write_text(json.dumps(dict(
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        packs={p["repo"]: p["head"] for p in packs},
+        files=file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json",
+                                 "inventory.tsv"))), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     # The judge's answer space, v2: EVERY AgentSkill-* directory name, split by axis, plus the two naming
     # formulas for a brand-new pack. `routable` (remote + SKILL.md) only says whether a pack can be installed
     # back afterwards — it never restricts which name may be a destination.
@@ -392,6 +416,26 @@ def cmd_merge(args) -> int:
         groups.setdefault(res["repo"], []).append((r, v, res["action"], res))
     missing = [r["id"] for r in judge_input if r["id"] not in verdicts]
 
+    # T-004#B-001：拿 scan 的指纹比一遍。上游动过 ⇒ 这一轮结论带 stale，不许直接动手。
+    rec = json.loads((out / "inputs.json").read_text()) if (out / "inputs.json").is_file() else {}
+    rec_packs = rec.get("packs") or {}
+    now_packs = {name: (info or {}).get("head") for name, info in packs.items()}   # merge 里 packs 是 dict
+    changed = sorted(k for k in set(rec_packs) | set(now_packs) if rec_packs.get(k) != now_packs.get(k))
+    files_now = file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json"))
+    files_changed = sorted(k for k, v in (rec.get("files") or {}).items() if files_now.get(k) != v)
+    for row in resolved:
+        repo = row.get("repo") or ""
+        row["input_commit"] = now_packs.get(repo) or rec_packs.get(repo) or None
+        row["stale"] = bool(repo and repo in changed)
+    (out / "stale.json").write_text(json.dumps(dict(
+        recorded_at=rec.get("generated_at"), changed_packs=changed, changed_files=files_changed,
+        now={k: now_packs[k] for k in changed if k in now_packs},
+        recorded={k: rec_packs[k] for k in changed if k in rec_packs}), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8")
+    if changed or files_changed:
+        print(f"[sweep-plan] ⚠ stale：pack HEAD 变了 {changed[:5]} · 输入文件变了 {files_changed}"
+              f" —— 这些行的结论作废，先重跑 scan+merge（stale.json）")
+
     info: dict = {}
     for repo, items in groups.items():
         if repo == UNJUDGED:
@@ -486,6 +530,15 @@ def cmd_merge(args) -> int:
         die(4, f"coverage {len(verdicts)}/{len(judge_input)} — unjudged: "
                f"{', '.join(missing[:10])}{' …' if len(missing) > 10 else ''}")
 
+    # T-004#B-001：产物里明写「这些结论是在哪个上游状态上得出的」。
+    lines += ["## 输入指纹（T-004#B-001）", "",
+              f"扫描指纹 `{rec.get('generated_at') or '（没有 inputs.json —— 先跑 scan）'}`"
+              f" · 上游变动 {len(changed)} 个包 / {len(files_changed)} 个输入文件", "",
+              "| 包 | input_commit | stale |", "|---|---|---|"]
+    for repo in sorted({(r.get("repo") or "") for r in resolved} - {""}):
+        lines.append(f"| `{repo}` | `{(now_packs.get(repo) or rec_packs.get(repo) or '—')[:12]}` | "
+                     f"{'⚠ 上游变了' if repo in changed else 'ok'} |")
+    lines += [""]
     (out / "plan.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[sweep-plan] plan={out / 'plan.md'} install_cmds={out / 'install-cmds.sh'}"
           f" resolved={out / 'resolved.json'} packs_touched={len(touched)} "

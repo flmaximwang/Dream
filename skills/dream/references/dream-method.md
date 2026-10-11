@@ -4,6 +4,16 @@
 安装/更新/卸载命令、判官服务接线、私有路径），这里一律写成「适配层提供 X」——具体值在那个 agent 的
 适配技能里（Hermes = `dream-hermes-routing`）。
 
+## s0 · 主 run 的上下文纪律（决定这一轮跑不跑得完）
+
+主 run 只做三件事：**跑一条命令（一轮 = `bash scripts/round.sh`）· 读那段摘要 · 按规则决议**；
+判断与读写都在脚本和子代理里，不在主 run 的上下文里。
+
+- **不读源码**：`scripts/*.py` 一律不整篇读（要用法/形状读 `references/`；要看实现就 `--help` 或 `--self-test`）。
+- **不读长清单**：`plan.md` / `audit.md` / `install.log` 只读脚本打印的**摘要行**；要看某一行用 `grep` / `sed -n` 取那几行。
+- **不灌正文**：候选正文只随 `judge.py` 的分块请求走（脚本内联，不进主 run）；主 run 只看 counts 与 verdict 摘要。
+- 每次工具调用的结果都应是**十几行以内**的摘要；单个结果 >40KB 就是设计错了，回去改脚本的输出。
+
 ## s1 · 枚举
 
 ```bash
@@ -160,6 +170,15 @@ python3 -B skills/dream/scripts/apply.py install --dir <scratch>/sweep-<date>   
 `install` 先数一遍命令条数再执行（一包 20 行 = 20 个 prompt 行，是代价）：先 `install` 新成员，
 再 `update` 改动过的与**本包既有成员**（整包重装）。回读三件（同 s6 判据）。
 适配层的安装命令与其坑见 `dream-hermes-routing`。
+
+**两条只有 dream 能做的闸**（`apply.py install`，它才看得到 profile）：
+
+1. **装前总量闸门**：`现有技能数 ∪ 本次要装的技能名` > `MAX_AGENT_SKILLS`（默认 120，`--max-skills <n>` 可改）
+   ⇒ **不装**、exit 3，差额与候选清单落 `install-gate.json`。dream 是唯一会把 profile 技能数顶上去的动作，所以由它守。
+   注意：上限是**校准旋钮**——撞上它说明该先退役/清退，或者由人改数，不是让脚本自己放松。
+2. **装后形状断言**：① 每个技能路径形如 `skills/<类目>/<name>/`（直接躺在 `skills/` 下 = 无类目，是缺陷）；
+   ② `local`（既不在 `.hub/lock.json` 也不在 `.bundled_manifest`）= 0。越界的逐条列名 → `install-shape.json`。
+   **只报不动手**：归位是仓库侧的动作 → 报给 **SkillWeave**；自己 `git mv` 会再次越界。
 
 ## s8 · 退役与汇报
 
