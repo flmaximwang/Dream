@@ -1,0 +1,111 @@
+{
+ "nodes": [
+  {
+   "id": "T-001#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-001#B-001\nsweep-plan 用法下沉到 references，SKILL.md 禁止读脚本全文\n\n`ready` · @-\n\n实测基线：主 run 把 scripts/sweep-plan.py 全文 read_file 进上下文（单条 56.4KB，会话内最大），此后 27 个回合每个都重放它 —— 每次 API 调用 prompt ≈56K tokens，LLM 中位回合 41.7s，占整轮 wall 的 93%。做法：新建 refere"
+  },
+  {
+   "id": "T-002#B-001",
+   "type": "text",
+   "x": 380,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-002#B-001\n把本轮 ad-hoc 脚本固化成 sweep-plan.py 子命令并写进用法文档\n\n`waiting` · @-\n\n实测：27 个回合里大半是 write_file 一个小脚本再 terminal 跑它（本轮 2033 / 257 / 893 / 2206 / 1798 / 613 / 2055 字节各一次），每写一次付一次完整 prompt，而工具本身中位只跑 0.2s。做法：把本轮真正写过的 ad-hoc 逻辑（profile "
+  },
+  {
+   "id": "T-003#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 170,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-003#B-001\nJEV 451 判为永久不可用：跳过重试并裁剪判官输入\n\n`ready` · @-\n\n实测：~/.hermes/.env 里 TYPESAFE_API_KEY 在（key_present=1），但探针稳定返回 http_status=451 Typesafe is not available in your region —— 这是地域性、永久性的，不是暂时故障，每轮都会白付一次探针与一个回合。做法：d"
+  },
+  {
+   "id": "T-003#B-002",
+   "type": "text",
+   "x": 40,
+   "y": 300,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-003#B-002\ncron 审批闸写进 dream-hermes-routing（用户 2026-10-11 要求）\n\n`ready` · @-\n\n用户 2026-10-11 明确要求把这条审批限制写进 Dream 的文档。实测：cron 运行没有审批人，所以 terminal 里带 -e 或 -c 的 python3 调用被 BLOCKED、execute_code 被 BLOCKED —— 这不是失败可重试，是这条通路根本没有。做法：在 dream-herme"
+  },
+  {
+   "id": "T-004#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 430,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-004#B-001\n一轮批次按 profile 拆成可独立跑完的单元\n\n`ready` · @-\n\n实测：本轮 09:07 起跑，47 分钟只走到 S2；今天 04:00 那一轮跑了 4h50m 后以 agent reported failure 结束 —— 整轮要么全成要么全废。做法：把批次按 profile 切成可独立跑完并落盘（每个 profile 一份中间产物 + 自己的报告尾），一轮内按 profile 顺"
+  },
+  {
+   "id": "T-005#B-001",
+   "type": "text",
+   "x": 720,
+   "y": 40,
+   "width": 300,
+   "height": 110,
+   "color": "0",
+   "text": "### T-005#B-001\n推送 Dream 并重装两技能，回读三件\n\n`waiting` · @-\n\n把 T-001 到 T-004 的改动按上游正路落地：只在项目里改，按 pathspec git add skills/ 与 plans/；commit 后 git push origin 该 sha 到 main（push 被拒先 fetch + rebase）；再 hermes skills update drea"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e0",
+   "fromNode": "T-001#B-001",
+   "toNode": "T-002#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e1",
+   "fromNode": "T-001#B-001",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e2",
+   "fromNode": "T-002#B-001",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e3",
+   "fromNode": "T-003#B-002",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  },
+  {
+   "id": "e4",
+   "fromNode": "T-004#B-001",
+   "toNode": "T-005#B-001",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "",
+   "color": "6"
+  }
+ ]
+}
