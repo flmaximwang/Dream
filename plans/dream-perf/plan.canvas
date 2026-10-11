@@ -59,6 +59,16 @@
    "height": 110,
    "color": "0",
    "text": "### T-005#B-001\n推送 Dream 并重装两技能，回读三件\n\n`waiting` · @-\n\n把 T-001 到 T-004 的改动按上游正路落地：只在项目里改，按 pathspec git add skills/ 与 plans/；commit 后 git push origin 该 sha 到 main（push 被拒先 fetch + rebase）；再 hermes skills update drea"
+  },
+  {
+   "id": "T-006#B-001",
+   "type": "text",
+   "x": 40,
+   "y": 560,
+   "width": 300,
+   "height": 110,
+   "color": "3",
+   "text": "### T-006#B-001\n给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）\n\n`ready` · @-\n\n实测（2026-10-11 那一轮 S2 的 10 个子代理，143 次 API 调用）：平均每次调用 prompt 55.7K tokens、输出仅 399 tokens（140:1）；281 次工具往返里 read_file 130 次（中位 6.9KB、p90 24KB、最大 104.8KB）、terminal "
   }
  ],
  "edges": [

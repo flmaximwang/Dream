@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T10:08:46+08:00",
+  "updated_at": "2026-10-11T10:16:09+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -206,6 +206,38 @@
       ],
       "note": "",
       "exec": {}
+    },
+    {
+      "id": "T-006",
+      "title": "子代理纪律：判官与审计的子代理不许自己撑爆上下文",
+      "owner": "",
+      "status": "pending",
+      "deps": [],
+      "blocks": [
+        {
+          "id": "T-006#B-001",
+          "title": "给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）",
+          "kind": "impl",
+          "status": "pending",
+          "owner": "",
+          "doc": "实测（2026-10-11 那一轮 S2 的 10 个子代理，143 次 API 调用）：平均每次调用 prompt 55.7K tokens、输出仅 399 tokens（140:1）；281 次工具往返里 read_file 130 次（中位 6.9KB、p90 24KB、最大 104.8KB）、terminal 98 次（结果中位仅 991B）。三个可归因的机制：① skills_list 被 9/10 个子代理调用，每次返回 63,145B 的全库列表 —— 判官根本不需要它，落点空间由题面 answer-space.json 给；② read_file 反复读大文件（57KB / 93KB / 102KB 各一发）与 skill_view 全文，把每个子代理的上下文撑到 100 至 230KB，之后每次调用都重放；③ 判定被拆成一条一个 terminal 往返（98 次、结果中位 991B），每次往返都要付一次完整大 prompt。做法：在 references/dream-agent-roster.md 的任务书通则里写死三条 —— 不许 skills_list 或枚举全库（落点空间只从题面取）；一个批次一次 write_file 落脚本加一次 terminal 跑完，禁止逐条往返；临时脚本只许落自己的 scratch 目录，不许落进任何 profile 的 skills 根。另：本轮实测有子代理把 _dream_enum.py 写进了 profiles/dev-general/skills/ 根目录（留存待清）。",
+          "input": "",
+          "output": "",
+          "command": "",
+          "done_when": [
+            "① references/dream-agent-roster.md 里三条约束各有原句（贴出）；② 下一轮 cron 的子代理实测：单子代理 prompt 均值 < 25K tokens 且工具往返数 < 15（从 state.db 的 session_model_usage 与 messages 数出，贴数字）；③ profiles 各 skills 根目录里没有 3 小时内新增的散落 .py/_dream 前缀文件（贴扫描命令与空结果）；④ 本轮遗留的 profiles/dev-general/skills/_dream_enum.py 已清除（贴当时的 ls 与现在的 ls）。"
+          ],
+          "artifacts": [],
+          "deps": [],
+          "review_of": "",
+          "feedback": "",
+          "exec": {},
+          "status_since": "2026-10-11T10:16:09+08:00",
+          "runs": []
+        }
+      ],
+      "note": "",
+      "exec": {}
     }
   ],
   "log": [
@@ -291,7 +323,21 @@
       "kind": "block",
       "text": "新增块 T-005#B-001「推送 Dream 并重装两技能，回读三件」",
       "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-11T10:16:09+08:00",
+      "actor": "agent",
+      "kind": "task",
+      "text": "新增任务 T-006「子代理纪律：判官与审计的子代理不许自己撑爆上下文」",
+      "ref": "T-006"
+    },
+    {
+      "at": "2026-10-11T10:16:09+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "新增块 T-006#B-001「给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）」",
+      "ref": "T-006#B-001"
     }
   ],
-  "rev": "a16ca590375d"
+  "rev": "24b8bf1650e3"
 }
