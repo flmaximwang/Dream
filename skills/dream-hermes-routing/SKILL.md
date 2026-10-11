@@ -1,6 +1,6 @@
 ---
 name: dream-hermes-routing
-description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与判官（JEV/分类子代理）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
+description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与判官（judge.py 分块直调 deepseek-flash）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
 ---
 
 # dream-hermes-routing · dream 方法在 Hermes 上的适配层
@@ -33,16 +33,13 @@ profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
   HoldingConversations / JobHunt / LabProject / ObsidianManagement / PlasmidEngineer / ProteinDesign /
   QuantInvestment / SoftwareDev / StructuredResponse / TravelGuide / WatchingVideo / WebInspection）。
 - 落点根 = **`DREAM_SKILL_ROOTS`**：Hermes 环境配置里的一个键，值是冒号分隔的绝对路径（当前两个：
-  `/Users/maxim/Documents/AgentSkill` 与 `/Users/maxim/Repositories/Repo`）。它只是**路径清单**，
+  `~/Documents/AgentSkill` 与 `~/Repositories/Repo`）。它只是**路径清单**，
   本技能不读任何密钥、也不读任何配置文件的内容。
 - `routable`（有 remote + 本机真有 `SKILL.md`）**只决定能不能 `install` 回来，不限制它能否当落点**。
 
-**合并 / umbrella（Hermes 侧落值）**：方法本体在 `skills/dream` 的「合并 / umbrella」一节（S10）——三步
-LEDGERED 顺序（`action=write_file` 把内容写进 umbrella 的支持目录 → `action=remove_file` 删源里的原文 →
-`action=delete` 源且必带 `absorbed_into=<umbrella>`）、以及 umbrella 的 description 必须把触发类留在前 57
-字符窗口的判据，都在那里。Hermes 只补三点：台账 = `~/.hermes/skills/.curator_ledger.jsonl`（一行一步，
-`action` 就是那三个动作名）；前台 `skill_manage delete` 是**硬删**（`.archive/` 那条可恢复的路只走后台
-复盘通道）⇒ 动手前先 `hermes curator backup`；装回与回读三件同 §3 / §5。
+**包内整理 / 合并（不在本 skill 的范围）**：把包内多条窄技能合成一条 umbrella、清退与包同名的本地副本、
+给无类目技能归位，都属于技能库的结构整理，由 **SkillWeave** 项目负责（用户 2026-10-11 定）。
+本适配技能只覆盖「收编进包 → 装回 → 回读」这条链（§3 / §5）。
 
 ## 3 · 安装命令（`hermes skills`）
 
@@ -65,17 +62,26 @@ hermes skills list                                     # 回读名字与类目
 **扫描闸**：push 之前预测扫描 verdict。非 `safe` 先按扫描闸手册改写形态；`dangerous` 的 revision 在 hub 上
 **永远装不上**，`--force` 也覆盖不了。
 
-## 4 · 判官接线（JEV 优先，无 key 走子代理）
+## 4 · 判官接线（分块直调 deepseek-flash）
 
-1. **探活**：`$HERMES_HOME/.env` 里有没有 `TYPESAFE_API_KEY`（`grep -c`，不回显值），再打一次探针。
-   **探针 451**（`Typesafe is not available in your region`）与超时同样算「不可用」，**直接走子代理**，
-   别重试到超时。
-2. **JEV 在** → 把 `judge-input-bodies.json`（正文内联的那份）当 `state` 分块出题，落 `verdicts-jev.jsonl`，
-   **每条记下回复里的 `model` 字段**才算真机答案。题面模板与两层走树：`references/` 见方法本体的
-   `dream-judge-routing.md`。
-3. **JEV 不在**（无 key / 探针非 200 / 451 / 429 退避两次仍失败）→ 派分类子代理，**每 8–12 条一个**。
-4. **标注纪律**：只有带 `model` 字段的算 JEV；子代理/人工填的一律 `source: agent`，两组数字分开写，
-   不许混着当「JEV 的效果」。
+主 agent 直接跑方法本体的 `skills/dream/scripts/judge.py`：
+
+```bash
+python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录> [--workers 2] [--chunk-bytes 140000]
+# 只看分块计划：--dry-run ；烟测：--limit 5 --workers 1
+```
+
+- 它在 `judge-input-bodies.json`（正文内联那份）上按字节分块，**每块一次非流式 deepseek-flash 请求**，
+  落 `verdicts-deepseek-flash.jsonl`；`source` / `model` 由脚本写死（`deepseek` / 实际模型名）。
+- **逐块落盘 + 断点续跑**：被打断后重跑同一条命令，已判完的块直接复用。**不要**手写别的判官脚本去绕它。
+- 题面、形状、复核口径：方法本体的 `skills/dream/references/dream-judge-routing.md`。
+
+**为什么不用 JEV**：`TYPESAFE_API_KEY` 在不在都一样 —— 本机对 `api.typesafe.ai` 稳定返回 **451**
+（`Typesafe is not available in your region`）。451 是**区域限制**，不是限流：重试到超时只是白花时间。
+所以 v3 既不探活也不留降级链，**判官只有一个**：`judge.py`。
+
+**并发纪律**：实测 3 块 ~140KB 并发时会被 `Connection reset by peer`（Errno 54）打掉，脚本已带 3 次退避
+重试；仍然 reset 就把 `--workers` 降到 1。
 
 ## 5 · 回读三件（收工判据）
 

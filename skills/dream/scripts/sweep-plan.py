@@ -24,7 +24,7 @@ Classification is the three kinds this pack already names, and only the third is
 ## v2 · 判官要读全文，答案空间是全部 AgentSkill-* 目录（2026-10-10 用户改口径）
 
 - `judge-input.json` 每条带 `path` / `skill_md` / `refs`，判官**必须读 SKILL.md 全文**（只说 name+desc
-  就是偷懒判法，用户已驳回）；`judge-input-bodies.json` 把正文内联，给只会看文本的判官（JEV）用。
+  就是偷懒判法，用户已驳回）；`judge-input-bodies.json` 把正文内联，给只会看文本的判官（分块直调的判官）用。
 - 答案空间分两轴先判：`{kind:"new", axis:"tool"|"topic", topic, personal, boundary}` 会落到
   `AgentSkill-Using<Topic>` / `AgentSkill-<Topic>`，归一化后撞上已有目录名就**复用那个仓库**；
   多条同 topic **合并进一个包**。`existing` 的 `repo` 可以是 `~/Documents/AgentSkill` 下**任一**
@@ -32,17 +32,20 @@ Classification is the three kinds this pack already names, and only the third is
 - **没有 `__stay_local__`**：判官输出里出现它一律拒收（exit 4）——每条都必须有落点。
 
 Exit codes: 0 ok | 2 no candidates, no packs, or missing sibling | 3 profile not found | 4 verdict coverage < 100%
-            or a rejected verdict (stay-local / unknown dest / non-string dest fields) | 5 local skills left outside every pack
+            or a rejected verdict (stay-local / unknown dest / non-string dest fields)
 """
 from __future__ import annotations
 
 import argparse
+import collections
+import hashlib
 import importlib.util
 import json
 import os
 import pathlib
 import subprocess
 import sys
+import time
 from typing import NoReturn
 
 HERMES_HOME = pathlib.Path(os.environ.get("HERMES_HOME") or pathlib.Path.home() / ".hermes")
@@ -66,6 +69,13 @@ def pack_name_for(axis: str, topic: str) -> str:
     the same topic in different styles then land on the same repo name (and on the same normalized key).
     """
     slug = "".join(ch for ch in topic.strip() if ch.isalnum() or ch in "-_") or "Unnamed"
+    # 判官有时把前缀写进 topic（topic=UsingDrawio）——先剥掉，别拼成 AgentSkill-UsingUsingDrawio
+    for pre in ("AgentSkill",):                      # 罕见但同样会双拼
+        if slug.lower().startswith(pre.lower()):
+            slug = slug[len(pre):]
+    if slug.lower().startswith("using"):   # 注意两边都小写：slug.lower() 比 "Using" 永不成立（踩过一次）             # tool 轴的前缀；topic 轴上也一样剥（UsingX 当主题名没意义）
+        slug = slug[5:] or slug
+    slug = slug.lstrip("-_") or slug        # 剥完前缀可能留个连字符（AgentSkill-Foo → -Foo）
     return (TOOL_PREFIX if axis == "tool" else TOPIC_PREFIX) + slug
 
 
@@ -89,6 +99,25 @@ def load_parser(override: str = "") -> tuple:
         here.parents[2] / PARSER_SKILL / "scripts" / "skill-index.py",          # repo / installed layout
         here.parents[2].parent / PARSER_SKILL / "scripts" / "skill-index.py",   # one level up, defensive
     ]
+    if not override and not any(p.is_file() for p in cands):
+        # 在 worktree 里开发时兄弟技能不在旁边（它只在 profile 里装好）——退回装好的那份，别让一轮卡在 S1
+        for root in (HERMES_HOME, pathlib.Path.home() / ".hermes"):
+            # 两种布局都要认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后就长这样）
+            cands += sorted(root.glob(f"skills/*/{PARSER_SKILL}/scripts/skill-index.py"))
+            cands += sorted(root.glob(f"skills/{PARSER_SKILL}/scripts/skill-index.py"))
+        # 技能交给 Skills-Manager 管之后，profile 里那份可能被挪走：中央库、以及 external_dirs 里的包
+        # 都可能是唯一还在的副本（实测 2026-10-12 profile 与中央库都没有了，只剩包内那份）
+        cands += sorted((pathlib.Path.home() / ".skills-manager" / "skills").glob(
+            f"{PARSER_SKILL}/scripts/skill-index.py"))
+        try:
+            ed = sibling_module("external-dirs.py")
+            for d in json.loads(ed.resolve_file().read_text()).get("dirs", []):
+                base = pathlib.Path(d["path"]).expanduser()
+                for pack in ([base] if (base / "SKILL.md").is_file()
+                             else [c for c in sorted(base.glob("*")) if c.is_dir()]):
+                    cands += sorted(pack.rglob(f"{PARSER_SKILL}/scripts/skill-index.py"))[:1]
+        except (OSError, ValueError, KeyError, SystemExit):
+            pass
     for p in cands:
         if p.is_file():
             spec = importlib.util.spec_from_file_location("_sweep_sibling_index", p)
@@ -115,6 +144,19 @@ def git(repo: pathlib.Path, *args: str) -> str:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"<git failed: {exc}>"
     return out.stdout.strip() if out.returncode == 0 else f"<git error: {out.stderr.strip()[:80]}>"
+
+
+def sha256_file(p: pathlib.Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def file_digests(out: pathlib.Path, names) -> dict:
+    """只给真实存在的文件算指纹（缺的不写空值，免得把「没有」当成「变了」）。"""
+    return {n: sha256_file(out / n) for n in names if (out / n).is_file()}
 
 
 def identifier(remote: str) -> str:
@@ -157,6 +199,172 @@ def read_bundled(root: pathlib.Path) -> set:
             if ":" in ln}
 
 
+def pack_candidates(args) -> list:
+    """候选落点目录：优先 `--external-dirs` 的那份 JSON（每个目录自身或它的直接子目录），
+    否则退回老的 `--packs-root` 下 glob `AgentSkill-*`。"""
+    ext = getattr(args, "external_dirs", "") or ""
+    if ext:
+        data = json.loads(pathlib.Path(ext).expanduser().read_text())
+        out = []
+        for d in data.get("dirs", []):
+            p = pathlib.Path(d["path"]).expanduser()
+            if not p.is_dir():
+                continue
+            kids = [c for c in sorted(p.glob("*")) if c.is_dir() and not c.name.startswith(".")]
+            out += [p] if (p / "SKILL.md").is_file() else kids     # 目录自己就是技能 → 收它；否则收它的一层子目录
+        return out
+    return sorted(pathlib.Path(args.packs_root).expanduser().glob("AgentSkill-*"))
+
+
+def sibling_module(filename: str):
+    """同目录的兄弟脚本当模块用（复用它的逻辑，不 copy）。"""
+    here = pathlib.Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location("_dream_sib_" + filename.replace("-", "_").replace(".", "_"),
+                                                  here / filename)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def dir_fingerprint(mirror, d: pathlib.Path) -> str:
+    """技能目录的指纹：身份=相对路径，内容=每个文件的 sha256（复用 skill-mirror 的文件清单）。"""
+    h = hashlib.sha256()
+    for rel, sha in sorted(mirror.skill_files(d).items()):
+        h.update(rel.encode("utf-8")); h.update(sha.encode("utf-8"))
+    return h.hexdigest()
+
+
+# ---------------------------------------------------------------- 15 态分类（2026-10-11 用户拍板）
+# A = hermes 侧来源：local 或「第三方维护」四种子类 built-in / official / bundled / hub
+# B = 归 Skills-Manager 管否 · C = 归 external_dirs 管否 · D = 与可比者内容相同否（无所有者时坍缩）
+# 第三方的权威副本：built-in/optional 在发行版树里、bundled 在 .bundled_manifest、hub 在 .hub/lock.json
+STATE_ACTIONS = {
+    # local 组（7 态）
+    ("local", "no", "no", "fold"): "judge-destination",       # 真候选：判落点 → 写我的包 → push → 交 manager 装
+    ("local", "no", "yes", "same"): "noop",                   # 我的包＝profile
+    ("local", "no", "yes", "differs"): "reconcile",           # 比方向：profile 新→合回包；包新→manager 重装
+    ("local", "yes", "no", "same"): "noop",
+    ("local", "yes", "no", "differs"): "patch-package",       # 第三方技能上的本地改动 → 建 patch 包 → manager 装
+    ("local", "yes", "yes", "same"): "noop",
+    ("local", "yes", "yes", "differs"): "reconcile",          # 以我的包为源合回 → manager 重装
+    # 第三方组（8 态，来源无关的处置相同）
+    ("third", "no", "no", "same"): "noop",                    # 与官方副本一致
+    ("third", "no", "no", "differs"): "patch-or-restore",     # 先判方向：本地新→patch 包；远端新→更新本地
+    ("third", "no", "yes", "same"): "noop",
+    ("third", "no", "yes", "differs"): "noop",                # 官方是源，不碰（确是我加的改动 → patch 包）
+    ("third", "yes", "no", "same"): "noop",
+    ("third", "yes", "no", "differs"): "patch-package",
+    ("third", "yes", "yes", "same"): "noop",
+    ("third", "yes", "yes", "differs"): "reconcile",
+}
+
+
+def third_party_dirs() -> dict:
+    """第三方来源的权威副本（名字 → 目录）：发行版 skills/ 与 optional-skills/。"""
+    src = HERMES_HOME.parent / "hermes-agent" if HERMES_HOME.parent.name != "hermes-agent" else HERMES_HOME
+    out = {}
+    for tag, sub in (("built-in", "skills"), ("official", "optional-skills")):
+        d = src / sub
+        if not d.is_dir():
+            continue
+        for md in d.rglob("SKILL.md"):
+            out.setdefault(md.parent.name, (tag, md.parent))
+    return out
+
+
+def hermes_source(n: str, tp: dict, manifest: dict, lock: set) -> str:
+    """A 轴的取值：local 或第三方四种子类（built-in / official / bundled / hub，按这个优先级）。"""
+    if tp.get(n, ("", None))[0] == "built-in":
+        return "built-in"
+    if tp.get(n, ("", None))[0] == "official":
+        return "official"
+    if n in manifest:
+        return "bundled"
+    if n in lock:
+        return "hub"
+    return "local"
+
+
+def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict) -> dict:
+    """一条 profile 技能的 15 态归属：source/A/B/C/D + action。"""
+    n = r["name"]; d = r["_md"].parent
+    source = hermes_source(n, tp, manifest, r.get("lock_names", set()))
+    mgr = "yes" if n in manager_dirs else "no"
+    hit = mirror.classify(d, index)
+    ext = "yes" if hit["verdict"] in ("homed", "drift") else "no"
+    owners, same = [], False
+    if ext == "yes":
+        owners.append("external"); same = same or hit["verdict"] == "homed"
+    if mgr == "yes":
+        owners.append("manager"); same = same or mirror.diff_dirs(d, manager_dirs[n])["identical"]
+    if n in manifest:
+        owners.append("manifest")
+        try:
+            sys.path.insert(0, str(HERMES_HOME.parent / "hermes-agent"))
+            from tools.skills_sync import _matches_origin_hash
+            same = same or _matches_origin_hash(d, manifest[n])
+        except Exception:                                     # 拿不到账本就不下这个结论（保守：不算 same）
+            pass
+    if n in tp:
+        owners.append(tp[n][0]); same = same or mirror.diff_dirs(d, tp[n][1])["identical"]
+    D = "fold" if not owners else ("same" if same else "differs")
+    A = "local" if source == "local" else "third"
+    return dict(state_source=source, A=A, mgr=mgr, ext=ext, D=D,
+                state=f"{A}·{source}·mgr={mgr}·ext={ext}·{D}",
+                action=STATE_ACTIONS[(A, mgr, ext, D)], comparators=owners)
+
+
+def find_dups(rows: list) -> dict:
+    """同名多份：身份按相对路径区分，名字只用来找可比者。同名两份会互相顶替（实测 docx/xlsx 各两份），
+    必须单独报出来而不是当成两个独立技能。"""
+    by = {}
+    for r in rows:
+        by.setdefault(r["name"], []).append(r)
+    dups = {n: [x["dir"] for x in rs] for n, rs in by.items() if len(rs) > 1}
+    for n, rs in by.items():
+        for r in rs:
+            r["duplicate_of"] = ", ".join(x["dir"] for x in rs if x is not r) if len(rs) > 1 else ""
+    return dups
+
+
+def prescreen(args, packs, rows, local, mirror) -> None:
+    """S1 预筛（口径 2026-10-11，用户拍板）：profile 技能只要**在外部仓库里找得到**（AgentSkills 那些包），
+    或**Skills-Manager 管着**，就算已装 —— 不进候选、不判落点。两边都没有的才是候选。
+    三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。"""
+    index = mirror.build_index([p["path"] for p in packs], [])
+    try:
+        mgr_rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
+        managed = {s.get("name", "") for s in mgr_rows if s.get("name")}   # 别叫 rows：会盖住传入的 profile 行
+    except SystemExit:                      # CLI 不在/报错都不该让一轮挂掉
+        managed = set()
+    sk_lock = HERMES_HOME / "skills" / ".hub" / "lock.json"
+    tp = third_party_dirs()
+    lock_names = set(json.load(open(sk_lock))["installed"]) if sk_lock.is_file() else set()
+    try:
+        manifest = {l.split(":")[0]: l.strip().split(":")[1]
+                    for l in open(HERMES_HOME / "skills" / ".bundled_manifest") if l.strip()}
+    except OSError:
+        manifest = {}
+    manager_dirs = {}
+    for x in sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager"):
+        n = x.get("name")
+        if n and pathlib.Path(x.get("path", "")).is_dir():
+            manager_dirs[n] = pathlib.Path(x["path"])
+    for r in rows:
+        if "_md" not in r:                                    # 自检里的合成行没有真实目录，跳过
+            continue
+        r["lock_names"] = lock_names
+        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest))
+    for r in local:
+        if r["name"] in managed:
+            r["verdict"], r["matched"] = "managed", "skills-manager"
+            continue
+        c = mirror.classify(r["_md"].parent, index)
+        r["verdict"] = c["verdict"]
+        r["matched"] = c["matches"][0] if c["matches"] else ""
+    return None
+
+
 def cmd_scan(args) -> int:
     root = profile_root(args.profile)
     mod, parser_path = load_parser(args.parser_script)
@@ -174,12 +382,13 @@ def cmd_scan(args) -> int:
                          no_category=no_cat, dir=str(rel.parent), _md=md,
                          desc=" ".join(str(fm.get("description") or "").split()), bytes=md.stat().st_size))
     rows.sort(key=lambda r: (r["kind"] != "local", r["category"], r["name"]))
+    dups = find_dups(rows)
     local = [r for r in rows if r["kind"] == "local"]
     if not local:
         die(2, f"no profile-local skills in {root} — nothing to recruit")
 
     packs = []
-    for pack in sorted(pathlib.Path(args.packs_root).expanduser().glob("AgentSkill-*")):
+    for pack in pack_candidates(args):
         if not pack.is_dir():
             continue
         # A linked worktree of some other clone has `.git` as a FILE, not a directory: its name looks exactly
@@ -194,6 +403,8 @@ def cmd_scan(args) -> int:
         # Every SKILL.md under skills/, at whatever depth the pack lays its categories out.
         skills = sorted({md.parent.name for md in walk_skill_dirs(pk_skills_dir)}) if pk_skills_dir.is_dir() else []
         packs.append(dict(repo=pack.name, path=str(pack), identifier=identifier(remote), remote=remote,
+                          # T-004#B-001：评估时的 HEAD —— 下游拿它当「结论是在哪个上游状态上得出的」
+                          head=git(pack, "rev-parse", "HEAD").strip(),
                           has_git=(pack / ".git").exists(),
                           branch=git(pack, "branch", "--show-current"), skills=skills,
                           # An `AgentSkill-*` directory with no SKILL.md anywhere is a placeholder: it is a
@@ -202,7 +413,21 @@ def cmd_scan(args) -> int:
                           installed=installed,
                           categories=sorted({p.split("/")[0] for p in installed.values() if p})))
     if not packs:
-        die(2, f"no AgentSkill-* checkout under {args.packs_root}")
+        die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
+               if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
+    mirror = sibling_module("skill-mirror.py")
+    prescreen(args, packs, rows, local, mirror)
+    # 候选 = 15 态里 action 为 judge-destination 的那一类（= 三方都没主）。旧的 verdict==local 口径保留
+    # 只作对账：两边不一致就报出来，别让两套判据各自漂。
+    cands = [r for r in local if r.get("action") == "judge-destination"]
+    legacy = {r["dir"] for r in local if r["verdict"] == "local"}
+    by_action = {r["dir"] for r in cands}
+    if legacy != by_action:
+        only_legacy = sorted(legacy - by_action)[:5]
+        only_action = sorted(by_action - legacy)[:5]
+        print(f"[sweep-plan] ⚠ 候选口径不一致：只按 verdict=local 有 {len(legacy - by_action)} 条"
+              f"（{only_legacy}）；只按 action=judge-destination 有 {len(by_action - legacy)} 条"
+              f"（{only_action}）—— 以 action 为准，另一套要跟着改")
     routable = [p for p in packs if not p["empty"]]
     if not routable:
         die(2, f"every AgentSkill-* under {args.packs_root} is a placeholder (no SKILL.md) — "
@@ -211,22 +436,26 @@ def cmd_scan(args) -> int:
     out = pathlib.Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     (out / "inventory.tsv").write_text(
-        "kind\tcategory\tname\tno_category\tdir\tdesc\n" + "".join(
-            f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t{r['dir']}\t{r['desc'][:200]}\n"
+        "kind\tcategory\tname\tno_category\tverdict\tmatched\tdir\tduplicate_of\tstate\taction\tdesc\n" + "".join(
+            f"{r['kind']}\t{r['category']}\t{r['name']}\t{str(r['no_category']).lower()}\t"
+            f"{r.get('verdict', '-')}\t{r.get('matched', '')}\t{r['dir']}\t{r.get('duplicate_of', '')}\t"
+            f"{r.get('state', '')}\t{r.get('action', '')}\t{r['desc'][:200]}\n"
             for r in rows), encoding="utf-8")
     # Frozen judge input: one P<k> per candidate, script-generated so that no hand transcription can drift
     # from what the judges were actually asked (the pack's own judge lesson). v2 carries the absolute path so
     # the judge CANNOT judge from the name alone — it must read the full SKILL.md; `bodies` inlines the text
-    # for judges that only ever see a string (JEV), so both routes see the same full document.
+    # for judges that only ever see a string (chunked API judge), so both routes see the same full document.
     bodies = {}
     judge_input = []
-    for i, r in enumerate(local, 1):
+    for i, r in enumerate(cands, 1):
         md = r["_md"]
         refs = sorted(str(p.relative_to(md.parent)) for p in md.parent.rglob("*")
                       if p.is_file() and p.name != "SKILL.md" and "__pycache__" not in p.parts)
         text = md.read_text(encoding="utf-8", errors="replace")
         bodies[f"P{i}"] = text
         judge_input.append(dict(id=f"P{i}", skill=r["name"], category=r["category"], dir=r["dir"],
+                                state=r.get("state", ""), action=r.get("action", ""),
+                                comparators=r.get("comparators", []),
                                 no_category=r["no_category"], description=r["desc"],
                                 path=str(md.parent), skill_md=str(md), refs=refs[:30],
                                 body_bytes=len(text.encode("utf-8")),
@@ -248,6 +477,17 @@ def cmd_scan(args) -> int:
             index_blocks.append(f"## {pk['repo']}  ({pk['identifier'] or 'no-remote'})\n{body}")
     (out / "pack-index.txt").write_text("\n\n".join(index_blocks) + "\n", encoding="utf-8")
     (out / "packs.json").write_text(json.dumps(packs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # T-004#B-001 输入指纹：评估时的每个 pack HEAD + 本次产出里会被下游消费的文件的 sha256。
+    # 下游（判官 / merge / apply）先比这里，再决定要不要在旧结论上动手。
+    (out / "inputs.json").write_text(json.dumps(dict(
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        packs={p["repo"]: p["head"] for p in packs},
+        # profile 侧也要有"评估时"的快照：技能树被别的会话重排过一次（实测 00:17 整棵扁平化），
+        # 没有这个指纹，S1 的结论会在 S4 之前悄悄失效。
+        profile_root=str(skills_root),
+        profile={r["dir"]: dir_fingerprint(mirror, r["_md"].parent) for r in rows},
+        files=file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json",
+                                 "inventory.tsv"))), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     # The judge's answer space, v2: EVERY AgentSkill-* directory name, split by axis, plus the two naming
     # formulas for a brand-new pack. `routable` (remote + SKILL.md) only says whether a pack can be installed
     # back afterwards — it never restricts which name may be a destination.
@@ -267,14 +507,45 @@ def cmd_scan(args) -> int:
           f"pack_skills={sum(len(p['skills']) for p in routable)} pack_index_est_tokens~{idx_chars // 2}")
     print(f"[sweep-plan] dest_space={len(packs)} 个目录名（tool {len([p for p in packs if p['repo'].startswith(TOOL_PREFIX)])}"
           f" + topic {len([p for p in packs if not p['repo'].startswith(TOOL_PREFIX)])}）→ answer-space.json")
-    n_nocat = sum(1 for r in local if r["no_category"])
-    print(f"[sweep-plan] no_category={n_nocat}（local skill 直接躺在 skills/ 下，没有类目层——本批必须一并补齐）")
-    print(f"[sweep-plan] candidates={len(local)} judge_input={out / 'judge-input.json'} "
+    n_nocat = sum(1 for r in cands if r["no_category"])
+    pre = {v: sum(1 for r in local if r["verdict"] == v) for v in ("homed", "drift", "managed", "local")}
+    (out / "prescreen.json").write_text(json.dumps(dict(
+        counts=pre,
+        rules="外部仓库里找得到（AgentSkills 各包，同名同内容=homed / 内容不同=drift）或 Skills-Manager 管着（managed）"
+              " = 已装，不进候选；两边都没有（local）才判落点",
+        homed=[r["name"] for r in local if r["verdict"] == "homed"],
+        drift=[dict(skill=r["name"], external=r["matched"]) for r in local if r["verdict"] == "drift"],
+        managed=[r["name"] for r in local if r["verdict"] == "managed"],
+        candidates=[dict(skill=r["name"], dir=r["dir"], category=r["category"],
+                         no_category=r["no_category"], duplicate_of=r.get("duplicate_of", "")) for r in cands],
+        duplicates=dups,
+    ), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    st_counts = collections.Counter(r.get("state", "") for r in rows if r.get("state"))
+    act_counts = collections.Counter(r.get("action", "") for r in rows if r.get("action"))
+    gen_counts = collections.Counter(
+        ("mgr=%s·ext=%s·%s" % (r["mgr"], r["ext"], r["D"])) for r in rows if r.get("mgr"))
+    (out / "states.json").write_text(json.dumps(dict(
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        rules="A=local|第三方(built-in/official/bundled/hub) · B=skills-manager 管否 · C=external_dirs 管否 · "
+              "D=与可比者内容同否（无所有者则坍缩）→ hermes 15 态；general agent 去掉 A 轴 → 7 态",
+        counts_hermes=dict(st_counts), actions=dict(act_counts), counts_general=dict(gen_counts),
+        rows=[dict(skill=r["name"], dir=r["dir"], state=r.get("state", ""), action=r.get("action", ""),
+                   source=r.get("state_source", ""), comparators=r.get("comparators", []))
+              for r in rows if r.get("state")]), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"[sweep-plan] 15 态（hermes）=" + " · ".join(f"{k} {v}" for k, v in st_counts.most_common()))
+    print(f"[sweep-plan] 逐态去向=" + " · ".join(f"{k}={v}" for k, v in act_counts.most_common()))
+    print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
+          f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
+    if dups:
+        print(f"[sweep-plan] ⚠ 同名多份 {len(dups)} 组（身份按相对路径区分，名字相同会互相顶替）："
+              + " · ".join(f"{n}: {', '.join(ds)}" for n, ds in dups.items()))
+    print(f"[sweep-plan] no_category={n_nocat}（候选里直接躺在 skills/ 下、没有类目层的）")
+    print(f"[sweep-plan] candidates={len(cands)} judge_input={out / 'judge-input.json'} "
           f"({(out / 'judge-input.json').stat().st_size} B) bodies={(out / 'judge-input-bodies.json').stat().st_size} B "
           f"parser={parser_path}")
     print(f"[sweep-plan] 判官必须读每条 P<k> 的 skill_md 全文（judge-input.json 给了绝对路径；只吃文本的判官用 "
           f"judge-input-bodies.json）")
-    print(f"[sweep-plan] next: judge every P<k> (JEV, else classifier children) -> {out}/verdicts*.jsonl, then "
+    print(f"[sweep-plan] next: judge every P<k>（`judge.py --dir <out>`，分块直调） -> {out}/verdicts*.jsonl, then "
           f"`merge --dir {out} --profile {args.profile}`")
     return 0
 
@@ -388,6 +659,50 @@ def cmd_merge(args) -> int:
         groups.setdefault(res["repo"], []).append((r, v, res["action"], res))
     missing = [r["id"] for r in judge_input if r["id"] not in verdicts]
 
+    # T-004#B-001：拿 scan 的指纹比一遍。上游动过 ⇒ 这一轮结论带 stale，不许直接动手。
+    rec = json.loads((out / "inputs.json").read_text()) if (out / "inputs.json").is_file() else {}
+    # profile 侧指纹：与 scan 那一刻比，谁变了谁作废（同一个 stale 口径，只是换到技能树这边）
+    prof_changed = []
+    if rec.get("profile"):
+        mirror = sibling_module("skill-mirror.py")
+        base = pathlib.Path(rec.get("profile_root") or (pathlib.Path.home() / ".hermes" / "skills"))
+        for rel, fp in rec["profile"].items():
+            d = base / rel
+            now = dir_fingerprint(mirror, d) if d.is_dir() else "（已不在）"
+            if now != fp:
+                prof_changed.append(rel)
+        if prof_changed:
+            print(f"[sweep-plan] ⚠ profile 侧变了 {len(prof_changed)} 个技能（别的会话在动这棵树）"
+                  f"：{', '.join(prof_changed[:6])}{' …' if len(prof_changed) > 6 else ''} → profile-stale.json")
+        (out / "profile-stale.json").write_text(
+            json.dumps(dict(changed=prof_changed, profile_root=str(base)), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8")
+    rec_packs = rec.get("packs") or {}
+    # 「现在」的 HEAD 必须**现场读**（packs.json 是 scan 那一刻的快照，拿它比等于自己跟自己比）
+    now_packs = {}
+    for name, info in packs.items():
+        pth = pathlib.Path((info or {}).get("path") or "")
+        now_packs[name] = git(pth, "rev-parse", "HEAD").strip() if (pth / ".git").exists() \
+            else (info or {}).get("head")
+    changed = sorted(k for k in set(rec_packs) | set(now_packs) if rec_packs.get(k) != now_packs.get(k))
+    files_now = file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json"))
+    rec_files = rec.get("files") or {}
+    # 只比两边都有的文件：merge 不消费的文件（如 inventory.tsv）不该被当成「变了」
+    files_changed = sorted(k for k in set(rec_files) & set(files_now) if files_now[k] != rec_files[k])
+    for row in resolved:
+        repo = row.get("repo") or ""
+        # input_commit = **评估时**（scan 那一刻）的 HEAD；上游现在是什么由 stale 表达
+        row["input_commit"] = rec_packs.get(repo) or now_packs.get(repo) or None
+        row["stale"] = bool(repo and repo in changed)
+    (out / "stale.json").write_text(json.dumps(dict(
+        recorded_at=rec.get("generated_at"), changed_packs=changed, changed_files=files_changed,
+        now={k: now_packs[k] for k in changed if k in now_packs},
+        recorded={k: rec_packs[k] for k in changed if k in rec_packs}), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8")
+    if changed or files_changed:
+        print(f"[sweep-plan] ⚠ stale：pack HEAD 变了 {changed[:5]} · 输入文件变了 {files_changed}"
+              f" —— 这些行的结论作废，先重跑 scan+merge（stale.json）")
+
     info: dict = {}
     for repo, items in groups.items():
         if repo == UNJUDGED:
@@ -440,40 +755,60 @@ def cmd_merge(args) -> int:
         lines.append("")
     (out / "resolved.json").write_text(json.dumps(resolved, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    # Phase 7 helper: the reinstall commands, from lock evidence, printed for approval — never executed here.
-    installs, updates, touched = [], [], []
+    # S7 的装回命令清单（只生成、不执行）。2026-10-12 起不走 agent 自己的安装命令（hermes 那套没有跨 agent 的普适性），
+    # 按归属分三条路（docs/flow.md §3「S7 装回的三条路」）：
+    #   ① 归 Skills-Manager 管 → 交它装（它按自己的来源取件）
+    #   ② 不归它管、但本次运行传了 --skills-manager → 交它从本地那份包装（install --local）
+    #   ③ 两者都不是 → 直接复制（与 agent 无关）
+    mgr_flag = bool(getattr(args, "skills_manager", False))
+    agent = getattr(args, "manager_agent", "") or f"hermes-{args.profile}"
+    prof_skills = profile_root(args.profile) / "skills"
+    touched, notes, via_mgr, via_copy = [], [], [], []
+
+    def emit(name: str, local: pathlib.Path, why: str) -> None:
+        """一枚技能按三条路择一，写进清单。"""
+        entry = prof_skills / name
+        if entry.is_symlink():                                  # profile 里是符号链接 = 它部署的
+            via_mgr.append(f'skills-manager-cli skills update "{name}"        # {why}·profile 里是它部署的符号链接')
+        elif mgr_flag:
+            via_mgr.append(f'skills-manager-cli skills install --local --name "{name}" "{local}"   # {why}·从本地包装')
+            via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
+        else:
+            via_copy.append(f'cp -R "{local}" "{prof_skills}/"        # {why}·直接复制（与 agent 无关）')
+
     for dest, items in groups.items():
         if dest == UNJUDGED:
             continue
         if info[dest]["is_new_pack"]:
-            installs.append(f"# {dest}: 新包，先 gh repo create + 写技能 + push，再 "
-                            f"hermes --profile {args.profile} skills install \"<owner>/{dest}/skills/<名>\" -y")
+            notes.append(f"# {dest}: 新包——先建仓库、写技能、push，再按三条路装回（新包没有远端标识符时只有第 ③ 条可用）")
             continue
         pk = packs[dest]                           # not a new pack => the directory is on disk
         if pk["empty"]:
-            installs.append(f"# {dest}: 空壳落点（无 SKILL.md），写入后 MANUAL 安装（远端标识符："
-                            f"{pk['identifier'] or '无'}）")
+            notes.append(f"# {dest}: 空壳落点（无 SKILL.md）——写入后按三条路装回（远端标识符：{pk['identifier'] or '无'}）")
             continue
-        cat = (pk["categories"] or ["<category>"])[0]
         touched.append(dest)
         for r, v, action, res in sorted(items, key=lambda t: int(t[0]["id"][1:])):
-            target = res.get("dest_skill") or ""
-            if action == "merge" and target and not target.startswith("__"):
-                updates.append(f"hermes --profile {args.profile} skills update {target}   # 承接 {r['skill']} 的内容")
-                continue
             name = r["skill"]
-            if name in pk["installed"]:
-                updates.append(f"hermes --profile {args.profile} skills update {name}   # 已在装，改动经 update 到达")
-            elif pk["identifier"]:
-                installs.append(f'hermes --profile {args.profile} skills install '
-                                f'"{pk["identifier"]}/skills/{name}" --category {cat} -y')
+            local = pathlib.Path(pk["path"]) / "skills" / name
+            managed = "mgr=yes" in (r.get("state") or "")
+            if managed:
+                via_mgr.append(f'skills-manager-cli skills update "{name}"        # 第①路：归它管，它按自己的来源取件')
+                via_mgr.append(f'skills-manager-cli skills deploy --agent {agent} "{name}"')
             else:
-                installs.append(f"# {r['skill']}: clone `{dest}` 无远端，落进包后 MANUAL 安装（无远端没有三段式标识符）")
-        for name in sorted(pk["installed"]):
-            updates.append(f"hermes --profile {args.profile} skills update {name}   # 本包既有成员（整包重装）")
-    cmds = ["#!/bin/sh", f"# reinstall the affected packs into {args.profile!r}",
-            "# 顺序：先 install 新成员，再 update 改动过的（update 对未装的名字无效，install 对新名字才是唯一入口）",
-            ""] + sorted(set(installs)) + [""] + sorted(set(updates)) + [""]
+                emit(name, local, "第②/③路")
+            if action == "merge" and str(res.get("dest_skill") or "") not in ("", "__new__"):
+                notes.append(f"# {r['skill']}: 正文并进 {dest}/{res['dest_skill']}（writer 改正文；装回按上面同一枚技能的清单走）")
+        for name in sorted(pk["installed"]):        # 整包重装：本包既有成员
+            emit(name, pathlib.Path(pk["path"]) / "skills" / name, "本包既有成员")
+    cmds = ["#!/bin/sh",
+            f"# 装回 {args.profile!r} —— 三条路：① 交 Skills-Manager ② 它从本地包装 ③ 直接复制（不走 agent 自己的安装命令）",
+            f"# 本次 --skills-manager={'yes' if mgr_flag else 'no'} · manager agent={agent} · 类目层由装它的人决定",
+            ""] + notes
+    if via_mgr:
+        cmds += ["", "# ① / ② 交 Skills-Manager："] + sorted(set(via_mgr))
+    if via_copy:
+        cmds += ["", "# ③ 直接复制到 profile（与 agent 无关）："] + sorted(set(via_copy))
+    cmds += [""]
     (out / "install-cmds.sh").write_text("\n".join(cmds) + "\n", encoding="utf-8")
 
     if bad:                                        # reject BEFORE emitting a plan nobody should consume
@@ -482,6 +817,15 @@ def cmd_merge(args) -> int:
         die(4, f"coverage {len(verdicts)}/{len(judge_input)} — unjudged: "
                f"{', '.join(missing[:10])}{' …' if len(missing) > 10 else ''}")
 
+    # T-004#B-001：产物里明写「这些结论是在哪个上游状态上得出的」。
+    lines += ["## 输入指纹（T-004#B-001）", "",
+              f"扫描指纹 `{rec.get('generated_at') or '（没有 inputs.json —— 先跑 scan）'}`"
+              f" · 上游变动 {len(changed)} 个包 / {len(files_changed)} 个输入文件", "",
+              "| 包 | input_commit | stale |", "|---|---|---|"]
+    for repo in sorted({(r.get("repo") or "") for r in resolved} - {""}):
+        lines.append(f"| `{repo}` | `{(now_packs.get(repo) or rec_packs.get(repo) or '—')[:12]}` | "
+                     f"{'⚠ 上游变了' if repo in changed else 'ok'} |")
+    lines += [""]
     (out / "plan.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[sweep-plan] plan={out / 'plan.md'} install_cmds={out / 'install-cmds.sh'}"
           f" resolved={out / 'resolved.json'} packs_touched={len(touched)} "
@@ -616,7 +960,8 @@ def self_test() -> int:
         assert plan.count("## 新包 ") == 1, plan
         assert "## 新包 AgentSkill-RunningLocalBatches" in plan, plan
         assert "- `AgentSkill-RunningLocalBatches` · 轴 topic · 2 条" in plan, plan
-        assert 'skills install "flmaximwang/AgentSkill-UsingFake/skills/rootskill" --category cat -y' in cmds, cmds
+        assert "skills-manager-cli skills" in cmds or "cp -R" in cmds, cmds     # 装回只走三条路，不再有 hermes 命令
+        assert "hermes " not in cmds.replace("hermes-", ""), cmds               # 不留 hermes 自己的安装命令
         assert "# AgentSkill-RunningLocalBatches: 新包" in cmds, cmds
         assert "AgentSkill-Empty" not in cmds, cmds     # 空壳落点不许生成 install 命令
         # 顺序类不变量：install 段必须整体排在 update 段之前（update 对未装的名字无效）
@@ -626,249 +971,36 @@ def self_test() -> int:
                                                 "AgentSkill-RunningLocalBatches"], resolved
         assert [r["collided"] for r in resolved] == [True, False, True], resolved
 
-        # dedupe: local 不在任何包里是**硬错误**（v2 判据 local=0），不是一句可以忽略的脚注
-        def dedupe(**over):
-            a = dict(profile="default", packs_root=str(packs), backup="", dry_run=True,
-                     fix_no_category=False, allow_not_in_pack=False)
-            a.update(over)
-            try:
-                return cmd_dedupe(argparse.Namespace(**a))
-            except SystemExit as e:
-                return e.code
-
-        assert dedupe() == 5, "local skills outside every pack must fail the run, not be a footnote"
-        assert dedupe(allow_not_in_pack=True) == 0, "the explicit opt-out must still work"
     finally:
         HERMES_HOME = real
+    assert pack_name_for("tool", "UsingDrawio") == "AgentSkill-UsingDrawio", pack_name_for("tool", "UsingDrawio")
+    assert pack_name_for("tool", "Drawio") == "AgentSkill-UsingDrawio"
+    assert pack_name_for("topic", "Progress Heartbeat") == "AgentSkill-ProgressHeartbeat"
+    assert pack_name_for("topic", "AgentSkill-Foo") == "AgentSkill-Foo"
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        _d = pathlib.Path(_td) / "sk"; _d.mkdir()
+        (_d / "SKILL.md").write_text("a\n"); (_d / "references").mkdir(); (_d / "references" / "x.md").write_text("y\n")
+        _mi = sibling_module("skill-mirror.py")
+        _f1 = dir_fingerprint(_mi, _d)
+        assert _f1 == dir_fingerprint(_mi, _d), "同内容应同指纹"
+        (_d / "references" / "x.md").write_text("z\n")
+        assert dir_fingerprint(_mi, _d) != _f1, "内容一变指纹必须变"
+        (_d / "references" / "x.md").write_text("y\n"); (_d / "new.md").write_text("n\n")
+        assert dir_fingerprint(_mi, _d) != _f1, "多一个文件指纹也要变"
+    # 15 态表自检：A(2)×B(2)×C(2)×D(2)=16，减去「无所有者时 D 坍缩」那 1 格 → 恰好 15
+    _keys = {(a, b, c, d) for a in ("local", "third") for b in ("no", "yes")
+             for c in ("no", "yes") for d in ("same", "differs", "fold")}
+    # 「无所有者 ⇔ D 必须是 fold」——两个方向都要卡：没有可比者时不许出现 same/differs，
+    # 有可比者时也不许用 fold 偷懒
+    _valid = {k for k in _keys if (k[3] == "fold") == (k[0] == "local" and k[1] == "no" and k[2] == "no")}
+    assert _valid == set(STATE_ACTIONS), sorted(_valid ^ set(STATE_ACTIONS))
+    assert len(_valid) == 15, len(_valid)
+    # general agent：去掉 A 轴 → B(2)×C(2)×D(3) 减去同一处坍缩 = 7
+    _g = {(b, c, d) for b in ("no", "yes") for c in ("no", "yes") for d in ("same", "differs", "fold")}
+    _gv = {k for k in _g if (k[2] == "fold") == (k[0] == "no" and k[1] == "no")}
+    assert len(_gv) == 7, len(_gv)
     print("[sweep-plan] self-test OK")
-    return 0
-
-
-def _suggest_category(name: str, local_categories: set) -> str:
-    """Suggest an EXISTING local category for a no-category skill, by name keywords.
-
-    Only ever returns a category that already exists in this profile's own skills tree —
-    the rule is "move it into an existing category; if none fits, report that a new one is
-    needed", never invent a category and never dump it wherever.
-    """
-    name_lower = name.lower()
-    rules = [
-        (["hermes", "skill", "profile", "cron", "gateway", "memory", "plugin", "routing", "blind"], "hermes"),
-        (["git", "github", "dolt", "annex"], "git"),
-        (["saxs", "atsas", "raw", "bioxtas"], "saxs"),
-        (["obsidian", "note", "vault", "moc", "clc", "relayer", "restructure", "classification"], "obsidian"),
-        (["zotero", "paper", "literature", "reference", "evidence", "research", "prove", "verify", "claim"], "research"),
-        (["dolt", "sql", "database", "ledger"], "dolt"),
-        (["macos", "brew", "gui", "app", "network-diagnosis", "install-macos"], "macos"),
-        (["python", "pytest", "test", "debug", "numeric", "validate"], "software-development"),
-        (["image", "comfyui", "figma", "draw", "sketch", "ascii"], "creative"),
-        (["pdf", "docx", "xlsx", "office", "ocr"], "office"),
-        (["nas", "synology", "rsync", "backup"], "infrastructure"),
-        (["protein", "plasmid", "lab", "experiment"], "lab"),
-        (["invest", "quant", "trading", "finance", "stock"], "investment"),
-        (["travel", "hotel", "flight", "trip"], "travel"),
-        (["mcp", "server", "integration"], "mcp-server-integration"),
-        (["cli", "tool", "service", "terminal", "log"], "terminal"),
-        (["dedupe", "duplicate", "folder"], "file-management"),
-        (["explain", "mechanism"], "agent-tooling"),
-        (["macos", "gui", "app", "install"], "code"),
-        (["macos", "network", "diagnosis"], "code"),
-        (["docker", "container", "devops", "ci"], "devops"),
-        (["ml", "model", "llm", "huggingface", "vllm"], "mlops"),
-        (["web", "scrape", "crawl"], "web"),
-        (["media", "video", "audio", "music"], "media"),
-        (["apple", "calendar", "reminder", "shortcut"], "apple"),
-        (["social", "reddit", "twitter", "discord"], "social-media"),
-    ]
-    for keywords, cat in rules:
-        if any(kw in name_lower for kw in keywords) and cat in local_categories:
-            return cat
-    # word-overlap fallback, still restricted to existing local categories
-    for cat in sorted(local_categories):
-        if cat.replace("-", " ") in name_lower:
-            return cat
-    return ""
-
-
-def cmd_dedupe(args) -> int:
-    """S9: remove profile-local skills that already exist in packs.
-
-    For each profile, find local skills whose name matches a skill in any AgentSkill pack.
-    - SKILL.md identical  → delete local (pack is source of truth)
-    - SKILL.md different  → check if local has path fixes (old profile names) that pack lacks;
-                           if so, restore local SKILL.md to pack first, then delete local
-    - SKILL.md different, no path fixes → delete local (pack is newer)
-
-    Reports: total local, identical deleted, path-fixed restored+deleted, not-in-pack stayed.
-    """
-    import filecmp
-    import shutil
-
-    packs_root = pathlib.Path(args.packs_root).expanduser()
-    profiles_dir = HERMES_HOME / "profiles"
-
-    # Build pack skill index: name -> [(pack_name, abs_path_to_skill_dir)]
-    pack_index: dict = {}
-    for pack_dir in sorted(packs_root.glob("AgentSkill-*")):
-        skills_dir = pack_dir / "skills"
-        if not skills_dir.is_dir():
-            continue
-        for md in skills_dir.rglob("SKILL.md"):
-            pack_index.setdefault(md.parent.name, []).append((pack_dir.name, md.parent))
-
-    if not pack_index:
-        die(2, f"no AgentSkill-* packs found under {packs_root}")
-
-    # Old profile names that indicate a path fix
-    OLD_NAMES = {"artist","game-research","job-hunter","obsidian-maintenance","personal-accountant",
-                 "plan-weave","plasmid-engineer","profile-development","protein-design","quant-investor",
-                 "rdm-assistance","secretary","software-development","travel-guider","value-investor"}
-
-    def has_old_refs(text: str) -> bool:
-        return any(f"profiles/{n}" in text for n in OLD_NAMES)
-
-    stats = dict(total=0, identical=0, path_fixed=0, newer_pack=0, not_in_pack=0, hub_installed=0,
-                 no_category=0, no_category_moved=0)
-    deleted_dirs = []
-    moved_dirs = []
-    stray: list = []          # local skills that no pack contains — v2 treats these as an ERROR, not a footnote
-
-    # Candidate categories for no-category placement = each profile's OWN existing categories.
-    # (The rule is "move it into an existing local category; if none fits, report that a new
-    # one is needed" — never invent a category and never borrow the pack's layout.)
-
-    if args.profile == "all":
-        profiles = [HERMES_HOME] + sorted(profiles_dir.glob("*/"))
-    elif args.profile == "default":
-        profiles = [HERMES_HOME]
-    else:
-        profiles = [HERMES_HOME / "profiles" / args.profile]
-
-    for prof_root in profiles:
-        skills_dir = prof_root / "skills"
-        if not skills_dir.is_dir():
-            continue
-        prof_name = prof_root.name if prof_root != HERMES_HOME else "default"
-        lock = read_lock(prof_root)
-        bundled = read_bundled(prof_root)
-
-        # This profile's own existing categories — the only legal destinations for a no-category skill
-        local_categories = {md.relative_to(skills_dir).parts[0]
-                            for md in walk_skill_dirs(skills_dir)
-                            if len(md.relative_to(skills_dir).parts) > 2}
-
-        for md in walk_skill_dirs(skills_dir):
-            name = md.parent.name
-            stats["total"] += 1
-            # hub-installed or bundled skills have a lifecycle (lock entry / manifest) — never dedupe them
-            if name in lock or name in bundled:
-                stats["hub_installed"] += 1
-                continue
-
-            rel = md.relative_to(skills_dir)
-            no_cat = len(rel.parts) == 2
-
-            # Fix no-category skills: move skills/<name>/ into skills/<existing-category>/
-            if no_cat and args.fix_no_category:
-                stats["no_category"] += 1
-                suggested = _suggest_category(name, local_categories)
-                if suggested:
-                    src_dir = md.parent
-                    dst_dir = skills_dir / suggested / name
-                    if not dst_dir.exists():
-                        dst_dir.parent.mkdir(parents=True, exist_ok=True)
-                        if args.backup:
-                            bak = pathlib.Path(args.backup) / prof_name / "no-category" / name
-                            if not bak.exists():
-                                bak.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copytree(str(src_dir), str(bak))
-                        if not args.dry_run:
-                            shutil.move(str(src_dir), str(dst_dir))
-                        moved_dirs.append((prof_name, name, suggested))
-                        stats["no_category_moved"] += 1
-                    else:
-                        print(f"  ⚠ {prof_name}/{name}: target {suggested}/{name} already exists, skip")
-                else:
-                    print(f"  ⚠ {prof_name}/{name}: 没有匹配的现有类目，需要新类目（不硬塞）")
-                continue
-
-            if name not in pack_index:
-                stats["not_in_pack"] += 1
-                stray.append(f"{prof_name}/{(md.relative_to(skills_dir).parent)}")
-                continue
-
-            # Find the pack that has this skill
-            pack_name, pack_skill_dir = pack_index[name][0]
-            pack_md = pack_skill_dir / "SKILL.md"
-            if not pack_md.is_file():
-                stats["not_in_pack"] += 1
-                continue
-
-            local_text = md.read_text(encoding="utf-8", errors="replace")
-            pack_text = pack_md.read_text(encoding="utf-8", errors="replace")
-
-            if filecmp.cmp(str(md), str(pack_md), shallow=False):
-                stats["identical"] += 1
-                # Backup then delete
-                bak = pathlib.Path(args.backup) / prof_name / md.parent.parent.name / name
-                if args.backup and not bak.exists():
-                    bak.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(str(md.parent), str(bak))
-                if not args.dry_run:
-                    shutil.rmtree(str(md.parent))
-                deleted_dirs.append((prof_name, name, "identical"))
-            elif has_old_refs(local_text) and not has_old_refs(pack_text):
-                # Local has path fixes the pack lacks → restore to pack, then delete
-                stats["path_fixed"] += 1
-                if not args.dry_run:
-                    # Backup pack's old version
-                    if args.backup:
-                        bak = pathlib.Path(args.backup) / "pack-backup" / f"{pack_name}-{name}-SKILL.md"
-                        bak.parent.mkdir(parents=True, exist_ok=True)
-                        if not bak.exists():
-                            shutil.copy2(str(pack_md), str(bak))
-                    # Restore local to pack
-                    shutil.copy2(str(md), str(pack_md))
-                    # Delete local
-                    shutil.rmtree(str(md.parent))
-                deleted_dirs.append((prof_name, name, f"path-fixed → {pack_name}"))
-            else:
-                # Pack is newer → delete local
-                stats["newer_pack"] += 1
-                if args.backup:
-                    bak = pathlib.Path(args.backup) / prof_name / md.parent.parent.name / name
-                    if not bak.exists():
-                        bak.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copytree(str(md.parent), str(bak))
-                if not args.dry_run:
-                    shutil.rmtree(str(md.parent))
-                deleted_dirs.append((prof_name, name, "pack-newer"))
-
-    print(f"[dedupe] total={stats['total']} identical={stats['identical']} "
-          f"path_fixed={stats['path_fixed']} newer_pack={stats['newer_pack']} "
-          f"not_in_pack={stats['not_in_pack']} hub_installed={stats['hub_installed']} "
-          f"no_category={stats['no_category']} no_category_moved={stats['no_category_moved']}")
-    if deleted_dirs:
-        print(f"[dedupe] deleted {len(deleted_dirs)} local copies")
-        for prof, name, reason in deleted_dirs[:10]:
-            print(f"  {prof:24s} {name:30s} {reason}")
-        if len(deleted_dirs) > 10:
-            print(f"  ... 还有 {len(deleted_dirs)-10} 个")
-    if moved_dirs:
-        print(f"[dedupe] moved {len(moved_dirs)} no-category skills into categories")
-        for prof, name, cat in moved_dirs[:10]:
-            print(f"  {prof:24s} {name:30s} → {cat}/")
-        if len(moved_dirs) > 10:
-            print(f"  ... 还有 {len(moved_dirs)-10} 个")
-    if stray:
-        print(f"[dedupe] ⚠️ {len(stray)} 个 local skill 不在任何包里（v2 判据：local 必须为 0）")
-        for s in stray[:20]:
-            print(f"  {s}")
-        if len(stray) > 20:
-            print(f"  ... 还有 {len(stray)-20} 个")
-        if not args.allow_not_in_pack:
-            die(5, f"{len(stray)} 个 local skill 没有仓库归属 —— 判据是 local 必须为 0（用户 2026-10-10）。"
-                   "先 `scan` + 判官 + `merge` 给它们找落点；确实要带着这批尾巴收尾时加 --allow-not-in-pack")
     return 0
 
 
@@ -880,26 +1012,21 @@ def main() -> int:
     s = sub.add_parser("scan", help="enumerate candidates + packs, freeze the judge input")
     s.add_argument("--profile", default="default", help="default = $HERMES_HOME, else profiles/<name>")
     s.add_argument("--packs-root", default="~/Documents/AgentSkill", help="where the AgentSkill-* checkouts live")
+    s.add_argument("--external-dirs", default="",
+                   help="DREAM_EXTERNAL_DIRS 那份 JSON：列出的目录（或它们的直接子目录）就是落点候选池")
     s.add_argument("--out", required=True, help="scratch dir: inventory.tsv / judge-input.json / packs.json")
     s.add_argument("--parser-script", default="", help="override the sibling skill-index.py path")
     s.add_argument("--repo-stem", default="", help=argparse.SUPPRESS)   # accepted, unused: kept for CLI stability
     s.set_defaults(func=cmd_scan)
     m = sub.add_parser("merge", help="judge verdicts (JSONL) -> plan.md + install-cmds.sh")
     m.add_argument("--dir", required=True, help="the --out dir from scan")
+    m.add_argument("--skills-manager", action="store_true",
+                   help="本次运行是否把该 profile 的技能交给 Skills-Manager 管（决定装回走第②路还是第③路）")
+    m.add_argument("--manager-agent", default="", help="Skills-Manager 侧这个 profile 的 agent 名（默认 hermes-<profile>）")
     m.add_argument("--profile", default="default")
     m.add_argument("--verdicts", action="append", default=[],
                    help="verdict JSONL file (repeatable); default = <dir>/verdicts*.jsonl")
     m.set_defaults(func=cmd_merge)
-    d = sub.add_parser("dedupe", help="S9: remove profile-local skills that already exist in packs")
-    d.add_argument("--profile", default="all", help="default = all profiles; 'default' = only default")
-    d.add_argument("--packs-root", default="~/Documents/AgentSkill")
-    d.add_argument("--backup", default="~/.hermes/backups/dream-dedupe", help="backup dir before deletion")
-    d.add_argument("--dry-run", action="store_true", help="report only, no deletion")
-    d.add_argument("--fix-no-category", action="store_true",
-                   help="move skills/<name>/ into skills/<category>/ for no-category local skills")
-    d.add_argument("--allow-not-in-pack", action="store_true",
-                   help="accept local skills that no pack contains (v2 default: that is exit 5)")
-    d.set_defaults(func=cmd_dedupe)
     args = ap.parse_args()
     return args.func(args)
 
