@@ -5,7 +5,7 @@
   "goal": "16 个 home 的自治 skill 写入通道已全部关闭（auxiliary.background_review.enabled=false + curator.enabled=false + curator.consolidate=false，YAML 回读 16/16 通过），因此 umbrella-building 没有执行者。把「归类 / 合并 / umbrella」变成 dream 的常规工作线：落点与合并由 dream 的判官 + 交叉审计 + 人工闸判定，而不是靠自治模型顺手改。owner = default profile。",
   "status": "active",
   "created_at": "2026-10-11T11:26:25+08:00",
-  "updated_at": "2026-10-11T11:31:45+08:00",
+  "updated_at": "2026-10-11T21:56:55+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -35,7 +35,7 @@
       "id": "T-001",
       "title": "dream 接管 skill 库的结构化整理（归类 / 合并 / umbrella-building）",
       "owner": "",
-      "status": "pending",
+      "status": "cancelled",
       "deps": [],
       "blocks": [
         {
@@ -60,7 +60,7 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T11:31:45+08:00",
+          "status_since": "2026-10-11T21:56:42+08:00",
           "runs": [
             {
               "at": "2026-10-11T11:31:45+08:00",
@@ -82,6 +82,13 @@
               "from": "done",
               "to": "done",
               "note": "转指「合并 / umbrella」（S10）+ Hermes 侧落值：台账路径、前台 delete 是硬删 ⇒ 先 hermes curator backup"
+            },
+            {
+              "at": "2026-10-11T21:56:42+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "补记（2026-10-11）：本块把 umbrella 合并流程写进了 dream 方法（S10），该内容已在 handover-to-skillweave T-002 里从 dream 连脚本一起删除并改成一行转指 SkillWeave ⇒ 本块的历史产物不再是 dream 的一部分，仅作记录保留。"
             }
           ]
         },
@@ -89,7 +96,7 @@
           "id": "T-001#B-002",
           "title": "试点一簇真实候选：走完合并三步并回读（需人工点头）",
           "kind": "impl",
-          "status": "blocked",
+          "status": "cancelled",
           "owner": "default",
           "doc": "做法：挑一簇真实的 2+ 成员窄 skill 簇（同一类任务、agent-created / local），按 B-001 的三步走完：write_file 到 umbrella 的支持目录 → remove_file 源 → delete 源并带 absorbed_into=<umbrella>。注意：关掉的是自主写入通道（background_review fork / curator pass）；本人前台发起的 skill_manage 不受影响——合并必须有人在场。本块默认 blocked（待批准），等用户点头才动。",
           "input": "",
@@ -105,12 +112,13 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T11:26:25+08:00",
+          "status_since": "2026-10-11T21:56:55+08:00",
           "runs": []
         }
       ],
       "note": "交接：本工作线 owner = default profile（id=default）。起因：16 个 home 的自主 skill 写入通道已全部关闭，umbrella-building 无执行者。",
-      "exec": {}
+      "exec": {},
+      "status_since": "2026-10-11T21:56:55+08:00"
     }
   ],
   "log": [
@@ -175,7 +183,35 @@
       "kind": "status",
       "text": "T-001#B-001: done → done（转指「合并 / umbrella」（S10）+ Hermes 侧落值：台账路径、前台 delete 是硬删 ⇒ 先 hermes curator backup）",
       "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T21:56:42+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "本人 2026-10-11 拍板：**作废**。理由：它要补的位（自治通道全关 ⇒ 没人做 umbrella-building）现在由 SkillWeave 覆盖 —— 已核代码：skills/skillweave/scripts/weave.py 的 propose_actions() 里有真 merge 动作（相近度阈值 + auto_applyable 闸），且只有 --apply / --apply-group 才落盘（默认 dry-run）。包内结构整理整段归 SkillWeave，dream 只做收编 + profile 读数与闸门。转记：本计划未做的 T-001#B-002 试点（真跑一次合并三步并回读）→ SkillWeave 侧待办，不在 dream 做。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T21:56:42+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-001: done → done（补记（2026-10-11）：本块把 umbrella 合并流程写进了 dream 方法（S10），该内容已在 handover-to-skillweave T-002 里从 dream 连脚本一起删除并改成一行转指 SkillWeave ⇒ 本块的历史产物不再是 dream 的一部分，仅作记录保留。）",
+      "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T21:56:55+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-002: blocked → cancelled（作废（本人拍板 2026-10-11）。未做的「试点一簇真实候选走完合并三步」转记为 SkillWeave 侧待办：propose <pack> 真跑一次 merge 并回读；dream 不承担包内合并。）",
+      "ref": "T-001#B-002"
+    },
+    {
+      "at": "2026-10-11T21:56:55+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001: pending → cancelled（范围并入 SkillWeave（handover-to-skillweave）；本计划作废）",
+      "ref": "T-001"
     }
   ],
-  "rev": "871bdd9a85c4"
+  "rev": "56bfab7a3729"
 }

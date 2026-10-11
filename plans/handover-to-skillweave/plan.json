@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T17:59:21+08:00",
+  "updated_at": "2026-10-11T21:56:55+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -457,7 +457,7 @@
           "id": "T-005#B-001",
           "title": "`skill-library-stewardship` 与本次移交冲突：改口径或作废",
           "kind": "decision",
-          "status": "blocked",
+          "status": "done",
           "owner": "you",
           "doc": "plans/skill-library-stewardship 的 T-001#B-001（**done**）是「把 umbrella 合并的流程与判据写进 dream 方法」，标题即「skill 库结构化整理：由 dream 接管」—— 与本次移交**方向相反**；它的 T-001#B-002（试点一簇真实候选走完合并三步）正是要 dream 去动包内结构。\n【做什么】二选一：① 该计划的整理范围改成「profile 级」（收编 + 读数 + 闸门），umbrella/合并判据整段移交给 SkillWeave；② 直接作废该计划并在日志里写明原因。**由人拍板**（这块是 decision，不许自己选）。",
           "input": "",
@@ -466,12 +466,14 @@
           "done_when": [
             "该计划状态与口径已按拍板结果改完（贴 plan.json 里对应块的 status 与 title 原文）；或该计划已作废并在 note 里写明「并入 handover-to-skillweave」。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/plans/skill-library-stewardship/plan.json"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:59:21+08:00",
+          "status_since": "2026-10-11T21:56:55+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:59:21+08:00",
@@ -479,6 +481,13 @@
               "from": "pending",
               "to": "blocked",
               "note": "等本人拍板：①skill-library-stewardship 改口径 or 作废 ②装前闸门上限 120 保持/改数/只报警 ③local=0 是否改为硬失败"
+            },
+            {
+              "at": "2026-10-11T21:56:55+08:00",
+              "by": "dream-dev",
+              "from": "blocked",
+              "to": "done",
+              "note": "本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。"
             }
           ]
         },
@@ -1040,7 +1049,14 @@
       "kind": "status",
       "text": "T-005#B-001: pending → blocked（等本人拍板：①skill-library-stewardship 改口径 or 作废 ②装前闸门上限 120 保持/改数/只报警 ③local=0 是否改为硬失败）",
       "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-11T21:56:55+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-005#B-001: blocked → done（本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。）",
+      "ref": "T-005#B-001"
     }
   ],
-  "rev": "3cf879a2b4d3"
+  "rev": "d0997fe5af38"
 }

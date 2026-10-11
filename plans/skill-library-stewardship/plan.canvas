@@ -17,8 +17,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "1",
-   "text": "### T-001#B-002\n试点一簇真实候选：走完合并三步并回读（需人工点头）\n\n`blocked` · @default\n\n做法：挑一簇真实的 2+ 成员窄 skill 簇（同一类任务、agent-created / local），按 B-001 的三步走完：write_file 到 umbrella 的支持目录 → remove_file 源 → delete 源并带 absorbed_into=<umbrella>。注意：关掉的是自主写"
+   "color": "0",
+   "text": "### T-001#B-002\n试点一簇真实候选：走完合并三步并回读（需人工点头）\n\n`cancelled` · @default\n\n做法：挑一簇真实的 2+ 成员窄 skill 簇（同一类任务、agent-created / local），按 B-001 的三步走完：write_file 到 umbrella 的支持目录 → remove_file 源 → delete 源并带 absorbed_into=<umbrella>。注意：关掉的是自主写"
   }
  ],
  "edges": [

@@ -2,13 +2,13 @@
 
 > 让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。
 
-**进度** 14/15 块（93%） · 状态 `active` · 更新于 2026-10-11 17:59
+**进度** 15/15 块（100%） · 状态 `active` · 更新于 2026-10-11 21:56
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
-- `T-005#B-001` **`skill-library-stewardship` 与本次移交冲突：改口径或作废** — 待批准 · @you
+- （没有在途工作）
 
 ## 图
 
@@ -30,9 +30,7 @@ flowchart LR
   T-006_B-001["B-001 在 AgentSkill-copy 上跑一轮无人值守，四条断言全过"]
   T-006_B-002["B-002 独立子代理复核（不许自己验自己）"]
   classDef done stroke-width:1px;
-  class T-001_B-001,T-002_B-001,T-002_B-002,T-002_B-003,T-002_B-004,T-002_B-005,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-005_B-002,T-006_B-001,T-006_B-002 done;
-  classDef blocked stroke-width:1px;
-  class T-005_B-001 blocked;
+  class T-001_B-001,T-002_B-001,T-002_B-002,T-002_B-003,T-002_B-004,T-002_B-005,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-005_B-001,T-005_B-002,T-006_B-001,T-006_B-002 done;
 ```
 
 ## 任务
@@ -117,13 +115,15 @@ flowchart LR
     - 产物：`/Users/maxim/Repositories/Repo/Dream.wt-v3/skills/dream/SKILL.md`
     - run 2026-10-11 17:53 dream-dev pending→done SKILL.md 边界节写明固定顺序 dream 收编 → SkillWeave 分层 → darwin 磨 description，并写「同一个对象上下游不许越过上游改」（SkillWeave 改路径后 dream 的落点即 stale，input_commit 会拦）
 
-### T-005 与既有计划对账（仓库里已有一份相反口径的计划） — 待批准
+### T-005 与既有计划对账（仓库里已有一份相反口径的计划） — 已完成
 @dream-dev
-- [ ] `T-005#B-001` **`skill-library-stewardship` 与本次移交冲突：改口径或作废** _decision_ — 待批准 @you
+- [x] `T-005#B-001` **`skill-library-stewardship` 与本次移交冲突：改口径或作废** _decision_ — 已完成 @you
     - 做什么：plans/skill-library-stewardship 的 T-001#B-001（**done**）是「把 umbrella 合并的流程与判据写进 dream 方法」，标题即「skill 库结构化整理：由 dream 接管」—— 与本次移交**方向相反**；它的 T-001#B-002（试点一簇真实候选走完合并三步）正是要 dream 去动包内结构。
 【做什么】二选一：① 该计划的整理范围改成「profile 级」（收编 + 读数 + 闸门），umbrella/合并判据整段移交给 SkillWeave；② 直接作废该计划并在日志里写明原因。**由人拍板**（这块是 decision，不许自己选）。
     - 判据：该计划状态与口径已按拍板结果改完（贴 plan.json 里对应块的 status 与 title 原文）；或该计划已作废并在 note 里写明「并入 handover-to-skillweave」。
+    - 产物：`/Users/maxim/Repositories/Repo/Dream/plans/skill-library-stewardship/plan.json`
     - run 2026-10-11 17:59 dream-dev pending→blocked 等本人拍板：①skill-library-stewardship 改口径 or 作废 ②装前闸门上限 120 保持/改数/只报警 ③local=0 是否改为硬失败
+    - run 2026-10-11 21:56 dream-dev blocked→done 本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。
 - [x] `T-005#B-002` **按 T-001 的判定改 `dream-v3#T-002#B-001` 的状态** _impl_ — 已完成 @dream-dev
     - 做什么：T-001 如果判「误标 / 部分完成」，就把 dream-v3#T-002#B-001 从 done 改回能反映现实的档位（并在它的 note 里写清剩下的活是哪几件，别让下一个人以为已经干净）。判「回归」就在该块记回归证据。
     - 判据：dream-v3#T-002#B-001 的 status 与 note 与 T-001 的判定一致（贴原文）。
@@ -150,7 +150,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 17:53` **agent** [status] T-005#B-002: pending → done（dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done 并补一条 note 说明它在分支上成立、main 要等收尾合并；已在 dream-v3 plan 上执行（读回：该块 runs 最后一条是这句））
 - `2026-10-11 17:54` **agent** [exec] T-006#B-002: 登记线程 deleg_281477ba#0 @dream-dev · 转录 /Users/maxim/.hermes/cache/delegation/live/deleg_281477ba/task-0.log（派独立子代理复核（只读、前台命令、不起后台进程））
 - `2026-10-11 17:54` **agent** [status] T-006#B-002: pending → running（派独立子代理复核（只读、前台命令、不起后台进程））
 - `2026-10-11 17:56` **agent** [status] T-001#B-001: done → done（补原始输出（独立复核指出 output 为空、且记的 git log 结果漏了 2 条本 plan 自身提交）：完整 6 段原始输出见 t001-evidence.txt —— ①worktree SKILL.md 0 命中 ②main SKILL.md 命中 5 行 ③--help worktree={scan,merge} / main={scan,merge,dedupe} ④git log --all -S '## S10 · 合并' = 4 条（含 f691e18/020d4c5 两条本 plan 提交、5b957be 删、2f52f41 加）⑤-S '## S9 · 全库去重' = 3 条 ⑥branch --contains：2f52f41 在 dream-v3+main，5b957be 只在 dream-v3 ⇒ 判定「未合并」不变。）
@@ -170,6 +169,7 @@ flowchart LR
 - `2026-10-11 17:59` **agent** [decision] 工具坑（留给下一次）：给 loomerto 的 --note / --done-when / --doc 传带反引号的文本必须用**单引号** —— 双引号里 bash 会先把 `...` 当命令替换执行，反引号里的内容被换成空串，CLI 照单全收，看板上的判据/note 就静默缺一段（这轮把 `weave.py checks <路径>` 吃成空，读回才发现并重发）。写完读回那一段确认。
 - `2026-10-11 17:59` **agent** [assign] T-005#B-001 指派给 you（原 dream-dev）（这块是 decision，由本人拍板）
 - `2026-10-11 17:59` **agent** [status] T-005#B-001: pending → blocked（等本人拍板：①skill-library-stewardship 改口径 or 作废 ②装前闸门上限 120 保持/改数/只报警 ③local=0 是否改为硬失败）
+- `2026-10-11 21:56` **agent** [status] T-005#B-001: blocked → done（本人 2026-10-11 拍板：作废 skill-library-stewardship（选项②）。依据：它要补的位现在由 SkillWeave 覆盖（weave.py propose_actions 里有真 merge 动作，--apply/--apply-group 才落盘）；未做的 B-002 试点转记为 SkillWeave 侧待办。已在 Dream 侧执行：任务 T-001 置 cancelled、块 T-001#B-002 置 cancelled、B-001 补记「其产物已被 handover T-002 从 dream 删除」。）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render handover-to-skillweave` 生成。
