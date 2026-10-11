@@ -71,6 +71,23 @@ def pack_path(args, repo: str) -> pathlib.Path:
     return external_map(args).get(repo) or (pathlib.Path(args.packs_root).expanduser() / repo)
 
 
+def ensure_pack(pack: pathlib.Path, row: dict) -> tuple:
+    """落点包还不存在就建：`<root>/<repo>/{README.md,skills/}` + git init + 初始提交 → (pack, 是否新建)。
+    远端（`gh repo create`）不在这步做——本地建好、报出来，等有人在的会话再建远端。"""
+    if (pack / ".git").exists():
+        return pack, False
+    (pack / "skills").mkdir(parents=True, exist_ok=True)
+    axis, topic = row.get("axis") or "", row.get("topic") or ""
+    (pack / "README.md").write_text(
+        f"# {pack.name}\n\nDream v3 建的落点包（轴 {axis} · 主题 {topic}）。技能在 `skills/<name>/SKILL.md`。\n",
+        encoding="utf-8")
+    sh(["git", "init", "-q", "-b", "main"], cwd=str(pack), check=True)
+    sh(["git", "add", "--", "README.md", "skills"], cwd=str(pack), check=True)
+    sh(["git", "-c", "user.name=Hermes", "-c", "user.email=hermes@local", "commit", "-q",
+        "-m", f"init: {pack.name}（dream v3 建包）"], cwd=str(pack), check=True)
+    return pack, True
+
+
 def row_dest(r: dict) -> dict:
     """resolved.json 把 dest 摊平在顶层（repo/kind/dest_skill/action），别按嵌套读。"""
     if isinstance(r.get("dest"), dict):
@@ -174,17 +191,24 @@ def do_apply(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
     rows = load_rows(d)
     only = set(args.only.split(",")) if args.only else None
-    todo, manual, skipped = [], [], []
+    todo, manual, skipped, newpack = [], [], [], {}
     for r in rows:
         if only and r["id"] not in only:
             continue
         dest = row_dest(r)
-        if dest.get("kind") != "existing" or dest.get("action") != "move" or dest.get("dest_skill") != "__new__":
+        new_pack_row = (dest.get("kind") == "new" and dest.get("action") == "move"
+                        and dest.get("dest_skill") == "__new__")
+        if dest.get("kind") != "existing" and not new_pack_row:
+            manual.append(r)
+            continue
+        if dest.get("action") != "move" or dest.get("dest_skill") != "__new__":
             manual.append(r)
             continue
         src = pathlib.Path(r["_src"])
         name = src.name
         pack = pack_path(args, dest["repo"])
+        if new_pack_row:
+            newpack.setdefault(dest["repo"], r)      # 落点包还不存在：写入前按需建
         dst = pack / "skills" / name
         if dst.exists():
             skipped.append((r["id"], f"{dest['repo']}/skills/{name} 已存在（幂等跳过）"))
@@ -208,10 +232,15 @@ def do_apply(args) -> int:
                 print(f"  ✗ {pack.name}: {why} ⇒ 会跳过 {len(items)} 行")
         return 0
 
-    by_pack, results = {}, []
+    by_pack, results, made = {}, [], []
     for r, pack, src, dst in todo:
         by_pack.setdefault(pack, []).append((r, src, dst))
     for pack, items in sorted(by_pack.items(), key=lambda kv: kv[0].name):
+        if pack.name in newpack:                     # 落点包还不存在 → 先建（建完照常写入并报出来）
+            pack, created = ensure_pack(pack, newpack[pack.name])
+            if created:
+                made.append(pack.name)
+                print(f"[apply] + 新建包 {pack.name}（{len(items)} 条）")
         path_spec = f"skills/{items[0][2].name}"
         ok, why = pack_gate(pack, items, args)
         if not ok:
@@ -259,6 +288,7 @@ def do_apply(args) -> int:
             results.append((r["id"], "WRITTEN", f"{pack.name}/{dst.name}@{sha[:8]}"))
     out = d / "apply-report.json"
     out.write_text(json.dumps({"results": results, "manual": [r["id"] for r in manual],
+                               "new_packs": sorted(made),
                                "no_push": bool(getattr(args, "no_push", False))}, ensure_ascii=False, indent=1))
     # 改动清单：默认只在会话里报；给了 --changes-out 就落一份文件（用户 2026-10-12）
     changes = [dict(id=cid, status=st, detail=str(det)) for cid, st, det in results]
@@ -274,7 +304,8 @@ def do_apply(args) -> int:
               + (" …" if len(changes) > 8 else ""))
     bad = [x for x in results if x[1] in ("BLOCKED", "SKIP")]
     wrote = len([x for x in results if x[1] == "WRITTEN"])
-    print(f"[apply] 写入 {wrote} 行 · 阻断/跳过 {len(bad)} 行 → {out}")
+    print(f"[apply] 写入 {wrote} 行 · 阻断/跳过 {len(bad)} 行"
+          + (f" · 新建包 {len(made)} 个：{', '.join(sorted(made))}" if made else "") + f" → {out}")
     # 单行被挡/跳过是**正常结局**（扫描闸挡下、包里有别人的改动），逐行进报告即可；
     # 只有「有活要干却一行都没落地」才算失败，否则轮到下一阶段没意义。
     return 0 if wrote or not todo else 1
@@ -394,9 +425,20 @@ def do_install(args) -> int:
     incoming = set(re.findall(r'skills install\s+"?[^"]*/skills/([^"/]+)', text))
     prof = HERMES_HOME / "skills"
     current = profile_skill_names(prof)
-    post = current | incoming
+    # 分母要扣掉本轮"搬进包、装完就退役"的那些本地副本：它们不是净增（S8 会把本地那份删掉）。
+    # 不扣的话，凡是一轮正常搬迁都会被这道闸挡住（实测 232 + 89 > 300）。
+    retiring = set()
+    _rep = d / "apply-report.json"
+    if _rep.exists():
+        _rows = {r["id"]: r for r in load_rows(d)}
+        for cid, state, _ in json.loads(_rep.read_text()).get("results", []):
+            if state == "WRITTEN" and cid in _rows:
+                retiring.add(pathlib.Path(_rows[cid]["_src"]).name)
+    net_new = incoming - current - retiring          # 真新增：现有没有、也不会被退役的
+    post = (current - retiring) | incoming
     limit = args.max_skills
-    gate = dict(max=limit, current=len(current), incoming=len(incoming - current),
+    gate = dict(max=limit, current=len(current), retiring=len(retiring & current),
+                incoming=len(incoming), net_new=len(net_new),
                 post_install=len(post), blocked=len(post) > limit)
     (d / "install-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if gate["blocked"]:
@@ -405,8 +447,8 @@ def do_install(args) -> int:
               f"（现有 {len(current)} + 新装 {gate['incoming']}）⇒ 不装。超 {over} 个。")
         print(f"[install] 差额与候选清单 → {d/'install-gate.json'}；先退役/清退再装，或由人改上限。")
         return 3
-    print(f"[install] 装前闸门 ok：现有 {len(current)} + 新装 {gate['incoming']} = {len(post)}"
-          f" ≤ {limit}（{d/'install-gate.json'}）")
+    print(f"[install] 装前闸门 ok：现有 {len(current)} − 本轮将退役 {gate['retiring']} + 装回 {gate['incoming']}"
+          f"（其中真新增 {gate['net_new']}）= {len(post)} ≤ {limit}（{d/'install-gate.json'}）")
     print(f"[install] 执行 {script}（{n} 条命令）")
     r = sh(["sh", str(script)], cwd=str(d))
     (d / "install.log").write_text(r.stdout + "\n--- stderr ---\n" + r.stderr)

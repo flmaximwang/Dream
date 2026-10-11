@@ -791,6 +791,12 @@ def cmd_merge(args) -> int:
     agent = getattr(args, "manager_agent", "") or f"hermes-{args.profile}"
     prof_skills = profile_root(args.profile) / "skills"
     touched, notes, via_mgr, via_copy = [], [], [], []
+    # 落点根：packs.json 里任一包路径的父目录（新包还没有路径，只能这么推）
+    try:
+        _pk = json.loads((out / "packs.json").read_text())
+        root = pathlib.Path(_pk[0]["path"]).parent if _pk else pathlib.Path(args.packs_root).expanduser()
+    except (OSError, json.JSONDecodeError, KeyError):
+        root = pathlib.Path(args.packs_root).expanduser()
 
     def emit(name: str, local: pathlib.Path, why: str) -> None:
         """一枚技能按三条路择一，写进清单。"""
@@ -807,7 +813,9 @@ def cmd_merge(args) -> int:
         if dest == UNJUDGED:
             continue
         if info[dest]["is_new_pack"]:
-            notes.append(f"# {dest}: 新包——先建仓库、写技能、push，再按三条路装回（新包没有远端标识符时只有第 ③ 条可用）")
+            notes.append(f"# {dest}: 本轮**新建的包**（apply 写入时建本地仓库；远端 `gh repo create` 留给人）")
+            for r, v, action, res in sorted(items, key=lambda t_: int(t_[0]["id"][1:])):
+                emit(r["skill"], root / dest / "skills" / r["skill"], "新建包")
             continue
         pk = packs[dest]                           # not a new pack => the directory is on disk
         if pk["empty"]:
@@ -989,7 +997,7 @@ def self_test() -> int:
         assert "- `AgentSkill-RunningLocalBatches` · 轴 topic · 2 条" in plan, plan
         assert "skills-manager-cli skills" in cmds or "cp -R" in cmds, cmds     # 装回只走三条路，不再有 hermes 命令
         assert "hermes " not in cmds.replace("hermes-", ""), cmds               # 不留 hermes 自己的安装命令
-        assert "# AgentSkill-RunningLocalBatches: 新包" in cmds, cmds
+        assert "本轮**新建的包**" in cmds, cmds                  # 新包也列出来（包由 apply 写入时建）        assert "AgentSkill-RunningLocalBatches/skills/localskill" in cmds, cmds   # 新包的技能也要进装回清单
         assert "AgentSkill-Empty" not in cmds, cmds     # 空壳落点不许生成 install 命令
         # 顺序类不变量：install 段必须整体排在 update 段之前（update 对未装的名字无效）
         assert cmds.index("skills install") < cmds.index("skills update") if "skills update" in cmds else True

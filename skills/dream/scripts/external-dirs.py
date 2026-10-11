@@ -13,6 +13,7 @@ JSON 不自动生成、不手抄自 Skills-Manager —— 想说清「Skills-Man
     external-dirs.py show                 # 看当前清单（--json 出原文）
     external-dirs.py check                # 校验：路径在不在、布局认不认得
     external-dirs.py manager-skills       # 用 skills-manager-cli 列出它管理的技能与来源
+    external-dirs.py refresh <技能名>      # 跑它的 update；被"要删的文件"拦住就自己挪开再跑（自愈）
     external-dirs.py --self-test
 
 JSON 形状（schema 版本写死在文件里，读的时候校验）：
@@ -98,6 +99,53 @@ def manager_skills(manager_base: pathlib.Path) -> list:
         return json.loads(r.stdout or "[]")
     except ValueError:
         sys.exit("manager-skills：CLI 的输出不是 JSON")
+
+
+def held_paths(rec: dict) -> list:
+    """从 update 的回执里挑出"被挡住的删除"（形如 `library: scripts/x.py`）→ 相对中央库的路径列表。"""
+    out = []
+    for h in (rec or {}).get("held_back_removals") or []:
+        out.append(h.split(":", 1)[1].strip() if ":" in h else str(h).strip())
+    return [x for x in out if x]
+
+
+def cmd_refresh(args) -> int:
+    """跑一次 Skills-Manager 的 update；被"要删的文件"挡住就自己把残留挪开再跑。
+
+    不这么做的话整次刷新会**静默不生效**（回执 `refreshed:false` + `held_back_removals`），
+    安装副本会一直停在旧版本 —— 实测踩过（v3 删了 check-disclosure.py，副本就再也没刷进去）。
+    """
+    base = pathlib.Path(args.manager_base).expanduser()
+    cli = base / "bin" / "skills-manager-cli"
+    if not cli.is_file():
+        sys.exit(f"refresh：找不到 {cli}")
+
+    def run() -> dict:
+        r = subprocess.run([str(cli), "--json", "skills", "update", args.name], capture_output=True, text=True)
+        try:
+            rows = json.loads(r.stdout or "[]")
+        except ValueError:
+            sys.exit(f"refresh：CLI 输出不是 JSON：{(r.stdout or r.stderr)[:200]}")
+        return rows[0] if rows else {}
+
+    rec = run()
+    held = held_paths(rec)
+    if held:
+        lib = base / "skills" / args.name
+        dest = pathlib.Path(args.backup).expanduser() / f"{args.name}-{datetime.datetime.now():%Y%m%d_%H%M%S}"
+        for rel in held:                              # 上游已删、中央库还留着的残留
+            src = lib / rel
+            if not src.exists():
+                continue
+            dest.mkdir(parents=True, exist_ok=True)
+            dst = dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            src.rename(dst)
+            print(f"[refresh] 挪开被挡住的残留：{rel} → {dst}")
+        rec = run()
+    ok = bool(rec.get("refreshed"))
+    print(f"[refresh] {args.name}: refreshed={ok}" + (f" · error={rec.get('error')}" if rec.get("error") else ""))
+    return 0 if ok else 1
 
 
 def load(path: pathlib.Path) -> dict:
@@ -206,6 +254,8 @@ def self_test() -> int:
         (td / "plain" / "alpha" / "SKILL.md").write_text("x\n")
         (td / "layered" / "skills" / "cat" / "beta").mkdir(parents=True)
         (td / "layered" / "skills" / "cat" / "beta" / "SKILL.md").write_text("x\n")
+        assert held_paths({"held_back_removals": ["library: scripts/x.py", "library: a/b.md"]}) == ["scripts/x.py", "a/b.md"]
+        assert held_paths({}) == [] and held_paths({"held_back_removals": None}) == []
         assert skills_subdir(td / "plain") == ""
         assert skills_subdir(td / "layered") == "skills"
         assert count_skills(td / "plain", "") == 1
@@ -239,6 +289,9 @@ def main() -> int:
     i = sub.add_parser("init"); i.add_argument("--out", default=""); i.add_argument("--force", action="store_true")
     s = sub.add_parser("show"); s.add_argument("--file", default=""); s.add_argument("--json", action="store_true")
     k = sub.add_parser("check"); k.add_argument("--file", default="")
+    rf = sub.add_parser("refresh"); rf.add_argument("name")
+    rf.add_argument("--manager-base", default="~/.skills-manager")
+    rf.add_argument("--backup", default="~/.hermes/backups/manager-held-back")
     m = sub.add_parser("manager-skills"); m.add_argument("--manager-base", default="~/.skills-manager")
     m.add_argument("--json", action="store_true")
     ap.add_argument("--self-test", action="store_true")
@@ -253,6 +306,8 @@ def main() -> int:
         return cmd_manager_skills(args)
     if args.cmd == "show":
         return cmd_show(args)
+    if args.cmd == "refresh":
+        return cmd_refresh(args)
     ap.print_help()
     return 2
 
