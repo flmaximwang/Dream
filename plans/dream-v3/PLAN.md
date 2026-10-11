@@ -2,13 +2,13 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 14:55
+**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 15:03
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
-- `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @未指派 · 在做 @default
+- `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @default · 在做 @default
 - `T-004#B-002` **主 run 上下文瘦身** — 待认领 · @未指派
 - `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** — 待认领 · @未指派
 
@@ -89,7 +89,7 @@ flowchart LR
 
 ### T-004 机械步骤脚本化：写入/验证/重装/退役 — 进行中
 前置 T-002, T-003
-- [ ] `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** _impl_ — 进行中
+- [ ] `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** _impl_ — 进行中 @default
     - 做什么：把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文件。
     - 判据：一轮里：写入+提交+推送由一条命令完成，装回回读与退役各一条命令完成；贴四条命令与输出；无残留临时文件。
     - 依赖：T-002#B-001（任务级）
@@ -103,6 +103,7 @@ flowchart LR
     - 依赖：T-002#B-001（任务级）
     - 依赖：T-003#B-001（任务级）
     - 依赖：T-003#B-002（任务级）
+    - run 2026-10-11 15:03 default pending→running 先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。
 - [ ] `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** _impl_ — 待认领
     - 做什么：v2 的 S3 对「落点=已有技能」的每一行派一个只读子代理（第二次扇出）。20 分钟目标下这一步要降本，候选做法（要拿实测选，不许拍脑袋）：①把已证明重叠的行并进判官同一批调用；②先用脚本按 claim 逐条 grep 出候选命中，再只对命中行做一次批量判断；③合并成 1–2 个子代理分块处理。判据：本轮 S3 的 wall 与调用数要落进 20 分钟预算，且 already-there / net-new 两张清单的证据格式（接收侧 file:line）不变。
     - 判据：贴选定的做法 + 本轮 S3 的实测 wall 与 LLM 调用数；同一批重叠行在降本前后各出一份清单，形状一致（接收侧 file:line 齐全）。
@@ -128,11 +129,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 13:53` **agent** [block] 新增块 T-003#B-002「merge 覆盖率 100% 实测」
-- `2026-10-11 13:53` **agent** [block] 新增块 T-004#B-001「机械步骤进脚本（apply/verify/install/retire）」
-- `2026-10-11 13:53` **agent** [block] 新增块 T-004#B-002「主 run 上下文瘦身」
-- `2026-10-11 13:53` **agent** [block] 新增块 T-005#B-001「20 分钟验收：default + deepseek-flash 跑一轮」
-- `2026-10-11 13:53` **agent** [block] 新增块 T-006#B-001「推送 + 重装 + 回读」
 - `2026-10-11 13:54` **agent** [status] T-001#B-001: pending → done（四条口径已写进 docs/scope.md 并冻结（不含 skill-pack 优化 / 一轮一个 profile 全量候选 / 判官 deepseek-flash / 判据 20min wall）。）
 - `2026-10-11 13:54` **agent** [decision] v3 口径冻结（2026-10-11 用户指示）：dream 不再做 skill-pack 的整理/优化（S9/S10 删掉，SkillWeave 接手）；一轮 = 一个 profile 的全量候选；判官用 deepseek-flash；验收 = ≤20min wall。另发现一处过期引用：README 索引表指向 docs/acceptance.md，但 docs/ 里没有这个文件（docs/ 原本是空的）—— 待 T-002 一并处理。
 - `2026-10-11 14:01` **agent** [decision] 开发在 worktree 里做（用户 2026-10-11 要求优先 worktree）：worktree = /Users/maxim/Repositories/Repo/Dream.wt-v3，分支 dream-v3，本次提交 5b957be。**未 push**：主 clone 的 main 领先 origin 7 条，其中含别人的在途提交，按规矩不代推 —— push 留给那些提交的主人（或用户指定）。后续块继续在这个 worktree 里做。
@@ -148,6 +144,11 @@ flowchart LR
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）
 - `2026-10-11 14:55` **agent** [status] T-004#B-001: pending → running（apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。）
 - `2026-10-11 14:55` **agent** [decision] apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。
+- `2026-10-11 14:55` **agent** [assign] T-004#B-001 指派给 default（由本会话（default profile 的 agent）在做）
+- `2026-10-11 15:03` **agent** [status] T-004#B-002: pending → running（先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。）
+- `2026-10-11 15:03` **agent** [exec] T-004#B-002: 线程登记已清除（@default 收工）
+- `2026-10-11 15:03` **agent** [status] T-004#B-002: running → pending（回退：刚才误记到这里（s8 汇报口径不是「上下文瘦身」），仍在待办。）
+- `2026-10-11 15:03` **agent** [decision] s8 汇报口径补进 dream-method.md（worktree commit 8930571）：只读落点数据与真写入必须分开写、写入为 0 就明写「0 个包被改动」。起因：本轮汇报把只读的包名和真写入混写，用户误以为我擅自改了包。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。

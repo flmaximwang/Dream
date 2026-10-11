@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T14:55:52+08:00",
+  "updated_at": "2026-10-11T15:03:09+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -242,7 +242,7 @@
           "title": "机械步骤进脚本（apply/verify/install/retire）",
           "kind": "impl",
           "status": "running",
-          "owner": "",
+          "owner": "default",
           "doc": "把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文件。",
           "input": "",
           "output": "",
@@ -287,8 +287,16 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T13:53:45+08:00",
-          "runs": []
+          "status_since": "2026-10-11T15:03:09+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T15:03:01+08:00",
+              "by": "default",
+              "from": "pending",
+              "to": "running",
+              "note": "先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。"
+            }
+          ]
         },
         {
           "id": "T-004#B-003",
@@ -600,7 +608,42 @@
       "kind": "decision",
       "text": "apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。",
       "ref": "T-004#B-001"
+    },
+    {
+      "at": "2026-10-11T14:55:58+08:00",
+      "actor": "agent",
+      "kind": "assign",
+      "text": "T-004#B-001 指派给 default（由本会话（default profile 的 agent）在做）",
+      "ref": "T-004#B-001"
+    },
+    {
+      "at": "2026-10-11T15:03:01+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-002: pending → running（先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。）",
+      "ref": "T-004#B-002"
+    },
+    {
+      "at": "2026-10-11T15:03:09+08:00",
+      "actor": "agent",
+      "kind": "exec",
+      "text": "T-004#B-002: 线程登记已清除（@default 收工）",
+      "ref": "T-004#B-002"
+    },
+    {
+      "at": "2026-10-11T15:03:09+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-002: running → pending（回退：刚才误记到这里（s8 汇报口径不是「上下文瘦身」），仍在待办。）",
+      "ref": "T-004#B-002"
+    },
+    {
+      "at": "2026-10-11T15:03:09+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "s8 汇报口径补进 dream-method.md（worktree commit 8930571）：只读落点数据与真写入必须分开写、写入为 0 就明写「0 个包被改动」。起因：本轮汇报把只读的包名和真写入混写，用户误以为我擅自改了包。",
+      "ref": "T-004"
     }
   ],
-  "rev": "9e79ba3175da"
+  "rev": "d77930b40d33"
 }

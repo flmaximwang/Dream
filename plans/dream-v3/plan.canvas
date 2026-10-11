@@ -58,7 +58,7 @@
    "width": 300,
    "height": 110,
    "color": "5",
-   "text": "### T-004#B-001\n机械步骤进脚本（apply/verify/install/retire）\n\n`running` · @- · 在做 @default\n\n把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文"
+   "text": "### T-004#B-001\n机械步骤进脚本（apply/verify/install/retire）\n\n`running` · @default · 在做 @default\n\n把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文"
   },
   {
    "id": "T-004#B-002",
