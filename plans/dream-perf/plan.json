@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T13:39:44+08:00",
+  "updated_at": "2026-10-11T13:44:32+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -642,7 +642,14 @@
       "kind": "decision",
       "text": "04:00 那轮的死因定案（T-008#B-003 的补充证据）：父块 08:50:24 收到的 delegate_task 结果是 status=interrupted、summary=\"Operation interrupted: waiting for model response (15910.8s elapsed)\" —— 15910.8s = 4h25m 等一次模型响应，就是 monk 的流断拖到被中断上限收掉，整轮才记 failed。即：不是 dream 逻辑失败，是 provider 把子代理的等待拖过了上限。",
       "ref": "T-008#B-003"
+    },
+    {
+      "at": "2026-10-11T13:44:32+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "13:45 本机实测 A/B（同一台机器、同一时刻，各 2 次、max_tokens=24 的流式小请求）：monk ttfb 34.8s / 10.2s；deepseek ttfb 0.79s / 0.88s（总 1.0-1.3s）。裸连 https://monk.party/v1/models 三次：一次 20s 收 0 字节，另两次 TLS 握手 0.57s / 13.3s。今天 error log 计数：handshake 超时 104、peer closed connection 66、ReadTimeout 46、APITimeoutError 52、APIConnectionError 28、Stream stale 180/240/300s 共 46。⇒ monk 侧（或它前面的 Cloudflare LAX 边缘）确实不稳定，不是本机网络、不是 dream 逻辑；大 context（子代理每次 prompt ~75K）时最差。",
+      "ref": "T-008#B-003"
     }
   ],
-  "rev": "c51e73947152"
+  "rev": "db93e1b9e3bd"
 }
