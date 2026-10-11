@@ -13,6 +13,11 @@ PY=$(command -v python3)
 [ -x "$HOME/.hermes/hermes-agent/venv/bin/python3" ] && PY="$HOME/.hermes/hermes-agent/venv/bin/python3"
 SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
+# scan 要一个兄弟技能里的解析器；在 worktree 里开发时它不在旁边，就退回 profile 里装好的那份。
+PARSER="$SKILL_DIR/../load-external-skill-index/scripts/skill-index.py"
+[ -f "$PARSER" ] || PARSER=$(ls "$HOME/.hermes/skills"/*/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
+if [ ! -f "$PARSER" ]; then echo "[round] 找不到 load-external-skill-index 的 skill-index.py（scan 的兄弟依赖）" >&2; exit 2; fi
+
 profile=default
 mode=formal
 plan_only=0
@@ -88,7 +93,7 @@ EOF
   exit 0
 fi
 
-run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" --packs-root "$packs"
+run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" --packs-root "$packs" --parser-script "$PARSER"
 run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out" --chunk-bytes 140000 --workers 2
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
 run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile"
