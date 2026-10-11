@@ -171,14 +171,31 @@ def identifier(remote: str) -> str:
 
 
 def walk_skill_dirs(skills_root: pathlib.Path) -> list:
-    """<cat>/<name>/SKILL.md, plus a plugin's <cat>/<sub>/<name>/SKILL.md; hidden/archive dirs skipped."""
-    found = []
-    for md in sorted(skills_root.rglob("SKILL.md")):
-        rel = md.relative_to(skills_root).parts
-        if len(rel) > 4 or any(p in SKIP_DIRS or p.startswith(".") for p in rel[:-1]):
+    """<cat>/<name>/SKILL.md, plus a plugin's <cat>/<sub>/<name>/SKILL.md; hidden/archive dirs skipped.
+
+    **必须跟着符号链接走**：Skills-Manager 部署用的是符号链接（`skills/<名>` ->
+    `~/.skills-manager/skills/<名>`），而 pathlib 的 rglob 不进符号链接目录 —— 用它会把
+    所有由 Skills-Manager 装的技能看成"不存在"（实测 default profile 漏掉 30 个）。
+    """
+    found, seen = [], set()
+    for dirpath, dirnames, filenames in os.walk(skills_root, followlinks=True):
+        d = pathlib.Path(dirpath)
+        rel = d.relative_to(skills_root).parts
+        dirnames[:] = [x for x in dirnames if x not in SKIP_DIRS and not x.startswith(".")]
+        if len(rel) > 4:                                        # 太深，不可能是技能目录
+            dirnames[:] = []
             continue
-        found.append(md)
-    return found
+        key = os.path.realpath(dirpath)
+        if key in seen:                                         # 符号链接成环时别转圈
+            dirnames[:] = []
+            continue
+        seen.add(key)
+        if "SKILL.md" in filenames:
+            md = d / "SKILL.md"
+            if not any(x in SKIP_DIRS or x.startswith(".") for x in rel):
+                found.append(md)
+            dirnames[:] = []                                    # 技能目录里的 references/ 不算独立技能
+    return sorted(found)
 
 
 def read_lock(root: pathlib.Path) -> dict:
