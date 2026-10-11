@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T10:31:45+08:00",
+  "updated_at": "2026-10-11T10:54:29+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -295,7 +295,7 @@
           "kind": "impl",
           "status": "pending",
           "owner": "",
-          "doc": "实测证据（2026-10-11 10:31 那一拍）：同一批 10 个子代理里，4 个最后一条是工具结果之后 11 至 20 分钟没有任何新消息（81222d 19.9min、d25f75 13.5min、064b12 12.1min、33698e 11.3min），而同一时刻另外 4 个在 0.5 至 4 分钟内正常推进；整批每分钟活跃孩子数峰值 9、常态 2 至 4。这说明端点不是全死，而是同时只服务少数几个 —— 10 路并发没有换来 10 倍吞吐，反而把单个孩子的一次调用等待拉长到十几分钟，而父块要等全部孩子，所以整轮 wall 由最慢的一个决定。做法：用同一批判官输入跑三组对照（并发 1 / 4 / 10，每组条数相同），各测「单次调用等待中位数」与「整批 wall」与「总 prompt tokens」，标出拐点；把并发数从 dream-agent-roster.md 里写死的 10 改成实测拐点（并写明这个数是按当前端点标定的、换端点要重标）。",
+          "doc": "待验证假设（原 doc 把它当事实写了，2026-10-11 10:55 已按新证据改回假设）。观察到的现象：同一批 10 个子代理里，一段时间内只有 2 至 9 个在动，其余在工具结果后十几分钟无新消息；整批吞吐从 10:05 的 31 次/5min 单调衰减到 10:50 的 1 次/5min。**但 10:25 之后的衰减已另有更强解释**（见 T-009：10:51:33 运行期环境目录被回收，任何新建 httpx 客户端都在 truststore 载入处 FileNotFoundError）。所以「端点按并发排队」目前只是候选之一，未被证明。做法（不变，仍要做）：用同一批判官输入跑三组对照（并发 1 / 4 / 10），各测「单次调用等待中位数」与「整批 wall」与「总 prompt tokens」，并且必须先把环境回收这条排除干净，否则测出来的是地基塌陷不是排队。结论落进 dream-agent-roster.md，写明这个数是按当前端点标定的、换端点要重标。",
           "input": "",
           "output": "",
           "command": "",
@@ -331,6 +331,38 @@
           "feedback": "",
           "exec": {},
           "status_since": "2026-10-11T10:31:45+08:00",
+          "runs": []
+        }
+      ],
+      "note": "",
+      "exec": {}
+    },
+    {
+      "id": "T-009",
+      "title": "运行期地基被拆：环境目录被回收",
+      "owner": "",
+      "status": "pending",
+      "deps": [],
+      "blocks": [
+        {
+          "id": "T-009#B-001",
+          "title": "定位并修掉「运行中的 Hermes 环境目录被回收」",
+          "kind": "impl",
+          "status": "pending",
+          "owner": "",
+          "doc": "实测证据链（2026-10-11）：① 09:50 我还成功用过 /Users/maxim/.hermes/installs/b200403c2b90970e/environments/51e7b11d1f0e44bcba68d977a823d512/venv/bin/python3；② 10:51:33 该目录被删（environments/ 的 mtime = 10:51:33，且该路径现在不存在，只剩 ef2099f3d36145779f2e00c200d4279a）；③ 10:51:13 起 gateway.error.log 出现 FileNotFoundError：httpx create_ssl_context → truststore load_verify_locations，provider=custom base_url=https://monk.party/v1 model=monk，一分钟内 498+362 行重试风暴；④ 该错只在**新建** httpx/openai 客户端时触发，所以内存里已导入模块的调用照旧能跑 —— 表现为部分子代理动、其余卡死；⑤ 裸 curl 走代理与直连均 200 级连通（http=401 缺鉴权），网络与 TLS 本身没问题；⑥ iron-proxy egress 未启用、配置里没有证书变量、disk-cleanup 日志只记 cache/scratch 类临时文件、不含 installs —— **删除者尚未定案**，候选是 Hermes 自己的环境 GC（新 env 在 01:49 建好、旧 env 在 10:51 被回收）或某次 install/update 的清理。做法：先定案「谁在什么条件下删 environments/*」，再让它在进程存活期间不回收（租约 / 锁 / 只回收未被任何活进程引用的环境），并在回收前检测引用。",
+          "input": "",
+          "output": "",
+          "command": "",
+          "done_when": [
+            "① 删除者的定案证据：能复现或能指到具体代码路径与触发条件（贴 file:line 或复现命令与输出）；② 修法落地且可验证：跑一个长任务跨越一次回收时机，该任务全程无 FileNotFoundError（贴改前改后的错误计数对比）；③ 回归闸：一条自检说明「被活进程引用的环境不回收」（贴命令与输出）；④ 本轮 10:51 之后的 retry 风暴不再出现在下一轮 cron 的 error log（贴 grep -c 原文）。"
+          ],
+          "artifacts": [],
+          "deps": [],
+          "review_of": "",
+          "feedback": "",
+          "exec": {},
+          "status_since": "2026-10-11T10:54:25+08:00",
           "runs": []
         }
       ],
@@ -491,7 +523,35 @@
       "kind": "block",
       "text": "新增块 T-008#B-002「子代理 LLM 等待加超时与部分结果，父块不再无限等」",
       "ref": "T-008#B-002"
+    },
+    {
+      "at": "2026-10-11T10:54:25+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "T-008#B-001 改了 做什么",
+      "ref": "T-008#B-001"
+    },
+    {
+      "at": "2026-10-11T10:54:25+08:00",
+      "actor": "agent",
+      "kind": "task",
+      "text": "新增任务 T-009「运行期地基被拆：环境目录被回收」",
+      "ref": "T-009"
+    },
+    {
+      "at": "2026-10-11T10:54:25+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "新增块 T-009#B-001「定位并修掉「运行中的 Hermes 环境目录被回收」」",
+      "ref": "T-009#B-001"
+    },
+    {
+      "at": "2026-10-11T10:54:29+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "定案纠正：10:25 之后的吞吐衰减不是端点排队。10:51:33 运行中的环境目录 installs/b200403c2b90970e/environments/51e7b11d... 被回收，此后任何新建 httpx 客户端都在 truststore 载入处 FileNotFoundError（monk 调用全部失败），表现为部分子代理卡死。T-008#B-001 的原文已从「事实」降回「待验证假设」，新开 T-009 追这一条。",
+      "ref": ""
     }
   ],
-  "rev": "ede553fb8e0a"
+  "rev": "9dadcec21ff2"
 }
