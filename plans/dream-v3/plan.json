@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T15:03:09+08:00",
+  "updated_at": "2026-10-11T15:13:30+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -258,7 +258,7 @@
             "by": "default",
             "started": "2026-10-11T14:55:52+08:00"
           },
-          "status_since": "2026-10-11T14:55:52+08:00",
+          "status_since": "2026-10-11T15:13:30+08:00",
           "runs": [
             {
               "at": "2026-10-11T14:55:52+08:00",
@@ -266,6 +266,13 @@
               "from": "pending",
               "to": "running",
               "note": "apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。"
+            },
+            {
+              "at": "2026-10-11T15:13:30+08:00",
+              "by": "default",
+              "from": "running",
+              "to": "running",
+              "note": "按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。"
             }
           ]
         },
@@ -643,7 +650,14 @@
       "kind": "decision",
       "text": "s8 汇报口径补进 dream-method.md（worktree commit 8930571）：只读落点数据与真写入必须分开写、写入为 0 就明写「0 个包被改动」。起因：本轮汇报把只读的包名和真写入混写，用户误以为我擅自改了包。",
       "ref": "T-004"
+    },
+    {
+      "at": "2026-10-11T15:13:30+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-001: running → running（按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。）",
+      "ref": "T-004#B-001"
     }
   ],
-  "rev": "d77930b40d33"
+  "rev": "80d10abe8b30"
 }

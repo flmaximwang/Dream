@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 15:03
+**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 15:13
 
 **参与方** 本人(human)
 
@@ -97,6 +97,7 @@ flowchart LR
     - 依赖：T-003#B-002（任务级）
     - 在做：@default
     - run 2026-10-11 14:55 default pending→running apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。
+    - run 2026-10-11 15:13 default running→running 按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。
 - [ ] `T-004#B-002` **主 run 上下文瘦身** _impl_ — 待认领
     - 做什么：主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。
     - 判据：贴一轮的每次调用 prompt 峰值与最大单条工具结果；无 >40KB 的上下文炸弹。
@@ -129,7 +130,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 13:54` **agent** [status] T-001#B-001: pending → done（四条口径已写进 docs/scope.md 并冻结（不含 skill-pack 优化 / 一轮一个 profile 全量候选 / 判官 deepseek-flash / 判据 20min wall）。）
 - `2026-10-11 13:54` **agent** [decision] v3 口径冻结（2026-10-11 用户指示）：dream 不再做 skill-pack 的整理/优化（S9/S10 删掉，SkillWeave 接手）；一轮 = 一个 profile 的全量候选；判官用 deepseek-flash；验收 = ≤20min wall。另发现一处过期引用：README 索引表指向 docs/acceptance.md，但 docs/ 里没有这个文件（docs/ 原本是空的）—— 待 T-002 一并处理。
 - `2026-10-11 14:01` **agent** [decision] 开发在 worktree 里做（用户 2026-10-11 要求优先 worktree）：worktree = /Users/maxim/Repositories/Repo/Dream.wt-v3，分支 dream-v3，本次提交 5b957be。**未 push**：主 clone 的 main 领先 origin 7 条，其中含别人的在途提交，按规矩不代推 —— push 留给那些提交的主人（或用户指定）。后续块继续在这个 worktree 里做。
 - `2026-10-11 14:02` **agent** [status] T-002#B-001: pending → done（S9/S10 全删：dedupe 子命令与 _suggest_category 移除（-252 行）、SKILL.md 删两节+分工表那行+加边界排除、method.md 删 s9/s10、routing 删 umbrella 落值、README 修过期引用。证据：--self-test OK、--help 只剩 scan/merge、check-disclosure 通过、grep 无残留。commit 5b957be（分支 dream-v3）。）
@@ -149,6 +149,7 @@ flowchart LR
 - `2026-10-11 15:03` **agent** [exec] T-004#B-002: 线程登记已清除（@default 收工）
 - `2026-10-11 15:03` **agent** [status] T-004#B-002: running → pending（回退：刚才误记到这里（s8 汇报口径不是「上下文瘦身」），仍在待办。）
 - `2026-10-11 15:03` **agent** [decision] s8 汇报口径补进 dream-method.md（worktree commit 8930571）：只读落点数据与真写入必须分开写、写入为 0 就明写「0 个包被改动」。起因：本轮汇报把只读的包名和真写入混写，用户误以为我擅自改了包。
+- `2026-10-11 15:13` **agent** [status] T-004#B-001: running → running（按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
