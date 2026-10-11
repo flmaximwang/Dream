@@ -2,14 +2,14 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/10 块（60%） · 状态 `active` · 更新于 2026-10-11 15:37
+**进度** 6/10 块（60%） · 状态 `active` · 更新于 2026-10-11 15:47
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
 - `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @default · 在做 @default
-- `T-004#B-002` **主 run 上下文瘦身** — 待认领 · @未指派
+- `T-004#B-002` **主 run 上下文瘦身** — 进行中 · @default · 在做 @default
 
 ## 图
 
@@ -34,9 +34,7 @@ flowchart LR
   classDef done stroke-width:1px;
   class T-001_B-001,T-001_B-002,T-002_B-001,T-003_B-001,T-003_B-002,T-004_B-003 done;
   classDef running stroke-width:1px;
-  class T-004_B-001 running;
-  classDef ready stroke-width:1px;
-  class T-004_B-002 ready;
+  class T-004_B-001,T-004_B-002 running;
   classDef waiting stroke-width:1px;
   class T-005_B-001,T-006_B-001 waiting;
 ```
@@ -97,13 +95,15 @@ flowchart LR
     - 在做：@default
     - run 2026-10-11 14:55 default pending→running apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。
     - run 2026-10-11 15:13 default running→running 按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。
-- [ ] `T-004#B-002` **主 run 上下文瘦身** _impl_ — 待认领
+- [ ] `T-004#B-002` **主 run 上下文瘦身** _impl_ — 进行中 @default
     - 做什么：主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。
     - 判据：贴一轮的每次调用 prompt 峰值与最大单条工具结果；无 >40KB 的上下文炸弹。
     - 依赖：T-002#B-001（任务级）
     - 依赖：T-003#B-001（任务级）
     - 依赖：T-003#B-002（任务级）
+    - 在做：@default
     - run 2026-10-11 15:03 default pending→running 先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。
+    - run 2026-10-11 15:47 default pending→running 文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。
 - [x] `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** _impl_ — 已完成 @default
     - 做什么：v2 的 S3 对「落点=已有技能」的每一行派一个只读子代理（第二次扇出）。20 分钟目标下这一步要降本，候选做法（要拿实测选，不许拍脑袋）：①把已证明重叠的行并进判官同一批调用；②先用脚本按 claim 逐条 grep 出候选命中，再只对命中行做一次批量判断；③合并成 1–2 个子代理分块处理。判据：本轮 S3 的 wall 与调用数要落进 20 分钟预算，且 already-there / net-new 两张清单的证据格式（接收侧 file:line）不变。
     - 判据：贴选定的做法 + 本轮 S3 的实测 wall 与 LLM 调用数；同一批重叠行在降本前后各出一份清单，形状一致（接收侧 file:line 齐全）。
@@ -132,8 +132,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:05` **agent** [block] 新增块 T-004#B-003「S3 交叉审计降本：不再每条重叠行一个子代理」
-- `2026-10-11 14:32` **agent** [decision] 判官实测（14:15-14:32）：scan 10.4s（99 候选 / 1.32MB 正文）→ 8 块（每块 ~20-210KB）。单块 141KB 烟测 53.8s 出 5/5 合格 verdict。第一次整批跑（3 workers）时 3 块 ~140KB 的请求同时被 `URLError: Connection reset by peer`（Errno 54）打掉，verdicts 只落 48/99 —— 端点对大并发大请求会 reset。处置：judge.py 加 3 次退避重试（5s/10s），并把并发降到 2；同时把「只在最后写 verdicts」改成每块落地 + 断点续跑（被掐不再白付）。当前 48/99，续跑中（proc_1c7ca25aca74）。
 - `2026-10-11 14:41` **agent** [decision] 判官路径第一版跑通（99/99，166s），但 merge 拒收 10 行 → 两个真缺陷，都已修：① 每块的中间产物我命名成 verdicts-chunk-*.jsonl，正好被 merge 的 verdicts*.jsonl 通配吃掉 ⇒ 变成 109 条重复 verdict（exit 4）；改名 judge-verdicts-chunk-*.jsonl。② 判官题面只给了 290 个目录名、没给**各目录的现有技能清单**，于是 merge/strengthen 的 dest_skill 被它编出来（如 AgentSkill-ObsidianManagement 下的 relayer-clc-classification-paths）⇒ 10 行被拒。改成 dest_space()：工具/主题轴 + 每个非空目录的现有技能名（18.8KB），并在题面写明「dest_skill 必须是列出的名字之一，没有就退回 move + __new__」。另加一道缓存闸：断点续跑要求 prompt sha 逐字节相同，改了题面不会被旧回复静默复用。当前改完题面重判中（proc_aa397cad76da）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-002: pending → done（merge exit 0（覆盖率 100%，无 exit 4）：plan.md 43KB / resolved.json / install-cmds.sh 生成；命中 16 个包、拟建 12 个新包（只报不建）。99 条里 existing 86 / new 13，action move 75 / merge 11；15 条 confidence<0.6 进 S3 复核队列。）
 - `2026-10-11 14:47` **agent** [decision] T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。
@@ -152,6 +150,8 @@ flowchart LR
 - `2026-10-11 15:26` **agent** [assign] T-004#B-003 指派给 default（本会话在做）
 - `2026-10-11 15:37` **agent** [exec] T-004#B-003: 线程登记已清除（@default 收工）
 - `2026-10-11 15:37` **agent** [status] T-004#B-003: running → done（选定做法＝①+②合体：claims 随 S2 同一批返回（判官只抄串、脚本负责证明），audit.py grep 出接收侧 file:line。实测（default profile 全量 99 候选 / 25 条重叠行）：S3 = 0 次 LLM 调用、wall 1.5s、160 条 claims、already-there 38 条带 file:line（如 SKILL.md:44、references/install-a-hermes-plugin-dependency-resolution.md:12）、落点不存在 0、全净新增 10 行（都是 merge，正常形状）。v2 同批要 25 个只读子代理（每条重叠行一个）。形状复核：P1 用 v2 的做法手工做了一遍（源侧抄出 7 条旗标=判官 claims 全对，接收侧逐条 grep），与 audit.py 判定逐条一致（1 命中/6 净新增）。）
+- `2026-10-11 15:47` **agent** [status] T-004#B-002: pending → running（文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。）
+- `2026-10-11 15:47` **agent** [assign] T-004#B-002 指派给 default（本会话在做）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。

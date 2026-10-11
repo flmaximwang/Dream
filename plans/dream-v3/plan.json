@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T15:37:19+08:00",
+  "updated_at": "2026-10-11T15:47:23+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -280,8 +280,8 @@
           "id": "T-004#B-002",
           "title": "主 run 上下文瘦身",
           "kind": "impl",
-          "status": "pending",
-          "owner": "",
+          "status": "running",
+          "owner": "default",
           "doc": "主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。",
           "input": "",
           "output": "",
@@ -293,8 +293,11 @@
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {},
-          "status_since": "2026-10-11T15:03:09+08:00",
+          "exec": {
+            "by": "default",
+            "started": "2026-10-11T15:47:23+08:00"
+          },
+          "status_since": "2026-10-11T15:47:23+08:00",
           "runs": [
             {
               "at": "2026-10-11T15:03:01+08:00",
@@ -302,6 +305,13 @@
               "from": "pending",
               "to": "running",
               "note": "先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。"
+            },
+            {
+              "at": "2026-10-11T15:47:23+08:00",
+              "by": "default",
+              "from": "pending",
+              "to": "running",
+              "note": "文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。"
             }
           ]
         },
@@ -709,7 +719,21 @@
       "kind": "status",
       "text": "T-004#B-003: running → done（选定做法＝①+②合体：claims 随 S2 同一批返回（判官只抄串、脚本负责证明），audit.py grep 出接收侧 file:line。实测（default profile 全量 99 候选 / 25 条重叠行）：S3 = 0 次 LLM 调用、wall 1.5s、160 条 claims、already-there 38 条带 file:line（如 SKILL.md:44、references/install-a-hermes-plugin-dependency-resolution.md:12）、落点不存在 0、全净新增 10 行（都是 merge，正常形状）。v2 同批要 25 个只读子代理（每条重叠行一个）。形状复核：P1 用 v2 的做法手工做了一遍（源侧抄出 7 条旗标=判官 claims 全对，接收侧逐条 grep），与 audit.py 判定逐条一致（1 命中/6 净新增）。）",
       "ref": "T-004#B-003"
+    },
+    {
+      "at": "2026-10-11T15:47:23+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-002: pending → running（文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。）",
+      "ref": "T-004#B-002"
+    },
+    {
+      "at": "2026-10-11T15:47:23+08:00",
+      "actor": "agent",
+      "kind": "assign",
+      "text": "T-004#B-002 指派给 default（本会话在做）",
+      "ref": "T-004#B-002"
     }
   ],
-  "rev": "11c1da5e9481"
+  "rev": "401051273734"
 }

@@ -67,8 +67,8 @@
    "y": 430,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-004#B-002\n主 run 上下文瘦身\n\n`ready` · @-\n\n主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。"
+   "color": "5",
+   "text": "### T-004#B-002\n主 run 上下文瘦身\n\n`running` · @default · 在做 @default\n\n主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。"
   },
   {
    "id": "T-004#B-003",
