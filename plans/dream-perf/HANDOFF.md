@@ -45,6 +45,16 @@ python3 -B /Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-prob
   （`33698e` 11:18→11:56、`2529f2` 11:22→12:01），加上 monk 流卡死是 180s 一级、单回合最多重试 3 次
   ⇒ 「孩子静默 15min」在该 provider 下是**假信号**，会误杀。真正的死锁判据：**全部孩子连续 ≥45min
   无任何调用 且 父静默 ≥4h**（或整个 run 越过 4h50m = 04:00 那轮的失败点，仍无孩子交卷）才重启。
+  **止损机制（13:2x 读源码确认，别再重复问）**：
+  - 没有外科手术式中止：`hermes cron` 无 cancel 子命令；`cron/scheduler.py:1083` 的
+    `sweep_stale_inflight()` 对「future 仍 not done」的 claim 明确 `continue`（= 真在跑就不释放），
+    所以僵尸不会被自动回收。唯一手段是 `hermes gateway restart`。
+  - 重启的代价 = 这一轮被 `recover_interrupted_executions()` 标成 `unknown`（同 09:01 那条
+    `43cfe2e6…`：side effects 未定），也就是丢掉这 7 份已交卷孩子的 fan-in；不重启则永久挂着。
+  - **硬 deadline：明天 04:00 前必须清掉**。in-flight claim 会挡住同一个 job 的后续 fire
+    （`scheduler.py:4170` 注释原文：blocking every future run of that job）⇒ 僵尸不除，每日 dream
+    会静默不跑 —— 比重启更糟。04:00 那个 job 是 `0 4 * * *`，14h 之外，所以「现在掐」并不紧急。
+  - 所以：**无人值守时不要自己重启**；到了判据就喊人（或让用户一句话授权），最晚今晚 03:00 前处理。
 - 已确认的慢因（都已在 plan 里成块）：
   | 块 | 慢因 | 证据位置 |
   |---|---|---|
