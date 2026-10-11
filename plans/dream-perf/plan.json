@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T12:44:26+08:00",
+  "updated_at": "2026-10-11T13:39:44+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -628,7 +628,21 @@
       "kind": "decision",
       "text": "12:33-12:44 实读：父块 09:54:33 起挂在 delegate_task（扇出栅栏），3 个未交卷孩子全在等 monk 的 stream；日志实测 Stream stale 180-300s no chunks、elapsed=2508s 的 ReadTimeout、RemoteProtocolError、TLS 握手超时两次。探针当拍报 api_failed=0 ⇒ 流断这条慢因对探针不可见，已落成 T-008#B-003。",
       "ref": "T-008#B-003"
+    },
+    {
+      "at": "2026-10-11T13:01:47+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "更正 12:35 那条里写的止损线：15min 是假信号。实测本 run 孩子静默 38min 后恢复过两次（33698e 11:18→11:56、2529f2 11:22→12:01），monk 流卡死 180s/次、单回合重试 3 次。13:01 复核：唯一还在动的 d25f75 也已静默 22min（msgs 67→76、calls 22→25 是它 12:32–12:38 的进展），但按实测这不算死锁。新判据（已写进 HANDOFF §3）：全部孩子连续 ≥45min 无任何调用 且 父静默 ≥4h，或越过 4h50m（04:00 那轮失败点）仍无孩子交卷，才重启 gateway。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T13:39:44+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "04:00 那轮的死因定案（T-008#B-003 的补充证据）：父块 08:50:24 收到的 delegate_task 结果是 status=interrupted、summary=\"Operation interrupted: waiting for model response (15910.8s elapsed)\" —— 15910.8s = 4h25m 等一次模型响应，就是 monk 的流断拖到被中断上限收掉，整轮才记 failed。即：不是 dream 逻辑失败，是 provider 把子代理的等待拖过了上限。",
+      "ref": "T-008#B-003"
     }
   ],
-  "rev": "cd1f8acf37f1"
+  "rev": "c51e73947152"
 }
