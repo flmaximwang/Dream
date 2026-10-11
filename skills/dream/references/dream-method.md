@@ -50,6 +50,10 @@ python3 -B skills/dream/scripts/sweep-plan.py scan \
 
 ## s2 · 路由判断
 
+**入口判据**：只判 `action=judge-destination` 的候选（S1 的 15 态里唯一"要动手"的那一类：三方都没主）。
+`judge-input-bodies.json` 每条带 `state`/`action`/`comparators`，判官题面里每条候选带「归类」行 —— 归类不是这一类的，
+判官要在 `why` 里指出并给 `confidence=0`，不许硬判落点。
+
 落点由**独立判官**给，不由主 agent 给（主 agent 刚枚举完，对「这条像哪个包」已有先入之见）。
 
 **两轴先判。** 第一步是二选一，不是挑名字：这条技能的**主语**是「某个软件/工具」，还是「一类任务/学科/项目」（主题）？

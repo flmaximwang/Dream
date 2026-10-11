@@ -417,7 +417,17 @@ def cmd_scan(args) -> int:
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
     mirror = sibling_module("skill-mirror.py")
     prescreen(args, packs, rows, local, mirror)
-    cands = [r for r in local if r["verdict"] == "local"]
+    # 候选 = 15 态里 action 为 judge-destination 的那一类（= 三方都没主）。旧的 verdict==local 口径保留
+    # 只作对账：两边不一致就报出来，别让两套判据各自漂。
+    cands = [r for r in local if r.get("action") == "judge-destination"]
+    legacy = {r["dir"] for r in local if r["verdict"] == "local"}
+    by_action = {r["dir"] for r in cands}
+    if legacy != by_action:
+        only_legacy = sorted(legacy - by_action)[:5]
+        only_action = sorted(by_action - legacy)[:5]
+        print(f"[sweep-plan] ⚠ 候选口径不一致：只按 verdict=local 有 {len(legacy - by_action)} 条"
+              f"（{only_legacy}）；只按 action=judge-destination 有 {len(by_action - legacy)} 条"
+              f"（{only_action}）—— 以 action 为准，另一套要跟着改")
     routable = [p for p in packs if not p["empty"]]
     if not routable:
         die(2, f"every AgentSkill-* under {args.packs_root} is a placeholder (no SKILL.md) — "
@@ -444,6 +454,8 @@ def cmd_scan(args) -> int:
         text = md.read_text(encoding="utf-8", errors="replace")
         bodies[f"P{i}"] = text
         judge_input.append(dict(id=f"P{i}", skill=r["name"], category=r["category"], dir=r["dir"],
+                                state=r.get("state", ""), action=r.get("action", ""),
+                                comparators=r.get("comparators", []),
                                 no_category=r["no_category"], description=r["desc"],
                                 path=str(md.parent), skill_md=str(md), refs=refs[:30],
                                 body_bytes=len(text.encode("utf-8")),

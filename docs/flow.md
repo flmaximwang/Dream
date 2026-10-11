@@ -47,8 +47,9 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | `patch-or-restore` | `third·no·no·differs` | 先判方向：本地新→patch；远端新→更新本地 |
 | `noop` | 其余 | 不动 |
 
-**接线现状（重要）**：S1 已经**逐条算出** `state` 与 `action`，但下游**只吃 `judge-destination` 这一类**
-（判官那批候选）。另外四类动作 —— `reconcile`、`patch-package`、`patch-or-restore` —— **还没有任何阶段承接**，
+**接线现状**：S1 逐条算出 `state` 与 `action`；**S2 已按它接线**——判官的候选就是 `action=judge-destination`
+那一类，题面里每条候选带「归类」行。S1 里另有一套旧口径（`verdict=local`）只用于对账，两边不一致会打印 ⚠。
+另外四类动作 —— `reconcile`、`patch-package`、`patch-or-restore` —— **还没有任何阶段承接**，
 目前只出现在 `states.json` / `inventory.tsv` 里。也就是说：15 态现在**落地在"S1 算出来 + 报表"**这一层，
 **没有落地成 S2–S8 的分支**（见 §7）。
 
@@ -65,7 +66,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | 阶段 | 谁跑 | 命令 | 输入 | 产出（都在 `--out` 里） | 判据 / 停下条件 |
 |---|---|---|---|---|---|
 | **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 候选 = `action=judge-destination` 那一类（**当前实现是旧的 `verdict=local`，今天两者恰好等价，两套判据并存**）；同名多份会被显式报出；解析器找不到 → exit 2 |
-| **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json` | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；非流式（卡流正是 v2 的死因） |
+| **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因） |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
 | **S4 自动决议** | 脚本（只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | 判官结果 + `inputs.json` | `resolved.json`（逐行机器可读决议，带 `input_commit`/`stale`）· `plan.md` · `install-cmds.sh` · `stale.json` · `profile-stale.json` | 覆盖率 100%，否则 exit 4；上游/profile 变了 → 标 stale，别在旧结论上动手 |
 | **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
@@ -119,9 +120,6 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 - **S7 还在发 `hermes --profile <名> skills install/update`**（`merge` 生成的 `install-cmds.sh`），
   与 `scope.md` §6「装回只交 Skills-Manager」不一致。要改：`install-cmds.sh` 生成 `skills-manager-cli skills install/update/deploy`，
   `install` 走 manager 并回读它自己的账（`deployed_to`）。
-- **S2 没有按 15/7 态接线**：判官的题面与候选取样都不带"态"的概念，候选仍是按旧的 `verdict=local`
-  （homed/drift/managed/local 四档）筛出来的。今天它与 `action=judge-destination` 等价，但两套判据并存 ——
-  改一处另一处会漂。要做的是：候选直接用 `action`，判官题面里也写明这条属于哪一类态。
 - **`reconcile` / `patch-package` / `patch-or-restore` 没有对应阶段**：15 态里这四类动作现在只在
   `states.json` 里列出来，S2–S8 没有任何一步会去执行它们（建 patch 包、判方向、让 manager 重装）。
 - **S7 仍发 `hermes … skills install/update`**（见上一条缺口）。
@@ -160,7 +158,7 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | 环节 | 状态 |
 |---|---|
 | 输入口径（`DREAM_EXTERNAL_DIRS` JSON + `external-dirs.py`） | ✅ 落地 |
-| 15 态 / 7 态分类与逐态去向 | 🟡 **半落地**：S1 算出来并落报表（`state`/`action` + `states.json`），但**下游 S2–S8 没按它分支**（S2 仍按旧 `verdict=local` 取候选；`reconcile`/`patch` 无阶段） |
+| 15 态 / 7 态分类与逐态去向 | 🟡 **半落地**：S1 算出来并落报表；**S2 已按 `action` 接线**（候选只取 `judge-destination`，题面带归类）。未落地：`reconcile`/`patch-package`/`patch-or-restore` 仍无承接阶段 |
 | S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
 | S7–S8 | ⏳ 未真跑（要人点头；且 S7 待改走 Skills-Manager） |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |

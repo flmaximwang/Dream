@@ -85,6 +85,9 @@ S1 还逐条算 **15 态**（`state` / `action`）：态的定义、可比者与
 ② 每个落点必须回一条正文证据；③ 禁止按类目批量套模板——每条独立判。判官还要为「落点=已有技能」的行
 逐字抄 3–8 条 `claims`（S3 拿它 grep）。三段问法、`dest` 形状、`source` 标注：`references/dream-judge-routing.md`。
 
+**只判 `action=judge-destination` 那一类**（S1 已逐条算出归类，`local·local·mgr=no·ext=no`）：题面里每条候选带一行
+「归类」，硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」。归类不是这一类的行，判官要指出并给 `confidence=0`。
+
 做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（默认 `--chunk-bytes 140000`、`--workers 2`）。
 实测 99 候选 = 8 块、整批 341–447s。**只读它最后那行 wall/verdicts 摘要**。
 

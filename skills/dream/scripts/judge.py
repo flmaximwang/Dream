@@ -30,6 +30,9 @@ DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 RULES = """你是 dream 批次（把「没有仓库归属」的本地技能收编进技能包仓库）的**判官**。逐条判定落点。
 
 硬口径：
+0. **这批候选的归类只有一个**：`local·local·mgr=no·ext=no`（不在使用者维护的包里、不归 Skills-Manager 管、
+   不是 Hermes 自带）——所以这一轮要做的**只有挑落点**这件事。若某条的「归类」行不是这一类，说明它不该到你这儿：
+   照常输出该 id，`why` 写清它属于哪一类、`confidence=0`，不要硬判落点。
 1. **没有「留本地」这个答案**：每条候选都必须有落点。判不出来请给 confidence=0 并写清缺哪条判据，不要编。
 2. **第一步先答轴**（只出现在 kind=new 里）：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科/项目」。
 3. 落点=已有目录时必须**回一条正文证据**（原文短句，30–120 字符）。只凭 name/description 下结论的会被退回。
@@ -79,12 +82,15 @@ def dest_space(d: pathlib.Path) -> str:
 
 def item_block(it: dict) -> str:
     refs = it.get("refs") or []
-    head = (f"### {it['id']} · skill={it['skill']} · category={it.get('category') or '(无类目)'}"
-            f" · refs={refs if refs else '无'}\n"
-            f"description: {it.get('description') or ''}\n"
-            f"--- SKILL.md 全文 ---\n{it.get('body') or ''}\n")
-    return head
-
+    state = it.get("state") or ""
+    lines = [f"### {it['id']} · skill={it['skill']} · category={it.get('category') or '(无类目)'}"
+             f" · refs={refs if refs else '无'}"]
+    if state:
+        lines.append(f"归类：{state}（这一类就是「三方都没主」→ 你的任务只有一件：挑落点）")
+    lines += [f"description: {it.get('description') or ''}",
+              "--- SKILL.md 全文 ---",
+              f"{it.get('body') or ''}"]
+    return "\n".join(lines) + "\n"
 
 def chunk(items: list, budget: int) -> list:
     """Greedy byte-budget chunks; a single oversized item still gets its own chunk."""
