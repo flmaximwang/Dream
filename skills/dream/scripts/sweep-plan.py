@@ -105,6 +105,19 @@ def load_parser(override: str = "") -> tuple:
             # 两种布局都要认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后就长这样）
             cands += sorted(root.glob(f"skills/*/{PARSER_SKILL}/scripts/skill-index.py"))
             cands += sorted(root.glob(f"skills/{PARSER_SKILL}/scripts/skill-index.py"))
+        # 技能交给 Skills-Manager 管之后，profile 里那份可能被挪走：中央库、以及 external_dirs 里的包
+        # 都可能是唯一还在的副本（实测 2026-10-12 profile 与中央库都没有了，只剩包内那份）
+        cands += sorted((pathlib.Path.home() / ".skills-manager" / "skills").glob(
+            f"{PARSER_SKILL}/scripts/skill-index.py"))
+        try:
+            ed = sibling_module("external-dirs.py")
+            for d in json.loads(ed.resolve_file().read_text()).get("dirs", []):
+                base = pathlib.Path(d["path"]).expanduser()
+                for pack in ([base] if (base / "SKILL.md").is_file()
+                             else [c for c in sorted(base.glob("*")) if c.is_dir()]):
+                    cands += sorted(pack.rglob(f"{PARSER_SKILL}/scripts/skill-index.py"))[:1]
+        except (OSError, ValueError, KeyError, SystemExit):
+            pass
     for p in cands:
         if p.is_file():
             spec = importlib.util.spec_from_file_location("_sweep_sibling_index", p)

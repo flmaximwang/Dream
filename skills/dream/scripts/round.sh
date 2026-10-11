@@ -17,7 +17,9 @@ SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PARSER="$SKILL_DIR/../load-external-skill-index/scripts/skill-index.py"
 # 两种布局都认：skills/<类目>/<技能>/ 与 skills/<技能>/（profile 被扁平化后会长成后者）
 [ -f "$PARSER" ] || PARSER=$(ls "$HOME/.hermes/skills"/*/load-external-skill-index/scripts/skill-index.py \
-                                 "$HOME/.hermes/skills"/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
+                                 "$HOME/.hermes/skills"/load-external-skill-index/scripts/skill-index.py \
+                                 "$HOME/.skills-manager/skills/load-external-skill-index/scripts/skill-index.py" \
+                                 "$HOME"/Documents/AgentSkill/*/skills/*/load-external-skill-index/scripts/skill-index.py 2>/dev/null | head -1)
 if [ ! -f "$PARSER" ]; then echo "[round] 找不到 load-external-skill-index 的 skill-index.py（scan 的兄弟依赖）" >&2; exit 2; fi
 
 profile=default
