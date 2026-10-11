@@ -143,7 +143,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:47` **agent** [decision] T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）
 - `2026-10-11 14:55` **agent** [status] T-004#B-001: pending → running（apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。）
@@ -163,6 +162,7 @@ flowchart LR
 - `2026-10-11 15:47` **agent** [assign] T-004#B-002 指派给 default（本会话在做）
 - `2026-10-11 15:55` **agent** [block] 新增块 T-006#B-002「收尾：合并后清理工作树（Dream 仓库）」
 - `2026-10-11 16:12` **agent** [status] T-004#B-002: running → running（测试轮实测（sweep-20261011_160730，default + deepseek-flash，副本面）：主 run 每条工具结果最大值 = 632 B（S1 的 tail-3；脚本全文最长 15.4 KB 也不进主 run）；本 skill 文档面 SKILL.md 15.9 KB + 单份 references ≤11.8 KB。无 >40 KB 的上下文炸弹。真实 prompt 峰值（网关会话 usage 行）留 T-005。）
+- `2026-10-11 16:12` **agent** [summary] T-005 预演（--test 面，副本 + --no-push）：S1 6s / S2 判官 259s（99/99）/ S3 1s / S4 0s / S5 写入 9s（写入 67 行、阻断 11 行）/ S6 验证 4s（PASS 67 · FAIL 0）→ 机械阶段合计 279s（4.65 min，预算 1200s）。决议形状：move 82 / merge 15 / strengthen 2 → 还有 17 行要模型改正文、跨 10 个包（唯一剩下的扇出，正式轮要计时）。审计 17 行 / already-there 43 条带 file:line / 零命中 4。产物 ~/.hermes/cache/scratch/sweep-20261011_160730（stages.tsv = 逐阶段表）。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
