@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T11:04:21+08:00",
+  "updated_at": "2026-10-11T12:44:26+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -332,6 +332,27 @@
           "exec": {},
           "status_since": "2026-10-11T10:31:45+08:00",
           "runs": []
+        },
+        {
+          "id": "T-008#B-003",
+          "title": "provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）",
+          "kind": "impl",
+          "status": "pending",
+          "owner": "",
+          "doc": "尾段 crawl 的实测主因：monk 的流断（不是端点按并发排队）。2026-10-11 12:33–12:44 实读 state.db + ~/.hermes/logs/gateway.error.log。\n\n现象：3 个未交卷孩子全部停在「等 stream」，不是卡在工具或逻辑。\n- 33698e：最近产出 11:56:34，其后一直在同一回合等流（12:43 原文 `waiting for stream response (219s, post_chunk)`）⇒ 约 47min 无新消息。\n- 2529f2：最近产出 12:10:02，12:43 等流 126s。\n- d25f75：唯一还在推进的（12:38:55 产出），api 调用 22→25 花了 10min。\n\n日志证据（同一批孩子/父块，base_url=https://monk.party/v1，上游 Cloudflare LAX）：\n- `Stream stale for 180–300s (threshold) — no chunks received. Killing connection. model=monk`\n- `Stream drop on attempt 1/3 … error_type=ReadTimeout … elapsed=2508.01s ttfb=7.40s chunks=2114 finish_reason_seen=False`\n- `RemoteProtocolError: peer closed connection without sending complete message body (incomplete chunked read)`（depth=0 与 depth=1 都出现）\n- TLS 对 monk 的握手直接超时：12:09:27、12:13:49 `httpcore.ConnectTimeout: handshake operation timed out`\n\n小时计数（今天，同一份 error log）：10 点档 api_failed 80 / stream drop 25 / stale 22；11 点 27/14/8；12 点至 12:44 共 3 次（12:34 depth=0、12:38 depth=1）。10:25 起吞吐单调衰减的「第三种解释」就在这里，与 T-009（环境目录被回收）和 T-008#B-001（端点排队）并列。\n\n判据缺口：探针这一拍报 `api_failed` 为 0，但孩子正在以 8min/次调用爬 —— 探针只数 API 失败，不数流断重试，所以「provider 流断」这条慢因对探针不可见。\n\n处置候选（不要在这一块里动手，只记录）：a) 该 job 的 model 现在 pinned 到 monk（`hermes cron edit 52fe6cf3a3dc --model <x> --provider <y>`）；b) 给子代理的流等待加超时上限（T-008 原意）。",
+          "input": "",
+          "output": "",
+          "command": "",
+          "done_when": [
+            "① perf-probe.py 新增一行「近 N 分钟 stream stale / stream drop / 握手超时计数（父/子分列）」并跑 --self-test 通过；② 下一拍探针输出里该行给出实测数值，且能据此区分「端点排队」与「provider 流断」两解释；③ 贴出改动前后探针输出原文"
+          ],
+          "artifacts": [],
+          "deps": [],
+          "review_of": "",
+          "feedback": "",
+          "exec": {},
+          "status_since": "2026-10-11T12:44:17+08:00",
+          "runs": []
         }
       ],
       "note": "",
@@ -579,7 +600,35 @@
       "kind": "block",
       "text": "T-009#B-001 改了 做什么",
       "ref": "T-009#B-001"
+    },
+    {
+      "at": "2026-10-11T11:53:53+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "11:37 拍：上一拍的两条 !! 全部消失——15min 内 api_failed 69→2、provider_down 14→0、FileNotFoundError 122→0，env_touched 由 /Users/maxim/.hermes/installs/b200403c2b90970e/environments 变为 null。即 T-009 记录的环境目录原地重建风暴已平息（回收完成）。同时父 run 静默 69.2→103.2min 且 LLM 回合数/调用数自 11:02 起冻在 27/28 未动，而子代理 kids_calls 仍 207→212、跨度 68.8→87.7min ⇒ 父进程纯粹卡在扇出等待（T-008 已成的块），不是新的慢因。无新慢因，不动计划。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T12:35:16+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "12:35 复核扇出尾段：最后活着的是 d25f75（12:32:45 仍在调工具），2529f2/33698e 分别静默 25/38min。慢因不是子代理死了，是 monk 端流卡死：gateway.error.log 12:34 见 'Stream stale for 180s — no chunks received — Killing connection' + ReadTimeout + 'attempt 1/3' 重试（provider=custom base_url=https://monk.party/v1）。探针的 15min 错误计数只认 'API call failed'/'Provider unavailable' 字面，漏掉这种「流卡死→重试」，所以连续几拍都报「无新慢因」。判据：父静默 + 全部孩子 15min 无调用 = 真死锁才重启 gateway（唯一中止手段）。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T12:44:17+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "新增块 T-008#B-003「provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）」",
+      "ref": "T-008#B-003"
+    },
+    {
+      "at": "2026-10-11T12:44:26+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "12:33-12:44 实读：父块 09:54:33 起挂在 delegate_task（扇出栅栏），3 个未交卷孩子全在等 monk 的 stream；日志实测 Stream stale 180-300s no chunks、elapsed=2508s 的 ReadTimeout、RemoteProtocolError、TLS 握手超时两次。探针当拍报 api_failed=0 ⇒ 流断这条慢因对探针不可见，已落成 T-008#B-003。",
+      "ref": "T-008#B-003"
     }
   ],
-  "rev": "02b927ce20e8"
+  "rev": "cd1f8acf37f1"
 }

@@ -2,7 +2,7 @@
 
 > 把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。
 
-**进度** 1/11 块（9%） · 状态 `active` · 更新于 2026-10-11 11:04
+**进度** 1/12 块（8%） · 状态 `active` · 更新于 2026-10-11 12:44
 
 **参与方** 本人(human)
 
@@ -14,6 +14,7 @@
 - `T-004#B-001` **一轮批次按 profile 拆成可独立跑完的单元** — 待认领 · @未指派
 - `T-006#B-001` **给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）** — 待认领 · @未指派
 - `T-008#B-001` **按端点吞吐实测标定判官并发数（现在写死的 10 可能是反效果）** — 待认领 · @未指派
+- `T-008#B-003` **provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）** — 待认领 · @未指派
 - `T-009#B-001` **定位并修掉「环境目录原地重建期间活进程失联」** — 待认领 · @未指派
 
 ## 图
@@ -30,6 +31,7 @@ flowchart LR
   T-007_B-001["B-001 把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl"]
   T-008_B-001["B-001 按端点吞吐实测标定判官并发数（现在写死的 10 可能是反效果）"]
   T-008_B-002["B-002 子代理 LLM 等待加超时与部分结果，父块不再无限等"]
+  T-008_B-003["B-003 provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）"]
   T-009_B-001["B-001 定位并修掉「环境目录原地重建期间活进程失联」"]
   T-001_B-001 --> T-002_B-001
   T-001_B-001 --> T-005_B-001
@@ -38,7 +40,7 @@ flowchart LR
   T-004_B-001 --> T-005_B-001
   T-008_B-001 --> T-008_B-002
   classDef ready stroke-width:1px;
-  class T-001_B-001,T-003_B-001,T-003_B-002,T-004_B-001,T-006_B-001,T-008_B-001,T-009_B-001 ready;
+  class T-001_B-001,T-003_B-001,T-003_B-002,T-004_B-001,T-006_B-001,T-008_B-001,T-008_B-003,T-009_B-001 ready;
   classDef waiting stroke-width:1px;
   class T-002_B-001,T-005_B-001,T-008_B-002 waiting;
   classDef done stroke-width:1px;
@@ -103,6 +105,26 @@ flowchart LR
     - 做什么：实测证据：本轮 09:54:39 派发 10 个子代理，父块到 10:31 已静默 36.8 分钟且仍在等；期间没有任何超时、看门狗或早退。父块的 delegate_task 语义是「等全部孩子」，所以任何一个卡住的孩子就能把整轮钉死到天亮 —— 这与 T-004（按 profile 拆批）治的病不同：拆批减小粒度，这里治的是「等待没有上限」。做法：① 子代理任务书里加一条硬约束：单次 LLM 等待超过 N 分钟就写一份部分结果（已完成条目的 verdicts 落盘）后退出，不许原地等；② 父块要有降级路径：M 分钟未归就带着已归的部分继续走，未归的行按「没判完」单列进汇报（dream 的无人值守口径本来就有这一档），不许把整轮挂在等待上。
     - 判据：① dream-agent-roster.md 里超时与部分结果那条的原句（贴出）；② 父块降级路径的原句（未归的行怎么标、怎么进汇报）；③ 一次真实演练：人为让一个子代理超时，父块在 M 分钟内带部分结果继续（贴时间线与输出）；④ 下一轮 cron 不再出现「父块静默超过 15 分钟且全部子代理 idle」的状态（贴探针输出）。
     - 依赖：T-008#B-001
+- [ ] `T-008#B-003` **provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）** _impl_ — 待认领
+    - 做什么：尾段 crawl 的实测主因：monk 的流断（不是端点按并发排队）。2026-10-11 12:33–12:44 实读 state.db + ~/.hermes/logs/gateway.error.log。
+
+现象：3 个未交卷孩子全部停在「等 stream」，不是卡在工具或逻辑。
+- 33698e：最近产出 11:56:34，其后一直在同一回合等流（12:43 原文 `waiting for stream response (219s, post_chunk)`）⇒ 约 47min 无新消息。
+- 2529f2：最近产出 12:10:02，12:43 等流 126s。
+- d25f75：唯一还在推进的（12:38:55 产出），api 调用 22→25 花了 10min。
+
+日志证据（同一批孩子/父块，base_url=https://monk.party/v1，上游 Cloudflare LAX）：
+- `Stream stale for 180–300s (threshold) — no chunks received. Killing connection. model=monk`
+- `Stream drop on attempt 1/3 … error_type=ReadTimeout … elapsed=2508.01s ttfb=7.40s chunks=2114 finish_reason_seen=False`
+- `RemoteProtocolError: peer closed connection without sending complete message body (incomplete chunked read)`（depth=0 与 depth=1 都出现）
+- TLS 对 monk 的握手直接超时：12:09:27、12:13:49 `httpcore.ConnectTimeout: handshake operation timed out`
+
+小时计数（今天，同一份 error log）：10 点档 api_failed 80 / stream drop 25 / stale 22；11 点 27/14/8；12 点至 12:44 共 3 次（12:34 depth=0、12:38 depth=1）。10:25 起吞吐单调衰减的「第三种解释」就在这里，与 T-009（环境目录被回收）和 T-008#B-001（端点排队）并列。
+
+判据缺口：探针这一拍报 `api_failed` 为 0，但孩子正在以 8min/次调用爬 —— 探针只数 API 失败，不数流断重试，所以「provider 流断」这条慢因对探针不可见。
+
+处置候选（不要在这一块里动手，只记录）：a) 该 job 的 model 现在 pinned 到 monk（`hermes cron edit 52fe6cf3a3dc --model <x> --provider <y>`）；b) 给子代理的流等待加超时上限（T-008 原意）。
+    - 判据：① perf-probe.py 新增一行「近 N 分钟 stream stale / stream drop / 握手超时计数（父/子分列）」并跑 --self-test 通过；② 下一拍探针输出里该行给出实测数值，且能据此区分「端点排队」与「provider 流断」两解释；③ 贴出改动前后探针输出原文
 
 ### T-009 运行期地基被拆：环境目录被回收 — 待认领
 - [ ] `T-009#B-001` **定位并修掉「环境目录原地重建期间活进程失联」** _impl_ — 待认领
@@ -111,10 +133,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 10:08` **agent** [block] 新增块 T-004#B-001「一轮批次按 profile 拆成可独立跑完的单元」
-- `2026-10-11 10:08` **agent** [block] 新增块 T-005#B-001「推送 Dream 并重装两技能，回读三件」
-- `2026-10-11 10:16` **agent** [task] 新增任务 T-006「子代理纪律：判官与审计的子代理不许自己撑爆上下文」
-- `2026-10-11 10:16` **agent** [block] 新增块 T-006#B-001「给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）」
 - `2026-10-11 10:20` **agent** [task] 新增任务 T-007「每拍心跳的慢因探针（同一把尺子）」
 - `2026-10-11 10:20` **agent** [block] 新增块 T-007#B-001「把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl」
 - `2026-10-11 10:20` **agent** [status] T-007#B-001: pending → done（self-test ok；真跑第一拍指纹：主 run 72.9min / 静默 25.9min / 每次调用 prompt 56.5K / 最长回合 576s；子代理 10 个 158 次调用每调用 61.2K；散落文件 1 个（dev-general/skills/_dream_enum.py））
@@ -131,6 +149,10 @@ flowchart LR
 - `2026-10-11 11:02` **agent** [status] T-009#B-001: pending → pending（done_when 已更新）
 - `2026-10-11 11:04` **agent** [block] T-009#B-001 改了 标题
 - `2026-10-11 11:04` **agent** [block] T-009#B-001 改了 做什么
+- `2026-10-11 11:53` **agent** [decision] 11:37 拍：上一拍的两条 !! 全部消失——15min 内 api_failed 69→2、provider_down 14→0、FileNotFoundError 122→0，env_touched 由 /Users/maxim/.hermes/installs/b200403c2b90970e/environments 变为 null。即 T-009 记录的环境目录原地重建风暴已平息（回收完成）。同时父 run 静默 69.2→103.2min 且 LLM 回合数/调用数自 11:02 起冻在 27/28 未动，而子代理 kids_calls 仍 207→212、跨度 68.8→87.7min ⇒ 父进程纯粹卡在扇出等待（T-008 已成的块），不是新的慢因。无新慢因，不动计划。
+- `2026-10-11 12:35` **agent** [decision] 12:35 复核扇出尾段：最后活着的是 d25f75（12:32:45 仍在调工具），2529f2/33698e 分别静默 25/38min。慢因不是子代理死了，是 monk 端流卡死：gateway.error.log 12:34 见 'Stream stale for 180s — no chunks received — Killing connection' + ReadTimeout + 'attempt 1/3' 重试（provider=custom base_url=https://monk.party/v1）。探针的 15min 错误计数只认 'API call failed'/'Provider unavailable' 字面，漏掉这种「流卡死→重试」，所以连续几拍都报「无新慢因」。判据：父静默 + 全部孩子 15min 无调用 = 真死锁才重启 gateway（唯一中止手段）。
+- `2026-10-11 12:44` **agent** [block] 新增块 T-008#B-003「provider 流断计入慢因判据（尾段 crawl 的实测主因，探针漏掉这条）」
+- `2026-10-11 12:44` **agent** [decision] 12:33-12:44 实读：父块 09:54:33 起挂在 delegate_task（扇出栅栏），3 个未交卷孩子全在等 monk 的 stream；日志实测 Stream stale 180-300s no chunks、elapsed=2508s 的 ReadTimeout、RemoteProtocolError、TLS 握手超时两次。探针当拍报 api_failed=0 ⇒ 流断这条慢因对探针不可见，已落成 T-008#B-003。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-perf` 生成。
