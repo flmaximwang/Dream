@@ -114,6 +114,18 @@ def pack_status(pack_dir: pathlib.Path, pathspec: str, require_remote: bool = Fa
     return True, ""
 
 
+def pack_gate(pack, items, args) -> tuple:
+    """→ (ok, why)。决议指纹 / 别人的在途改动 / 要真推却没有远端 —— dry-run 与真写用同一判据。"""
+    if any(r.get("stale") for r, _, _ in items):
+        return False, "上游变了（merge 已标 stale）⇒ 先重跑 scan+merge"
+    rec = {r.get("input_commit") for r, _, _ in items if r.get("input_commit")}
+    head_now = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()
+    if rec and head_now not in rec:
+        was = sorted(rec)[0]
+        return False, f"上游变了（HEAD {head_now[:9]} ≠ 决议时 {was[:9]}）⇒ 先重跑 scan+merge"
+    return pack_status(pack, "skills/", require_remote=not args.no_push)
+
+
 def do_apply(args) -> int:
     d = pathlib.Path(args.dir).expanduser()
     root = pathlib.Path(args.packs_root).expanduser()
@@ -142,8 +154,15 @@ def do_apply(args) -> int:
     if manual:
         print(f"  · 要模型写（merge/strengthen 或落点不是新技能）：{[r['id'] for r in manual]}")
     if args.dry_run:
+        byp = {}
         for r, pack, src, dst in todo:
-            print(f"  → {r['id']} {src}  ⇒  {dst}   (pack={pack.name})")
+            byp.setdefault(pack, []).append((r, src, dst))
+        for pack, items in sorted(byp.items(), key=lambda kv: kv[0].name):
+            ok, why = pack_gate(pack, items, args)
+            if ok:
+                print(f"  ✓ {pack.name}: 会写入 {len(items)} 行")
+            else:
+                print(f"  ✗ {pack.name}: {why} ⇒ 会跳过 {len(items)} 行")
         return 0
 
     by_pack, results = {}, []
@@ -151,19 +170,11 @@ def do_apply(args) -> int:
         by_pack.setdefault(pack, []).append((r, src, dst))
     for pack, items in sorted(by_pack.items(), key=lambda kv: kv[0].name):
         path_spec = f"skills/{items[0][2].name}"
-        # T-004#B-001：拿「决议时的 input_commit」比一次当前 HEAD。上游动过 ⇒ 这些行的结论作废。
-        rec = {r.get("input_commit") for r, _, _ in items if r.get("input_commit")}
-        head_now = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()
-        if rec and head_now not in rec:
-            was = sorted(rec)[0]
-            print(f"[apply] ✗ {pack.name}: 上游变了（HEAD {head_now[:9]} ≠ 决议时 {was[:9]}）"
-                  f" ⇒ 跳过 {len(items)} 行，先重跑 scan+merge")
-            results += [(r["id"], "STALE", f"pack HEAD {head_now[:9]} ≠ 决议时 {was[:9]}") for r, _, _ in items]
-            continue
-        ok, why = pack_status(pack, "skills/", require_remote=not args.no_push)
+        ok, why = pack_gate(pack, items, args)
         if not ok:
+            kind = "STALE" if why.startswith("上游变了") else "SKIP"
             print(f"[apply] ✗ {pack.name}: {why} ⇒ 跳过 {len(items)} 行")
-            results += [(r["id"], "SKIP", why) for r, _, _ in items]
+            results += [(r["id"], kind, why) for r, _, _ in items]
             continue
         sh("git fetch -q origin", cwd=str(pack))
         written = []

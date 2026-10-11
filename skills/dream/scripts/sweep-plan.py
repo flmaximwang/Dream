@@ -419,13 +419,21 @@ def cmd_merge(args) -> int:
     # T-004#B-001：拿 scan 的指纹比一遍。上游动过 ⇒ 这一轮结论带 stale，不许直接动手。
     rec = json.loads((out / "inputs.json").read_text()) if (out / "inputs.json").is_file() else {}
     rec_packs = rec.get("packs") or {}
-    now_packs = {name: (info or {}).get("head") for name, info in packs.items()}   # merge 里 packs 是 dict
+    # 「现在」的 HEAD 必须**现场读**（packs.json 是 scan 那一刻的快照，拿它比等于自己跟自己比）
+    now_packs = {}
+    for name, info in packs.items():
+        pth = pathlib.Path((info or {}).get("path") or "")
+        now_packs[name] = git(pth, "rev-parse", "HEAD").strip() if (pth / ".git").exists() \
+            else (info or {}).get("head")
     changed = sorted(k for k in set(rec_packs) | set(now_packs) if rec_packs.get(k) != now_packs.get(k))
     files_now = file_digests(out, ("judge-input.json", "packs.json", "judge-input-bodies.json"))
-    files_changed = sorted(k for k, v in (rec.get("files") or {}).items() if files_now.get(k) != v)
+    rec_files = rec.get("files") or {}
+    # 只比两边都有的文件：merge 不消费的文件（如 inventory.tsv）不该被当成「变了」
+    files_changed = sorted(k for k in set(rec_files) & set(files_now) if files_now[k] != rec_files[k])
     for row in resolved:
         repo = row.get("repo") or ""
-        row["input_commit"] = now_packs.get(repo) or rec_packs.get(repo) or None
+        # input_commit = **评估时**（scan 那一刻）的 HEAD；上游现在是什么由 stale 表达
+        row["input_commit"] = rec_packs.get(repo) or now_packs.get(repo) or None
         row["stale"] = bool(repo and repo in changed)
     (out / "stale.json").write_text(json.dumps(dict(
         recorded_at=rec.get("generated_at"), changed_packs=changed, changed_files=files_changed,
