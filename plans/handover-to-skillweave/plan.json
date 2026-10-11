@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T17:54:05+08:00",
+  "updated_at": "2026-10-11T17:56:56+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -39,12 +39,14 @@
           "done_when": [
             "本块内贴出：① 上面 4 条命令的**原始输出**；② `git log --all --oneline -S '## S10 · 合并'` 的完整结果；③ 一句判定（误标 / 回归 / 部分完成）+ 依据；④ 由此决定 dream-v3#T-002#B-001 该改成什么状态。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/.hermes/cache/scratch/handover-175108/t001-evidence.txt"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:53:32+08:00",
+          "status_since": "2026-10-11T17:56:40+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:32+08:00",
@@ -52,6 +54,13 @@
               "from": "pending",
               "to": "done",
               "note": "判定=未合并：删除提交 5b957be 只在分支 dream-v3；review 量的 main 上仍是旧文本"
+            },
+            {
+              "at": "2026-10-11T17:56:40+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "补原始输出（独立复核指出 output 为空、且记的 git log 结果漏了 2 条本 plan 自身提交）：完整 6 段原始输出见 t001-evidence.txt —— ①worktree SKILL.md 0 命中 ②main SKILL.md 命中 5 行 ③--help worktree={scan,merge} / main={scan,merge,dedupe} ④git log --all -S '## S10 · 合并' = 4 条（含 f691e18/020d4c5 两条本 plan 提交、5b957be 删、2f52f41 加）⑤-S '## S9 · 全库去重' = 3 条 ⑥branch --contains：2f52f41 在 dream-v3+main，5b957be 只在 dream-v3 ⇒ 判定「未合并」不变。"
             }
           ]
         }
@@ -77,16 +86,17 @@
           "output": "",
           "command": "",
           "done_when": [
-            "`grep -n 'S9\\|S10\\|全库去重\\|合并 / umbrella' skills/dream/SKILL.md` 只剩那一行转指（贴原文）；`python3 -B skills/dream/scripts/check-disclosure.py skills/dream` 仍 exit 0。"
+            "skills/dream/SKILL.md 不再有 S9/S10 两节：grep 'S9|S10|全库去重|合并 / umbrella' 在正文 0 命中，概念转指只出现在边界节一处（用词「技能库/pack 的整理与优化…→ SkillWeave」）；sweep-plan.py --help = {scan,merge}；包内形状自检改由 SkillWeave 的 weave.py checks 承担（对 Dream 报 0 命中）。【判据更正】原判据之二「check-disclosure.py skills/dream exit 0」已随 T-002#B-004 删除该脚本而自相矛盾（独立复核指出），改用 SkillWeave checks。"
           ],
           "artifacts": [
-            "/Users/maxim/Repositories/Repo/Dream.wt-v3/skills/dream/SKILL.md"
+            "/Users/maxim/Repositories/Repo/Dream.wt-v3/skills/dream/SKILL.md",
+            "/Users/maxim/.hermes/cache/scratch/handover-175108/install-gate-blocked-demo.json"
           ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:53:32+08:00",
+          "status_since": "2026-10-11T17:56:47+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:32+08:00",
@@ -94,6 +104,13 @@
               "from": "pending",
               "to": "done",
               "note": "SKILL.md 已无 S9/S10 两节（分支 5b957be 起），grep 只剩边界节一行转指；本轮又把它改成指向 SkillWeave 的交接句"
+            },
+            {
+              "at": "2026-10-11T17:56:47+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "独立复核（deleg_281477ba）指出原判据两条字面不成立：①转指行不含被 grep 的 token ②判据要的 check-disclosure.py 被本任务 B-004 删掉。删除目标本身达成，判据按上面改写。"
             }
           ]
         },
@@ -244,13 +261,14 @@
             "SKILL.md 的 S7 节写明闸门判据与命令；能用一次 dry-run 或构造场景**现场触发一次**并贴输出（触发不出就说明闸门没接上）。"
           ],
           "artifacts": [
+            "/Users/maxim/.hermes/cache/scratch/handover-175108/install-gate-demo.json",
             "/Users/maxim/.hermes/cache/scratch/handover-175108/install-gate-demo.json"
           ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:53:40+08:00",
+          "status_since": "2026-10-11T17:56:47+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:40+08:00",
@@ -258,6 +276,13 @@
               "from": "pending",
               "to": "done",
               "note": "apply.py install 装前闸门落地并**现场触发**：默认上限 120 时 ⛔『装完 264 个技能 > 120（现有 263 + 新装 1）⇒ 不装。超 144 个』exit 3；--max-skills 400 时放行。⚠ 发现：本机 profile 现有 263 个技能，120 这个上限在当前基线上**必然挡住每一次真装**，要人定口径。"
+            },
+            {
+              "at": "2026-10-11T17:56:47+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "补存档：复核指出只留了放行那半边。现在两半都在：install-gate-blocked-demo.json（默认 120 ⇒ blocked，post_install=264、over=144、exit 3）与 install-gate-demo.json（--max-skills 400 ⇒ 放行）。"
             }
           ]
         },
@@ -281,7 +306,7 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:53:40+08:00",
+          "status_since": "2026-10-11T17:56:47+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:40+08:00",
@@ -289,6 +314,13 @@
               "from": "pending",
               "to": "done",
               "note": "apply.py install 装后断言落地：①不在类目下的技能逐条列名 ②local = 0 判据。实测输出：1 个技能不在类目下（mcp-server-integration/SKILL.md）· local 98 个 —— ⚠ 与历史基线 not_in_pack=98 一致，说明 'local=0' 在本机基线上也不成立；只报不动手（归位→SkillWeave），exit 0"
+            },
+            {
+              "at": "2026-10-11T17:56:47+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "复核指出本块 doc 提到的 'exit 5' 在 v3 无此路径 —— 更正：形状断言只报不拦（exit 0），只有装前闸门才会 exit 3；'not_in_pack>0 就 exit 5' 是 v2 的旧口径，v3 已无。"
             }
           ]
         },
@@ -441,12 +473,14 @@
           "done_when": [
             "dream-v3#T-002#B-001 的 status 与 note 与 T-001 的判定一致（贴原文）。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/plans/dream-v3/plan.json"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:53:48+08:00",
+          "status_since": "2026-10-11T17:56:47+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:48+08:00",
@@ -454,6 +488,13 @@
               "from": "pending",
               "to": "done",
               "note": "dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done 并补一条 note 说明它在分支上成立、main 要等收尾合并；已在 dream-v3 plan 上执行（读回：该块 runs 最后一条是这句）"
+            },
+            {
+              "at": "2026-10-11T17:56:47+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "回应复核的 ✗：它 grep 的词（未合并 / 分支上成立 / main 上要等）没命中，所以判「note 不存在」；实测 note **在**，只是措辞不同。证据：plans/dream-v3/plan.json 该块 runs 第 3 条 = 2026-10-11T17:53:48 dream-dev done→done「补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**…」；PLAN.md 第 72 行（块内 run 行）与第 166 行（日志段）都渲染了这条。复核用的检索词 vs 实际措辞的差异我照实记在这里。"
             }
           ]
         }
@@ -503,7 +544,7 @@
           "id": "T-006#B-002",
           "title": "独立子代理复核（不许自己验自己）",
           "kind": "review",
-          "status": "running",
+          "status": "done",
           "owner": "dream-dev",
           "doc": "派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。",
           "input": "",
@@ -512,19 +553,14 @@
           "done_when": [
             "复核输出落文件（路径写进本块），含逐条 ✓/✗ 与不一致明细；有 ✗ 就回到对应块整改。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "/Users/maxim/.hermes/cache/scratch/handover-review.md"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {
-            "by": "dream-dev",
-            "started": "2026-10-11T17:54:05+08:00",
-            "delegation": "deleg_281477ba",
-            "task_index": 0,
-            "transcript": "/Users/maxim/.hermes/cache/delegation/live/deleg_281477ba/task-0.log",
-            "note": "派独立子代理复核（只读、前台命令、不起后台进程）"
-          },
-          "status_since": "2026-10-11T17:54:05+08:00",
+          "exec": {},
+          "status_since": "2026-10-11T17:56:56+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:54:05+08:00",
@@ -532,6 +568,13 @@
               "from": "pending",
               "to": "running",
               "note": "派独立子代理复核（只读、前台命令、不起后台进程）"
+            },
+            {
+              "at": "2026-10-11T17:56:56+08:00",
+              "by": "dream-dev",
+              "from": "running",
+              "to": "done",
+              "note": "独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。"
             }
           ]
         }
@@ -833,7 +876,56 @@
       "kind": "status",
       "text": "T-006#B-002: pending → running（派独立子代理复核（只读、前台命令、不起后台进程））",
       "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:56:40+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-001#B-001: done → done（补原始输出（独立复核指出 output 为空、且记的 git log 结果漏了 2 条本 plan 自身提交）：完整 6 段原始输出见 t001-evidence.txt —— ①worktree SKILL.md 0 命中 ②main SKILL.md 命中 5 行 ③--help worktree={scan,merge} / main={scan,merge,dedupe} ④git log --all -S '## S10 · 合并' = 4 条（含 f691e18/020d4c5 两条本 plan 提交、5b957be 删、2f52f41 加）⑤-S '## S9 · 全库去重' = 3 条 ⑥branch --contains：2f52f41 在 dream-v3+main，5b957be 只在 dream-v3 ⇒ 判定「未合并」不变。）",
+      "ref": "T-001#B-001"
+    },
+    {
+      "at": "2026-10-11T17:56:47+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-002#B-001: done → done（done_when 已更新）（独立复核（deleg_281477ba）指出原判据两条字面不成立：①转指行不含被 grep 的 token ②判据要的 check-disclosure.py 被本任务 B-004 删掉。删除目标本身达成，判据按上面改写。）",
+      "ref": "T-002#B-001"
+    },
+    {
+      "at": "2026-10-11T17:56:47+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-001: done → done（补存档：复核指出只留了放行那半边。现在两半都在：install-gate-blocked-demo.json（默认 120 ⇒ blocked，post_install=264、over=144、exit 3）与 install-gate-demo.json（--max-skills 400 ⇒ 放行）。）",
+      "ref": "T-003#B-001"
+    },
+    {
+      "at": "2026-10-11T17:56:47+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-002: done → done（复核指出本块 doc 提到的 'exit 5' 在 v3 无此路径 —— 更正：形状断言只报不拦（exit 0），只有装前闸门才会 exit 3；'not_in_pack>0 就 exit 5' 是 v2 的旧口径，v3 已无。）",
+      "ref": "T-003#B-002"
+    },
+    {
+      "at": "2026-10-11T17:56:47+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-005#B-002: done → done（回应复核的 ✗：它 grep 的词（未合并 / 分支上成立 / main 上要等）没命中，所以判「note 不存在」；实测 note **在**，只是措辞不同。证据：plans/dream-v3/plan.json 该块 runs 第 3 条 = 2026-10-11T17:53:48 dream-dev done→done「补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**…」；PLAN.md 第 72 行（块内 run 行）与第 166 行（日志段）都渲染了这条。复核用的检索词 vs 实际措辞的差异我照实记在这里。）",
+      "ref": "T-005#B-002"
+    },
+    {
+      "at": "2026-10-11T17:56:56+08:00",
+      "actor": "agent",
+      "kind": "exec",
+      "text": "T-006#B-002: 线程登记已清除（@dream-dev 收工）",
+      "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:56:56+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-006#B-002: running → done（独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。）",
+      "ref": "T-006#B-002"
     }
   ],
-  "rev": "a439f5611cea"
+  "rev": "8c5288554d68"
 }
