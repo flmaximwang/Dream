@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 15:55
+**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 16:12
 
 **参与方** 本人(human)
 
@@ -109,6 +109,7 @@ flowchart LR
     - 在做：@default
     - run 2026-10-11 15:03 default pending→running 先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。
     - run 2026-10-11 15:47 default pending→running 文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。
+    - run 2026-10-11 16:12 default running→running 测试轮实测（sweep-20261011_160730，default + deepseek-flash，副本面）：主 run 每条工具结果最大值 = 632 B（S1 的 tail-3；脚本全文最长 15.4 KB 也不进主 run）；本 skill 文档面 SKILL.md 15.9 KB + 单份 references ≤11.8 KB。无 >40 KB 的上下文炸弹。真实 prompt 峰值（网关会话 usage 行）留 T-005。
 - [x] `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** _impl_ — 已完成 @default
     - 做什么：v2 的 S3 对「落点=已有技能」的每一行派一个只读子代理（第二次扇出）。20 分钟目标下这一步要降本，候选做法（要拿实测选，不许拍脑袋）：①把已证明重叠的行并进判官同一批调用；②先用脚本按 claim 逐条 grep 出候选命中，再只对命中行做一次批量判断；③合并成 1–2 个子代理分块处理。判据：本轮 S3 的 wall 与调用数要落进 20 分钟预算，且 already-there / net-new 两张清单的证据格式（接收侧 file:line）不变。
     - 判据：贴选定的做法 + 本轮 S3 的实测 wall 与 LLM 调用数；同一批重叠行在降本前后各出一份清单，形状一致（接收侧 file:line 齐全）。
@@ -142,7 +143,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:47` **agent** [status] T-003#B-002: pending → done（merge exit 0（覆盖率 100%，无 exit 4）：plan.md 43KB / resolved.json / install-cmds.sh 生成；命中 16 个包、拟建 12 个新包（只报不建）。99 条里 existing 86 / new 13，action move 75 / merge 11；15 条 confidence<0.6 进 S3 复核队列。）
 - `2026-10-11 14:47` **agent** [decision] T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）
@@ -162,6 +162,7 @@ flowchart LR
 - `2026-10-11 15:47` **agent** [status] T-004#B-002: pending → running（文档面已改完（worktree 875eeb8）：SKILL.md 新增「主 run 的上下文纪律」（不读源码 / 不读长清单 / 不灌正文 / 单个工具结果 ≤ 十几行），分工表 S3/S5–S8 改成脚本，删掉 v2 实测快照段，上限常量对齐 check-disclosure.py（原表 200 行/14000 B 与脚本 240/16000 不一致）。method.md s3/s5/s6/s7/s8 同步 v3；roster 删掉两个已死的子代理任务书（交叉审计、验证），只留 writer（只管 merge/strengthen 行）。体积实测：主 run 一轮要读的 4 份文档 = 4.0/5.3/11.8/15.9 KB（最大单读 15.9 KB，< 40 KB）；audit.py 输出 1 行、其余命令十几行。差 T-005 那一轮的真实 prompt 峰值。）
 - `2026-10-11 15:47` **agent** [assign] T-004#B-002 指派给 default（本会话在做）
 - `2026-10-11 15:55` **agent** [block] 新增块 T-006#B-002「收尾：合并后清理工作树（Dream 仓库）」
+- `2026-10-11 16:12` **agent** [status] T-004#B-002: running → running（测试轮实测（sweep-20261011_160730，default + deepseek-flash，副本面）：主 run 每条工具结果最大值 = 632 B（S1 的 tail-3；脚本全文最长 15.4 KB 也不进主 run）；本 skill 文档面 SKILL.md 15.9 KB + 单份 references ≤11.8 KB。无 >40 KB 的上下文炸弹。真实 prompt 峰值（网关会话 usage 行）留 T-005。）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
