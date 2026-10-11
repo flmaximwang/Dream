@@ -2,14 +2,14 @@
 
 > 让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。
 
-**进度** 13/15 块（87%） · 状态 `active` · 更新于 2026-10-11 17:53
+**进度** 13/15 块（87%） · 状态 `active` · 更新于 2026-10-11 17:54
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
+- `T-006#B-002` **独立子代理复核（不许自己验自己）** — 进行中 · @dream-dev · 在做 @dream-dev（线程 deleg_281477ba#0）
 - `T-005#B-001` **`skill-library-stewardship` 与本次移交冲突：改口径或作废** — 已认领 · @dream-dev
-- `T-006#B-002` **独立子代理复核（不许自己验自己）** — 已认领 · @dream-dev
 
 ## 图
 
@@ -33,7 +33,9 @@ flowchart LR
   classDef done stroke-width:1px;
   class T-001_B-001,T-002_B-001,T-002_B-002,T-002_B-003,T-002_B-004,T-002_B-005,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-005_B-002,T-006_B-001 done;
   classDef claimed stroke-width:1px;
-  class T-005_B-001,T-006_B-002 claimed;
+  class T-005_B-001 claimed;
+  classDef running stroke-width:1px;
+  class T-006_B-002 running;
 ```
 
 ## 任务
@@ -128,14 +130,14 @@ flowchart LR
     - 判据：四条断言的命令与原始输出落进本块；任何一条不成立就回到对应块整改，**不许改判据**。
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-175108/resolved.json`
     - run 2026-10-11 17:53 dream-dev pending→done 四条断言全过（原文见日志）；S5 写 54 / 挡 11，S6 PASS 54 · FAIL 0；S2 复用既有 verdicts（同一 id 空间）故不作为计时证据
-- [ ] `T-006#B-002` **独立子代理复核（不许自己验自己）** _review_ — 已认领 @dream-dev
+- [ ] `T-006#B-002` **独立子代理复核（不许自己验自己）** _review_ — 进行中 @dream-dev
     - 做什么：派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。
     - 判据：复核输出落文件（路径写进本块），含逐条 ✓/✗ 与不一致明细；有 ✗ 就回到对应块整改。
+    - 在做：@dream-dev · 线程 deleg_281477ba#0 · `/Users/maxim/.hermes/cache/delegation/live/deleg_281477ba/task-0.log`
+    - run 2026-10-11 17:54 dream-dev pending→running 派独立子代理复核（只读、前台命令、不起后台进程）
 
 ## 日志（近 20 条）
 
-- `2026-10-11 17:41` **agent** [task] 新增任务 T-006「验收：一轮无人值守 + 独立复核」
-- `2026-10-11 17:41` **agent** [block] 新增块 T-006#B-001「在 AgentSkill-copy 上跑一轮无人值守，四条断言全过」
 - `2026-10-11 17:41` **agent** [block] 新增块 T-006#B-002「独立子代理复核（不许自己验自己）」
 - `2026-10-11 17:41` **skillweave-review** [summary] 本计划由外部 review（SkillWeave 侧）写成，交给 Dream 的 developer 执行。关键取证：dream-v3#T-002#B-001 标 done，但它的 done_when 今天有三条不成立（SKILL.md 两节仍在、sweep-plan.py 仍有 dedupe、dream-hermes-routing 仍引用 S10）—— 先查清再动手（T-001）。
 - `2026-10-11 17:53` **agent** [summary] T-001 判定：**不是误标、也不是回归，是「未合并」**。证据：`## S10 · 合并` 由 2f52f41（10-11 11:30，main 与 dream-v3 都有）加入，由 5b957be（10-11 15:xx，**只在分支 dream-v3**）删除；`git log --all --oneline -S` 对 S9/S10 各给出 def7765/2f52f41（加）与 5b957be（删）；`git branch --contains 5b957be` 只有 dream-v3。外部 review 量的 main（af9c70c 附近）当然还看得到旧文本。dream-v3#T-002#B-001 的 done 在**分支上成立**。
@@ -154,6 +156,8 @@ flowchart LR
 - `2026-10-11 17:53` **agent** [status] T-006#B-001: pending → done（四条断言全过（原文见日志）；S5 写 54 / 挡 11，S6 PASS 54 · FAIL 0；S2 复用既有 verdicts（同一 id 空间）故不作为计时证据）
 - `2026-10-11 17:53` **agent** [decision] T-005#B-002：dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done，但补一条 note 说明「在分支 dream-v3 上成立，main 上要等这次收尾合并才成立」，免得下一个人在 main 上量到旧文本又当成误标。
 - `2026-10-11 17:53` **agent** [status] T-005#B-002: pending → done（dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done 并补一条 note 说明它在分支上成立、main 要等收尾合并；已在 dream-v3 plan 上执行（读回：该块 runs 最后一条是这句））
+- `2026-10-11 17:54` **agent** [exec] T-006#B-002: 登记线程 deleg_281477ba#0 @dream-dev · 转录 /Users/maxim/.hermes/cache/delegation/live/deleg_281477ba/task-0.log（派独立子代理复核（只读、前台命令、不起后台进程））
+- `2026-10-11 17:54` **agent** [status] T-006#B-002: pending → running（派独立子代理复核（只读、前台命令、不起后台进程））
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render handover-to-skillweave` 生成。
