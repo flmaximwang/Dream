@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T17:57:05+08:00",
+  "updated_at": "2026-10-11T17:58:51+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -86,7 +86,7 @@
           "output": "",
           "command": "",
           "done_when": [
-            "skills/dream/SKILL.md 不再有 S9/S10 两节：grep 'S9|S10|全库去重|合并 / umbrella' 在正文 0 命中，概念转指只出现在边界节一处（用词「技能库/pack 的整理与优化…→ SkillWeave」）；sweep-plan.py --help = {scan,merge}；包内形状自检改由 SkillWeave 的 weave.py checks 承担（对 Dream 报 0 命中）。【判据更正】原判据之二「check-disclosure.py skills/dream exit 0」已随 T-002#B-004 删除该脚本而自相矛盾（独立复核指出），改用 SkillWeave checks。"
+            "skills/dream/SKILL.md 不再有 S9/S10 两节：grep 'S9|S10|全库去重|合并 / umbrella' 在正文 0 命中，概念转指只出现在边界节一处（用词「技能库/pack 的整理与优化…→ SkillWeave」）；sweep-plan.py --help = {scan,merge}；包内形状自检改由 SkillWeave 的 weave.py checks 承担，**命令的根写死为 Dream 仓库根**（；传单个 skill 目录会得到一条与 Dream 无关的伪 name_mismatch），对 Dream 报 0 命中。【判据更正】原判据之二「check-disclosure.py skills/dream exit 0」已随 T-002#B-004 删除该脚本而自相矛盾（独立复核指出），改用 SkillWeave checks。"
           ],
           "artifacts": [
             "/Users/maxim/Repositories/Repo/Dream.wt-v3/skills/dream/SKILL.md",
@@ -96,7 +96,7 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T17:56:47+08:00",
+          "status_since": "2026-10-11T17:58:51+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:53:32+08:00",
@@ -111,6 +111,13 @@
               "from": "done",
               "to": "done",
               "note": "独立复核（deleg_281477ba）指出原判据两条字面不成立：①转指行不含被 grep 的 token ②判据要的 check-disclosure.py 被本任务 B-004 删掉。删除目标本身达成，判据按上面改写。"
+            },
+            {
+              "at": "2026-10-11T17:58:51+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "done",
+              "note": "第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。"
             }
           ]
         },
@@ -544,7 +551,7 @@
           "id": "T-006#B-002",
           "title": "独立子代理复核（不许自己验自己）",
           "kind": "review",
-          "status": "running",
+          "status": "done",
           "owner": "dream-dev",
           "doc": "派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。",
           "input": "",
@@ -554,20 +561,14 @@
             "复核输出落文件（路径写进本块），含逐条 ✓/✗ 与不一致明细；有 ✗ 就回到对应块整改。"
           ],
           "artifacts": [
-            "/Users/maxim/.hermes/cache/scratch/handover-review.md"
+            "/Users/maxim/.hermes/cache/scratch/handover-review.md",
+            "/Users/maxim/.hermes/cache/scratch/handover-rereview.md"
           ],
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {
-            "by": "dream-dev",
-            "started": "2026-10-11T17:57:05+08:00",
-            "delegation": "deleg_d8e69285",
-            "task_index": 0,
-            "transcript": "/Users/maxim/.hermes/cache/delegation/live/deleg_d8e69285/task-0.log",
-            "note": "第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）"
-          },
-          "status_since": "2026-10-11T17:57:05+08:00",
+          "exec": {},
+          "status_since": "2026-10-11T17:58:51+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:54:05+08:00",
@@ -589,6 +590,13 @@
               "from": "done",
               "to": "running",
               "note": "第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）"
+            },
+            {
+              "at": "2026-10-11T17:58:51+08:00",
+              "by": "dream-dev",
+              "from": "running",
+              "to": "done",
+              "note": "第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据： = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。"
             }
           ]
         }
@@ -953,7 +961,28 @@
       "kind": "status",
       "text": "T-006#B-002: done → running（第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台））",
       "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:58:51+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-002#B-001: done → done（done_when 已更新）（第二轮复核（deleg_d8e69285）✓，另提一条非阻断偏差：checks 的根要写死成仓库根，否则传 skills/dream 会出伪 name_mismatch ⇒ 判据已把这句写进去。）",
+      "ref": "T-002#B-001"
+    },
+    {
+      "at": "2026-10-11T17:58:51+08:00",
+      "actor": "agent",
+      "kind": "exec",
+      "text": "T-006#B-002: 线程登记已清除（@dream-dev 收工）",
+      "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:58:51+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-006#B-002: running → done（第二轮窄复核（deleg_d8e69285，只读，1m40s）：3 个块全部 ✓，上轮 1⚠+2✗ 全部关掉。硬证据： = NOT ancestor（佐证「未合并」）；T-005#B-002 的 note 确在 runs[3] 与 PLAN.md:72/:166（假阳性确认）。两条非阻断偏差已处理：checks 的根写死进判据；证据文件补了「计数 +1 来自整改提交」的附注。）",
+      "ref": "T-006#B-002"
     }
   ],
-  "rev": "05f77c592875"
+  "rev": "b923b1765d27"
 }
