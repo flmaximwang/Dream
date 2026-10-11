@@ -2,13 +2,13 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 14:47
+**进度** 5/10 块（50%） · 状态 `active` · 更新于 2026-10-11 14:55
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
-- `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 待认领 · @未指派
+- `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** — 进行中 · @未指派 · 在做 @default
 - `T-004#B-002` **主 run 上下文瘦身** — 待认领 · @未指派
 - `T-004#B-003` **S3 交叉审计降本：不再每条重叠行一个子代理** — 待认领 · @未指派
 
@@ -34,8 +34,10 @@ flowchart LR
   T-005_B-001 --> T-006_B-001
   classDef done stroke-width:1px;
   class T-001_B-001,T-001_B-002,T-002_B-001,T-003_B-001,T-003_B-002 done;
+  classDef running stroke-width:1px;
+  class T-004_B-001 running;
   classDef ready stroke-width:1px;
-  class T-004_B-001,T-004_B-002,T-004_B-003 ready;
+  class T-004_B-002,T-004_B-003 ready;
   classDef waiting stroke-width:1px;
   class T-005_B-001,T-006_B-001 waiting;
 ```
@@ -85,14 +87,16 @@ flowchart LR
     - 产物：`/Users/maxim/.hermes/cache/scratch/sweep-v3/plan.md`
     - run 2026-10-11 14:47 default pending→done merge exit 0（覆盖率 100%，无 exit 4）：plan.md 43KB / resolved.json / install-cmds.sh 生成；命中 16 个包、拟建 12 个新包（只报不建）。99 条里 existing 86 / new 13，action move 75 / merge 11；15 条 confidence<0.6 进 S3 复核队列。
 
-### T-004 机械步骤脚本化：写入/验证/重装/退役 — 待认领
+### T-004 机械步骤脚本化：写入/验证/重装/退役 — 进行中
 前置 T-002, T-003
-- [ ] `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** _impl_ — 待认领
+- [ ] `T-004#B-001` **机械步骤进脚本（apply/verify/install/retire）** _impl_ — 进行中
     - 做什么：把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文件。
     - 判据：一轮里：写入+提交+推送由一条命令完成，装回回读与退役各一条命令完成；贴四条命令与输出；无残留临时文件。
     - 依赖：T-002#B-001（任务级）
     - 依赖：T-003#B-001（任务级）
     - 依赖：T-003#B-002（任务级）
+    - 在做：@default
+    - run 2026-10-11 14:55 default pending→running apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。
 - [ ] `T-004#B-002` **主 run 上下文瘦身** _impl_ — 待认领
     - 做什么：主 run 禁读 sweep-plan.py 全文（沿用 plans/dream-perf T-001#B-001 的结论），每步只留「一条命令 + 一段摘要」，脚本用法下沉 references。
     - 判据：贴一轮的每次调用 prompt 峰值与最大单条工具结果；无 >40KB 的上下文炸弹。
@@ -124,8 +128,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 13:53` **agent** [block] 新增块 T-002#B-001「删除 S9/S10 并改边界节」
-- `2026-10-11 13:53` **agent** [block] 新增块 T-003#B-001「判官直连 deepseek-flash 分块判」
 - `2026-10-11 13:53` **agent** [block] 新增块 T-003#B-002「merge 覆盖率 100% 实测」
 - `2026-10-11 13:53` **agent** [block] 新增块 T-004#B-001「机械步骤进脚本（apply/verify/install/retire）」
 - `2026-10-11 13:53` **agent** [block] 新增块 T-004#B-002「主 run 上下文瘦身」
@@ -144,6 +146,8 @@ flowchart LR
 - `2026-10-11 14:47` **agent** [decision] T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）
 - `2026-10-11 14:47` **agent** [status] T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）
+- `2026-10-11 14:55` **agent** [status] T-004#B-001: pending → running（apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。）
+- `2026-10-11 14:55` **agent** [decision] apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。

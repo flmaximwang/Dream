@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T14:47:50+08:00",
+  "updated_at": "2026-10-11T14:55:52+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -241,7 +241,7 @@
           "id": "T-004#B-001",
           "title": "机械步骤进脚本（apply/verify/install/retire）",
           "kind": "impl",
-          "status": "pending",
+          "status": "running",
           "owner": "",
           "doc": "把 S5 写入 / S6 验证 / S7 整包重装 / S8 退役 做进脚本子命令（apply / verify / install / retire），主 agent 只发一条命令并读摘要；只有写不出正确形态的行才回退一个子代理。写入按 pathspec、push origin <sha>:main、不动别人的在途文件。",
           "input": "",
@@ -254,9 +254,20 @@
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {},
-          "status_since": "2026-10-11T13:53:45+08:00",
-          "runs": []
+          "exec": {
+            "by": "default",
+            "started": "2026-10-11T14:55:52+08:00"
+          },
+          "status_since": "2026-10-11T14:55:52+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T14:55:52+08:00",
+              "by": "default",
+              "from": "pending",
+              "to": "running",
+              "note": "apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。"
+            }
+          ]
         },
         {
           "id": "T-004#B-002",
@@ -575,7 +586,21 @@
       "kind": "status",
       "text": "T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）",
       "ref": "T-003#B-001"
+    },
+    {
+      "at": "2026-10-11T14:55:52+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-001: pending → running（apply.py 落地（commit bb1f200）：apply/verify/install/retire 四个子命令 + --self-test。实测三条：① safe 行在 throwaway 包上写入成功（commit 只含该技能目录，--no-push）；② 两条非 safe（caution/dangerous）被扫描闸挡住、工作区无残留；③ verify 在未推送时正确报 FAIL（dir=True / origin/main=False / diff 未装）。差最后一步：真写整批（75 行 move+__new__）要在一轮里跑，留在 T-005。）",
+      "ref": "T-004#B-001"
+    },
+    {
+      "at": "2026-10-11T14:55:52+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "apply.py 的机械面已定形：resolved.json 的 dest 是**摊平在顶层**的（repo/kind/dest_skill/action），不是嵌套 —— 按嵌套读会一行都匹配不到（自检里抓到的第一个真 bug）。第三条：扫闸（tools.skills_guard）会真的挡住 caution/dangerous，脚本按「回滚拷贝+不提交」处理，不留工作区残留。",
+      "ref": "T-004#B-001"
     }
   ],
-  "rev": "9c48d56bfa3c"
+  "rev": "9e79ba3175da"
 }
