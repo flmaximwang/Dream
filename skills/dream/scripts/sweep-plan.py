@@ -24,7 +24,7 @@ Classification is the three kinds this pack already names, and only the third is
 ## v2 · 判官要读全文，答案空间是全部 AgentSkill-* 目录（2026-10-10 用户改口径）
 
 - `judge-input.json` 每条带 `path` / `skill_md` / `refs`，判官**必须读 SKILL.md 全文**（只说 name+desc
-  就是偷懒判法，用户已驳回）；`judge-input-bodies.json` 把正文内联，给只会看文本的判官（JEV）用。
+  就是偷懒判法，用户已驳回）；`judge-input-bodies.json` 把正文内联，给只会看文本的判官（分块直调的判官）用。
 - 答案空间分两轴先判：`{kind:"new", axis:"tool"|"topic", topic, personal, boundary}` 会落到
   `AgentSkill-Using<Topic>` / `AgentSkill-<Topic>`，归一化后撞上已有目录名就**复用那个仓库**；
   多条同 topic **合并进一个包**。`existing` 的 `repo` 可以是 `~/Documents/AgentSkill` 下**任一**
@@ -89,6 +89,10 @@ def load_parser(override: str = "") -> tuple:
         here.parents[2] / PARSER_SKILL / "scripts" / "skill-index.py",          # repo / installed layout
         here.parents[2].parent / PARSER_SKILL / "scripts" / "skill-index.py",   # one level up, defensive
     ]
+    if not override and not any(p.is_file() for p in cands):
+        # 在 worktree 里开发时兄弟技能不在旁边（它只在 profile 里装好）——退回装好的那份，别让一轮卡在 S1
+        for root in (HERMES_HOME, pathlib.Path.home() / ".hermes"):
+            cands += sorted(root.glob(f"skills/*/{PARSER_SKILL}/scripts/skill-index.py"))
     for p in cands:
         if p.is_file():
             spec = importlib.util.spec_from_file_location("_sweep_sibling_index", p)
@@ -217,7 +221,7 @@ def cmd_scan(args) -> int:
     # Frozen judge input: one P<k> per candidate, script-generated so that no hand transcription can drift
     # from what the judges were actually asked (the pack's own judge lesson). v2 carries the absolute path so
     # the judge CANNOT judge from the name alone — it must read the full SKILL.md; `bodies` inlines the text
-    # for judges that only ever see a string (JEV), so both routes see the same full document.
+    # for judges that only ever see a string (chunked API judge), so both routes see the same full document.
     bodies = {}
     judge_input = []
     for i, r in enumerate(local, 1):
@@ -274,7 +278,7 @@ def cmd_scan(args) -> int:
           f"parser={parser_path}")
     print(f"[sweep-plan] 判官必须读每条 P<k> 的 skill_md 全文（judge-input.json 给了绝对路径；只吃文本的判官用 "
           f"judge-input-bodies.json）")
-    print(f"[sweep-plan] next: judge every P<k> (JEV, else classifier children) -> {out}/verdicts*.jsonl, then "
+    print(f"[sweep-plan] next: judge every P<k>（`judge.py --dir <out>`，分块直调） -> {out}/verdicts*.jsonl, then "
           f"`merge --dir {out} --profile {args.profile}`")
     return 0
 
