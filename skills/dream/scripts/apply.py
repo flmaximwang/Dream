@@ -385,17 +385,23 @@ def do_verify(args) -> int:
         pack = pack_path(args, dest["repo"])
         name = pathlib.Path(r["_src"]).name
         dir_ok = (pack / "skills" / name / "SKILL.md").is_file()
-        # 要核实的是"S5 报的那条提交真在这个包里"；origin/main 是额外的"已发布"要求，
-        # 所以先认 origin/main，认不上再看本地 HEAD —— 本轮 --no-push 时提交只可能在本地（否则全是假 FAIL），
-        # 没有远端的测试副本走同一支。都比不上才是真 FAIL。
-        sha = written[r["id"]].split("@")[-1]     # 比全 sha 的前缀：`git log --oneline` 只印 7 位，缩写比会假 FAIL
-        refs = {"origin/main": sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack)).stdout.strip(),
-                "HEAD": sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()}
-        where, remote_ok = "origin/main/HEAD 都没有", False
-        for label in ("origin/main", "HEAD"):
-            if refs[label] and refs[label].startswith(sha):
-                where, remote_ok = (label if label == "origin/main" else "HEAD(未推)"), True
-                break
+        # 要核实的是"S5 报的那条提交真在这个包里"。别拿它 == HEAD 去比：writer 这类后续提交会把
+        # HEAD 往前推，那样上一阶段真写进去的行会被误判 FAIL（实测 40 行假 FAIL）。
+        # 判据 = 这条提交在这个包的历史里；命中 origin/main 的历史另算"已发布"。
+        sha = written[r["id"]].split("@")[-1]     # 缩写；`git rev-parse` 能解
+        full = sh(["git", "rev-parse", "--verify", "-q", f"{sha}^{{commit}}"], cwd=str(pack)).stdout.strip()
+        head_now = sh(["git", "rev-parse", "HEAD"], cwd=str(pack)).stdout.strip()
+        remote = sh(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=str(pack)).stdout.strip()
+        anc = lambda a, b: bool(a) and bool(b) and \
+            sh(["git", "merge-base", "--is-ancestor", a, b], cwd=str(pack)).returncode == 0
+        if not full:
+            where, remote_ok = "不在这个包里", False
+        elif anc(full, remote):
+            where, remote_ok = "origin/main 历史里（已发布）", True
+        elif anc(full, head_now):
+            where, remote_ok = "HEAD 历史里（未推）", True
+        else:
+            where, remote_ok = "不在这个包的历史里", False
         installed = list((HERMES_HOME / "skills").rglob(name))
         diff = sh(["diff", "-rq", str(pack / "skills" / name), str(installed[0])]).stdout.strip() if installed else "not installed yet"
         line = f"{r['id']} dir={dir_ok} 提交在{where}({sha}) diff={'-' if not diff else diff[:60]}"
