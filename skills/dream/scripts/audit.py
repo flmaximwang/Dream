@@ -66,7 +66,9 @@ def load(d: pathlib.Path):
     verdicts = []
     for f in sorted(d.glob("verdicts-*.jsonl")):
         verdicts += [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
-    resolved = {r["id"]: r for r in json.loads((d / "resolved.json").read_text())}
+    # resolved.json 是 **S4** 的产物：S3 在它之前跑，所以这里是可选的（别让审计卡在顺序上）
+    rp = d / "resolved.json"
+    resolved = {r["id"]: r for r in json.loads(rp.read_text())} if rp.exists() else {}
     packs = {p["repo"]: p for p in json.loads((d / "packs.json").read_text())}
     return verdicts, resolved, packs
 

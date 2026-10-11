@@ -183,8 +183,11 @@ def do_apply(args) -> int:
     out = d / "apply-report.json"
     out.write_text(json.dumps({"results": results, "manual": [r["id"] for r in manual]}, ensure_ascii=False, indent=1))
     bad = [x for x in results if x[1] in ("BLOCKED", "SKIP")]
-    print(f"[apply] 写入 {len([x for x in results if x[1]=='WRITTEN'])} 行 · 阻断/跳过 {len(bad)} 行 → {out}")
-    return 0 if not bad else 1
+    wrote = len([x for x in results if x[1] == "WRITTEN"])
+    print(f"[apply] 写入 {wrote} 行 · 阻断/跳过 {len(bad)} 行 → {out}")
+    # 单行被挡/跳过是**正常结局**（扫描闸挡下、包里有别人的改动），逐行进报告即可；
+    # 只有「有活要干却一行都没落地」才算失败，否则轮到下一阶段没意义。
+    return 0 if wrote or not todo else 1
 
 
 def do_verify(args) -> int:
