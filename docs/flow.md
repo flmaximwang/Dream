@@ -70,7 +70,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
 | **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
-| **S6 独立验证** | 脚本（只读） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 | 逐行 PASS/FAIL（`verify-r1.log` 之类） | 有 FAIL → exit 1，回 S5 修 |
+| **S6 独立验证** | 脚本（只读，0 次模型调用） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 + S5 的报告 | 逐行 PASS/FAIL（日志可留下，如 `verify-r1.log`） | 见下方「S6 逐行核什么」；有 FAIL → exit 1，回 S5 修 |
 | **S7 装回** | 脚本 | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave，不自己 `git mv` |
 | **S8 退役** | 脚本 + 汇报 | `apply.py retire --dir <out> --backup ~/.hermes/backups/dream-retire` | verify 通过的行 | 先 `tar czf` 备份（路径写进汇报）再删 profile 副本 | 只对**回读通过**的行动手；修不动的那行跳过，副本不删 |
 | **收尾汇报** | 主 agent | —— | 上面全部产物 | 四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事 | 只读产出与真写入**分开写**（只读：N 行涉及 M 个包名／真写入：K 个包 + 各自 sha） |
@@ -92,6 +92,19 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 7. **技能树指纹比对**：S1 记下的每个技能目录的哈希当场回读一次，变了就写 `profile-stale.json`。
 
 产出里 `install-cmds.sh` 只是**命令清单**，S4 不执行任何一条；真正装回是 S7。
+
+### S6 逐行核什么（不采信 S5 的自述，重新去包里读）
+
+对 S5 报过"已写入"的每一行，独立核这四件：
+
+1. **交付目录在包里存在**：那条技能确实在落点包的技能清单里。
+2. **提交对得上**：包里 `origin/main` 的 sha 就是 S5 报的那一条（没有远端时退回本地 HEAD）。比较时用完整 sha 前缀，避免缩写造成的假 FAIL。
+3. **两边内容一致**：`diff -rq` 比"包里的那份"和"profile 里装的那份"；这一步在装回之前跑，所以通常显示"还没装"。
+4. **安装来源标识符指向该仓库**（装回之后才核得到）。
+
+**它不核什么**：正文写得对不对（那是 S3 + writer 的活）；writer 改过正文的那些行目前不在这套检查里（见 §7 缺口）。
+
+**结果**：逐行 PASS/FAIL；出现 FAIL → 这一步以 exit 1 结束，回 S5 修，修不动的行在后面退役时会被跳过、副本不删。
 
 ## 4 · 哪几步仍然要模型（其余全是脚本）
 
