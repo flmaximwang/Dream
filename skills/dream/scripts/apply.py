@@ -30,7 +30,9 @@ import tarfile
 import time
 
 # profile 级那一个常量（包内形状由 SkillWeave 量，dream 不实现第二套）。
-MAX_AGENT_SKILLS = 120
+# 2026-10-11 本人拍板：由 120 改成 300 —— 本机 profile 当时已有 263 个技能，120 会让每一次真装都被挡
+# （闸门的意义是挡住「往上涨」，不是挡住现状）；撞上 300 说明该先清退。--max-skills 仍是校准旋钮。
+MAX_AGENT_SKILLS = 300
 SKIP_DIRS = {".hub", ".git", ".archive", "__pycache__", "quarantine", ".trash"}
 
 HERMES_HOME = pathlib.Path.home() / ".hermes"

@@ -176,7 +176,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 
 | 常量 | 值 | 管什么 |
 |---|---|---|
-| `MAX_AGENT_SKILLS` | 120 | **profile** 技能总数 → S7 装前闸门（`apply.py install`） |
+| `MAX_AGENT_SKILLS` | 300 | **profile** 技能总数 → S7 装前闸门（`apply.py install`；撞上说明该先清退，`--max-skills` 可改） |
 
 **包内形状（行数 / 字节 / doc 字节 / 第一层条目）一律由 SkillWeave 量**——repo 侧只留 one 实现，dream 不重复实现第二套：
 命令：SkillWeave 的 `weave.py layers|checks <pack 目录>`（仓库见下面「边界」节）。
