@@ -3,6 +3,9 @@
 把一批「没有仓库归属」的本地技能**无人值守**地批量收编进技能包仓库：枚举 → 按内容判落点 → 交叉审计 →
 自动决议 → 写入 → 独立验证 → 整包重装 → 退役。
 
+**边界（2026-10-11）**：只做「收编 + 装回」。包内整理——多条合并 / umbrella、与包同名的本地副本清退、
+无类目技能归位——归 **SkillWeave** 项目，dream 不含这一步。目标：一轮 ≤20 分钟（见 `plans/dream-v3/`）。
+
 **一个方法本体 + 一个 agent 一个适配技能**：方法本体不把任何 agent 当主语；某个 agent 的容器判据、
 安装命令与判官接线由该 agent 的适配技能提供。
 
@@ -12,10 +15,11 @@
 |---|---|
 | `skills/dream/` | **general 方法主技能**（`SKILL.md` 第一层 + `references/dream-method.md` 细节 + `scripts/sweep-plan.py`） |
 | `skills/dream-hermes-routing/` | Hermes 适配技能（profile 容器判据 / `hermes skills` 安装命令 / JEV 判官接线） |
+| `plans/dream-v3/` | **当前计划**：Dream v3 —— 一轮 ≤20 分钟、砍掉 skill-pack 优化步骤（口径冻结在 `docs/scope.md`） |
 | `plans/dream-perf/` | 执行效率优化计划（2026-10-11 实测基线驱动：上下文瘦身 / 回合数压缩 / 两条硬事实 / 按 profile 拆批） |
 | `plans/dream-upgrade/` | 本项目开发的 loomerto 计划（**计划持久化在项目里**，随项目一起提交） |
-| `plans/skill-library-stewardship/` | skill 库结构化整理（归类 / 合并 / umbrella-building）由 dream 接管——自治维护已全局关闭之后的执行者 |
-| `docs/acceptance.md` | 验收清单（每条要求 → 判据 → 实测命令与输出） |
+| `plans/skill-library-stewardship/` | skill 库结构化整理（归类 / 合并 / umbrella-building）——**已移交给 SkillWeave**（2026-10-11），dream 不再做这一步 |
+| `docs/scope.md` | v3 的范围与验收口径（四条硬口径 + 基线） |
 
 ## 安装
 

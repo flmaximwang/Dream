@@ -14,6 +14,9 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 - 不属于本 skill：单个 skill 的收编（→ `recruit-learning-in-profile`）、装/更/卸的机制
   （→ `install-` / `update-` / `remove-hermes-skills`）、跨 profile 补齐（→ `maintain-hermes-profile-skill-parity`）、
   一轮会话自己的收获（→ `recruit-learning-in-session`）。
+- **也不属于本 skill：技能库/pack 的整理与优化**——包内多条合并 / umbrella、与包同名的本地副本清退、
+  无类目技能归位。那是 **SkillWeave**（用户在建的项目）的活。dream 只做一件事：把「没有仓库归属的本地技能」
+  收编进包仓库并装回（S1–S8），批次收尾就是退役与汇报。
 - **本 skill 不把任何 agent 当主语**：某 agent 的容器判据（哪些 skill 算「没有仓库归属」）、安装/更新/卸载命令、
   判官接线、私有路径，一律由**该 agent 的适配技能**提供。**Hermes 的落点见同族 `dream-hermes-routing`**
   （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = JEV 或分类子代理）。
@@ -31,7 +34,6 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | S6 验证 | **一条与所有 writer 不同的验证子代理** | 「自己写自己验」有乐观偏差 | 只读 |
 | S7 整包重装 | **主 agent 跑脚本生成的命令** | 命令由 lock 证据生成、条数与代价要在眼前 | 不装本批没改动的包 |
 | S8 退役与汇报 | **主 agent** | 删除是最后一步，且必须等回读 | 回读没通过不许删 |
-| S9 全库去重 + 无类目归位 | **主 agent 跑 `scripts/sweep-plan.py dedupe --fix-no-category`** | 几百个副本手工比对必错；去重判据是脚本产物 | 不先 `--dry-run`、不备份就删；给无类目技能硬造类目 |
 
 并发上限 10：>10 个包时按包分波（每波 ≤10 个 writer）。所有子代理**前台跑完即结束**——子代理起后台进程会把
 完成通知的会话路由 pin 到子代理身上，人面会话被顶掉。子代理不能提问，**主 agent 也不提问**。
@@ -106,21 +108,6 @@ README 是交付物的一部分 → 首推前必须扫出 `safe`。完整做法�
 
 退役**只在回读通过之后**：先 `tar czf` 备份并把路径写进汇报，再删本地副本；回读有 FAIL 的行先修，
 修不动的那行跳过（**副本不删**）。最后汇报四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事。
-
-## S9 · 全库去重 + 无类目归位
-
-`sweep-plan.py dedupe --fix-no-category --backup <目录>`。三种去重：SKILL.md 相同 → 直接删 local；
-不同且 local 有旧路径引用 → 先回移植再删；不同且无路径修复 → 包更新，直接删。无类目归位：候选类目
-**只能是该 profile 自己已有的类目**，匹配不上报「需要新类目」，不硬塞。**先 `--dry-run`**。
-`not_in_pack > 0` 是硬错误（exit 5）——**local 必须为 0**。
-
-## S10 · 合并 / umbrella
-
-**触发**：同一类任务上有 2+ 条成员、且维护者会为这一类起一个名字。**合法合并只有三步，顺序不可换**（每步一条台账）：
-`action=write_file` 把内容写进 umbrella 的支持目录（`references/<topic>.md` 按题目命名 / `templates/` / `scripts/`）→
-`action=remove_file` 删源里的原文 → `action=delete` 源且**必带 `absorbed_into=<umbrella>`**（不带会被守卫直接拒绝）。
-**umbrella 的 description 必须把触发类留在前 57 字符窗口内**。反例与完整判据：`references/dream-method.md#s10`。
-
 ## 检查点
 
 | 触发 | 动作 |
@@ -173,11 +160,11 @@ python3 -B skills/dream/scripts/check-disclosure.py skills/dream
 dream/
 ├── SKILL.md                       ← 第一层：边界/分工/决议/每步一行转指
 ├── references/
-│   ├── dream-method.md            ← S1–S10 的完整做法（SKILL.md 各步的转指目标）
+│   ├── dream-method.md            ← S1–S8 的完整做法（SKILL.md 各步的转指目标）
 │   ├── dream-agent-roster.md      ← 五种子代理任务书（逐字可抄）、并发与分波、必须回的收据
 │   └── dream-judge-routing.md     ← 判官题面（两轴 + 三段问法）、分块、dest 形状、降级路径
 └── scripts/
-    ├── sweep-plan.py              ← scan / merge / dedupe
+    ├── sweep-plan.py              ← scan / merge
     └── check-disclosure.py        ← 上限自检（SKILL.md / 单文档 / 第一层 skill 数）
 ```
 
@@ -198,10 +185,10 @@ dream/
 
 | 文件 | 承担什么 |
 |---|---|
-| `references/dream-method.md` | S1–S10 的完整做法与判据（含「合并 / umbrella」） |
+| `references/dream-method.md` | S1–S8 的完整做法与判据 |
 | `references/dream-agent-roster.md` | 五种子代理任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | 判官题面模板、分块、`dest` 形状、`source` 标注、降级路径 |
-| `scripts/sweep-plan.py` | `scan` / `merge` / `dedupe`（含 `--self-test`） |
+| `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
 | `scripts/check-disclosure.py` | 分层披露长度上限自检 |
 
 ## Skill Structure
