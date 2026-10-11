@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T22:07:43+08:00",
+  "updated_at": "2026-10-11T22:28:58+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -1063,7 +1063,14 @@
       "kind": "decision",
       "text": "本人 2026-10-11 拍板（开发日志）：S7 装前闸门上限 MAX_AGENT_SKILLS 由 120 改成 300。理由：本机 default profile 当时已有 246–263 个技能，120 这个数会让每一次真装都被挡（闸门的意义是挡住「往上涨」，不是挡住现状）；撞上 300 说明该先清退。落点：apply.py 常量（含注释）、SKILL.md 常量表、docs/scope.md 引用；--max-skills 仍是校准旋钮。复测：现有 246 + 新装 1 = 247 ≤ 300 → 闸门放行。",
       "ref": "T-003#B-001"
+    },
+    {
+      "at": "2026-10-11T22:28:58+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "本人 2026-10-11 改口：skill 管理交给 Skills-Manager（~/.skills-manager/，官方 CLI skills-manager-cli --json）。因此 S7 的 local 判据换成「外部仓库列表里找不到对等物」。落点：新脚本 skills/dream/scripts/skill-mirror.py（where / same / check / repos-from-manager，三档 homed / drift / local，--self-test 通过）；仓库列表由 Skills-Manager 自身推出（15 个 clone + 中央库 = 16 条），不再靠 glob 猜。实测：Skills-Manager 管 71 个技能（git 48 / skillssh 23，14 个来源仓库；实际部署进 profile 的只有 4 个 symlink）；profile 248 个技能对 16 条来源 → homed 29 · drift 15 · local 204。全量对照表：~/.hermes/cache/scratch/skills-manager-sources.md",
+      "ref": "T-003#B-002"
     }
   ],
-  "rev": "b5da8053def5"
+  "rev": "bf82b3bbeb54"
 }
