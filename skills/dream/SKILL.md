@@ -24,7 +24,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 
 ## 主 run 的上下文纪律（决定这一轮跑不跑得完）
 
-主 run 只做三件事：**跑一条命令 · 读那段摘要 · 按规则决议**。判断与读写都在脚本和子代理里，不在主 run 的上下文里。
+主 run 只做三件事：**跑一条命令（一轮 = `bash scripts/round.sh`）· 读那段摘要 · 按规则决议**。判断与读写都在脚本和子代理里，不在主 run 的上下文里。
 
 - **不读源码**：`scripts/*.py` 一律不整篇读（要用法/形状读 `references/`，要看实现就 `--help` 或 `--self-test`）。
 - **不读长清单**：`plan.md` / `audit.md` / `install.log` 只读脚本打印的**摘要行**；要看某一行用 `grep`/`sed -n` 取那几行。
@@ -146,8 +146,6 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 
 | 触发 | 动作 |
 |---|---|
-| 判官分歧 / 置信低 / verdicts 缺失 / 无类目又给不出目标类目 | **没判完**：补一次判官重判；仍拿不准就在汇报里单列，**不进包也不删副本** |
-| 判官只凭 name / description 就下了落点（`evidence` 空） | 那条 verdict 不算数：退回判官，要求读全文 + 回一条正文原句 |
 | 落点是**新包** | 只报不建：包名与 boundary 进汇报「拟建」段 |
 | 候选 > 30 条 | 分块跑判官 / 分波派子代理，别一次灌进一个上下文 |
 | 扫描 verdict 非 `safe` | `apply.py` 自动回滚不提交；按扫描闸手册改写形态再扫，仍 `dangerous` 就不推并写进汇报 |
@@ -193,6 +191,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | `scripts/judge.py` | S2 判官：分块直调语言模型（逐块落盘 + 断点续跑） |
 | `scripts/audit.py` | S3 交叉审计：`claims` 逐条 grep，出 already-there / net-new |
 | `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire`（各带 `--dry-run` 或只读语义） |
+| `scripts/round.sh` | S1–S8 一条命令编排 + 逐阶段计时落 `stages.tsv`（`--test` 走副本 / `--plan` 只看清单） |
 | `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
 | `scripts/check-disclosure.py` | 分层披露长度上限自检 |
 
