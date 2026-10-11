@@ -37,6 +37,13 @@ profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
   本技能不读任何密钥、也不读任何配置文件的内容。
 - `routable`（有 remote + 本机真有 `SKILL.md`）**只决定能不能 `install` 回来，不限制它能否当落点**。
 
+**合并 / umbrella（Hermes 侧落值）**：方法本体在 `skills/dream` 的「合并 / umbrella」一节（S10）——三步
+LEDGERED 顺序（`action=write_file` 把内容写进 umbrella 的支持目录 → `action=remove_file` 删源里的原文 →
+`action=delete` 源且必带 `absorbed_into=<umbrella>`）、以及 umbrella 的 description 必须把触发类留在前 57
+字符窗口的判据，都在那里。Hermes 只补三点：台账 = `~/.hermes/skills/.curator_ledger.jsonl`（一行一步，
+`action` 就是那三个动作名）；前台 `skill_manage delete` 是**硬删**（`.archive/` 那条可恢复的路只走后台
+复盘通道）⇒ 动手前先 `hermes curator backup`；装回与回读三件同 §3 / §5。
+
 ## 3 · 安装命令（`hermes skills`）
 
 ```bash

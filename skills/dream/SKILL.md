@@ -114,6 +114,13 @@ README 是交付物的一部分 → 首推前必须扫出 `safe`。完整做法�
 **只能是该 profile 自己已有的类目**，匹配不上报「需要新类目」，不硬塞。**先 `--dry-run`**。
 `not_in_pack > 0` 是硬错误（exit 5）——**local 必须为 0**。
 
+## S10 · 合并 / umbrella
+
+**触发**：同一类任务上有 2+ 条成员、且维护者会为这一类起一个名字。**合法合并只有三步，顺序不可换**（每步一条台账）：
+`action=write_file` 把内容写进 umbrella 的支持目录（`references/<topic>.md` 按题目命名 / `templates/` / `scripts/`）→
+`action=remove_file` 删源里的原文 → `action=delete` 源且**必带 `absorbed_into=<umbrella>`**（不带会被守卫直接拒绝）。
+**umbrella 的 description 必须把触发类留在前 57 字符窗口内**。反例与完整判据：`references/dream-method.md#s10`。
+
 ## 检查点
 
 | 触发 | 动作 |
@@ -166,7 +173,7 @@ python3 -B skills/dream/scripts/check-disclosure.py skills/dream
 dream/
 ├── SKILL.md                       ← 第一层：边界/分工/决议/每步一行转指
 ├── references/
-│   ├── dream-method.md            ← S1–S9 的完整做法（SKILL.md 各步的转指目标）
+│   ├── dream-method.md            ← S1–S10 的完整做法（SKILL.md 各步的转指目标）
 │   ├── dream-agent-roster.md      ← 五种子代理任务书（逐字可抄）、并发与分波、必须回的收据
 │   └── dream-judge-routing.md     ← 判官题面（两轴 + 三段问法）、分块、dest 形状、降级路径
 └── scripts/
@@ -191,7 +198,7 @@ dream/
 
 | 文件 | 承担什么 |
 |---|---|
-| `references/dream-method.md` | S1–S9 的完整做法与判据 |
+| `references/dream-method.md` | S1–S10 的完整做法与判据（含「合并 / umbrella」） |
 | `references/dream-agent-roster.md` | 五种子代理任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | 判官题面模板、分块、`dest` 形状、`source` 标注、降级路径 |
 | `scripts/sweep-plan.py` | `scan` / `merge` / `dedupe`（含 `--self-test`） |

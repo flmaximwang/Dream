@@ -1,4 +1,4 @@
-# dream 方法本体（S1–S9 的完整做法）
+# dream 方法本体（S1–S10 的完整做法）
 
 本文件是 `SKILL.md` 的下一层：每一步的完整做法与判据。凡是与**某个 agent 绑定**的机制（容器判据、
 安装/更新/卸载命令、判官服务接线、私有路径），这里一律写成「适配层提供 X」——具体值在那个 agent 的
@@ -175,3 +175,42 @@ python3 -B skills/dream/scripts/sweep-plan.py dedupe \
 就说明这批没做完，不许当一句脚注收尾。
 
 🔴 **先 `--dry-run` 看一遍**，确认数字合理再真跑。备份落在 `--backup` 指定的目录。
+
+## s10 · 合并 / umbrella（把一簇窄 skill 收成一条类级技能）
+
+**触发**：同一类任务上有 **2+ 条成员**，且维护者会为这一类起一个名字。判据来源沿用 s2–s4 的分工
+（判官定落点、交叉审计核接收侧、人工闸放行）。自治维护已全局关闭（`auxiliary.background_review.enabled=false`
++ `curator.enabled=false` + `curator.consolidate=false`）⇒ 这一节的动作**只在有人在场的会话里做**。
+
+**合法合并只有三步，顺序不可换，每一步留一条台账**。台账 = `~/.hermes/skills/.curator_ledger.jsonl`，
+一步一行，`action` 就是下面这三个动作名（前台 `actor` = `agent`）：
+
+1. **吸收** —— `skill_manage action=write_file name=<umbrella> file_path=references/<topic>.md`
+   （按题目命名；模板进 `templates/`、脚本进 `scripts/`）。先让内容在 umbrella 里**落地并蒸馏**：
+   吸收来的正文变成规则（命令式 + 一句 why），同一课讲两遍的合成一条，事故叙述 / PR 号 / 日期丢掉。
+   把文件原样挪进 `references/` 是归档，不是合并。
+2. **清源** —— `action=remove_file` 删源里已经搬走的那份原文（`file_path` 用源目录内的相对路径）。
+   这一步两边都还在，可回读核对，先别急着销源。
+3. **销源** —— `action=delete name=<源> absorbed_into=<umbrella>`。**`absorbed_into` 必填**：不带
+   （或给空串）时 `_curator_consolidation_delete_guard`（`tools/skill_manager_guards.py:232`）当场拒绝
+   （fail-closed）；`_delete_skill`（`tools/skill_manager_tool.py:559`，校验在 :567–572）另要它指向
+   **已存在**的技能、且不等于被删的那个 ⇒ 所以第 1 步必须真的先落盘。
+
+**前 57 字符是产出**：umbrella 的 description 必须把**触发类**留在前 57 字符窗口内。系统提示里的技能索引
+按 57 字符截断（`agent/curator.py:299`、`tools/skill_manager_tool.py:830`），而检索按 description 匹配、
+不按名字 ⇒ 触发词飘到窗口外就**静默失效**（新旧触发词一起丢）。形状：`Use when <触发类>…` 打头，
+行为描述往后放。
+
+**前台 delete 是硬删**：`.archive/` 那条可恢复的路只在后台复盘通道走
+（`tools/skill_manager_tool.py:580`：`if _is_background_review()` 才 `archive_skill`）；人在场时走
+`shutil.rmtree`。所以动手前先 `hermes curator backup` 留一份快照，别指望 `.archive/`。
+
+**反例（不要做的事）**
+
+- **不带 `absorbed_into` 就 `delete`**：后台通道当场被 `_curator_consolidation_delete_guard` 拒（技能保持
+  active）；人在场时它**删得掉**，但台账上只留一条没有接收方的 `delete` —— 后人查不出内容去哪了。
+  正确顺序是先写 umbrella 再销源：接收方在那时已经存在、可记。
+- **用 shell `mv` / `cp` 搬 skill 内容**：`skill_manage` 之外的写入**不进台账**，
+  `.curator_ledger.jsonl` 里没有对应的 `write_file` / `remove_file` 行，回读时无从对账
+  （S5 的「不要用 `mv` 当迁移」是同一件事的批量版；包是 source of truth，副本只在回读之后退役）。
+  搬运只走 `skill_manage`。
