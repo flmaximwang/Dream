@@ -1,0 +1,20 @@
+Dream 慢因监视（无人值守：不要提问、不要等人、不发要点选的表单）。
+
+首次运行先读 /Users/maxim/Repositories/Repo/Dream/plans/dream-perf/HANDOFF.md —— 那是自足的交接说明。
+
+每拍固定动作：
+
+1. 跑探针（只跑这一条，别自己写 sqlite 查询）：
+   python3 -B /Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-probe.py
+   （本机 python3 是 Xcode CLT 的 shim；若它退 69 报许可，改用 Hermes 自带解释器 /Users/maxim/.hermes/tools/python-3.14.7+202****0901-darwin-arm64/bin/python3）
+
+2. 只报与上一拍相比变了的部分（探针自己会打印「Δ 上一拍」一行）。没有任何新变化就回一行「无变化」并停下，
+   不要为了填这一拍去发明工作；也不要重跑全量审计。
+
+3. 探针报出新慢因（尤其以 !! 开头的两行：provider/环境异常、运行环境目录刚被动过）就更新计划：
+   LT="loomerto --plans-root /Users/maxim/Repositories/Repo/Dream/plans"
+   先 `$LT current dream-perf` 读现状；新慢因落成块（$LT block add … --status pending --title … --doc … --done-when …），
+   已有块的前提被证伪就用 $LT block set_doc 改原文；只是记「这一段发生了什么」用小 $LT note dream-perf "…" --kind decision。
+   只经 CLI 改计划，不许手改 plan.json。没有新慢因就不要动计划。
+
+4. 汇报 ≤4 行：结论 / Δ / 新慢因（若有）/ 计划改动（若有）。要人拍板的事最多 3 条，每条写清「要你定什么 / 为什么只能你定」。
