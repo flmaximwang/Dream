@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T17:56:40+08:00",
+  "updated_at": "2026-10-12T00:41:34+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -833,7 +833,42 @@
       "kind": "status",
       "text": "T-002#B-001: done → done（done_when 已更新）（判据更正（handover 的独立复核指出原判据引用了一个已被删除的脚本）；本块在分支 dream-v3 上成立，main 待收尾合并。）",
       "ref": "T-002#B-001"
+    },
+    {
+      "at": "2026-10-11T22:52:44+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "落点池不再写死：~/.hermes/.env 的 DREAM_EXTERNAL_DIRS 指向一份本地 JSON（只装本人点名的目录；Skills-Manager 中央库不进 JSON，改由 external-dirs.py manager-skills 走它的 CLI 现查）。sweep-plan.py 加 --external-dirs（pack_candidates：目录自身或它的一层子目录都是落点）、apply.py 加 pack_path()（apply/verify/taskbook 共用）、round.sh 读 .env（formal 用清单、test 仍用 AgentSkill-copy）。S1 实测：239 技能 / 225 local / 299 落点（routable 53 · placeholder 246）/ 13.9s。commits 22829ed 9427ff5",
+      "ref": "T-004#B-001"
+    },
+    {
+      "at": "2026-10-11T23:18:52+08:00",
+      "actor": "agent",
+      "kind": "summary",
+      "text": "正式口径第 1 轮（走查）：S1 11.4s（239 技能 / local 225 → 预筛 homed 110 · drift 6 · managed 2 → 候选 107）· S2 285.3s（107/107，8 块，deepseek-flash）· S3 0.6s（重叠行 8 · claims 54 · already-there 12 · 零命中 4 · 0 次 LLM）· S4 4.2s（existing 93 / new 14 · 落点 23 包 · 新包 14 · move 99 / merge 8 · 1 行 stale：AgentSkill-UsingSkillsManager 的 HEAD 中途变了）。产物 sweep-20261011_230502-s1b。两个待定：14 个新包里有 ProgressHeartbeat 与 AnsweringProgressHeartbeats 两个同主题包（疑似判官拆重）、新包名出现 AgentSkill-UsingUsingDrawio / UsingUsingExcalidraw（命名公式疑似双 Using）。S5 写入还没跑（会改真包）",
+      "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-11T23:35:26+08:00",
+      "actor": "agent",
+      "kind": "summary",
+      "text": "S5/S6 在新鲜测试副本（AgentSkill-copy-dream-r1，逐包 HEAD 与真包一致）上实跑：WRITTEN 74 · BLOCKED 10（安全扫描闸：2 critical hermes_env_access · 1 high role_hijack · 1 high ssh_dir_access · 2 caution python_os_environ 等）· STALE 1（AgentSkill-UsingSkillsManager 真上游变）· 另有 22 条要 writer 改正文（manual）· S6 verify PASS 74 · FAIL 0 · 真包 0 非干净。教训：拿旧副本（17:51 那份 head 与真包不同）跑 apply 会让 42 行误报 stale —— input_commit 只在同一棵树上可比",
+      "ref": "T-005#B-001"
+    },
+    {
+      "at": "2026-10-12T00:19:29+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "S1 两个洞已修（commit 见 repo）：①身份从「名字」改成「相对路径」，find_dups 覆盖全部行并显式上报同名多份（原来只覆盖 local，bundled 的 docx/xlsx 会漏）；②inputs.json 记 profile 每个技能目录的 sha256 指纹，merge 回读比对、变了写 profile-stale.json —— 起因是实测别的会话在 00:17:24 把 default profile 技能树整棵扁平化（237 个技能全躺顶层、0 类目），S1 的数字从 239 变 237，旧结论会悄悄失效",
+      "ref": "T-004#B-001"
+    },
+    {
+      "at": "2026-10-12T00:41:34+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "15 态 / general 7 态已落地：S1 逐条算 state(A·source·mgr·ext·D)+action 写 inventory 两列与 states.json（含 general 7 态计数），控制台打印态分布与动作分布；scope.md §6 冻表（四轴定义、四种子类的权威副本、可比者清单、判方向三档、装回只交 Skills-Manager）；SKILL.md S1 与 method.md s1 同步；自检断言 15/7 的表形状（D 与「有无可比者」必须一一对应）。当刻实测（226 技能）：noop 110 · judge-destination 107 · reconcile 6 · patch-package 2 · patch-or-restore 1。顺带修的：同名多份检测、profile 技能目录 sha256 指纹（merge 回读→profile-stale.json）、解析器回退链（profile→manager 中央库→external_dirs 包内）",
+      "ref": "T-004#B-001"
     }
   ],
-  "rev": "684801c93896"
+  "rev": "7ec6b8cac8c1"
 }

@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-11 17:53
+**进度** 6/11 块（55%） · 状态 `active` · 更新于 2026-10-12 00:41
 
 **参与方** 本人(human)
 
@@ -62,14 +62,14 @@ flowchart LR
 前置 T-001
 - [x] `T-002#B-001` **删除 S9/S10 并改边界节** _impl_ — 已完成
     - 做什么：在 skills/dream/SKILL.md（边界节、检查点、反例）、references/dream-method.md、README.md 里删掉 S9（全库去重 + 无类目归位）与 S10（合并/umbrella）；边界节写明「不属于本 skill：skill-pack 优化/整理 → SkillWeave（用户在建）」；sweep-plan.py 的 dedupe 子命令一并删除（连同它的自检）。
-    - 判据：三处文件不再有 S9/S10 的步骤定义（grep 结果原文）；python3 -B skills/dream/scripts/check-disclosure.py skills/dream exit 0；sweep-plan.py --help 只剩新版子命令；README 索引表已同步。
+    - 判据：三处文件不再有 S9/S10 的步骤定义（worktree grep 'S9|S10|全库去重|合并 / umbrella' 正文 0 命中）；sweep-plan.py --help = {scan,merge}；README 索引表已同步；包内形状自检由 SkillWeave 的 weave.py checks 承担（原 check-disclosure.py 已在 handover-to-skillweave T-002#B-004 里从仓库删除，故不再作为本块判据）。
     - 依赖：T-001#B-001（任务级）
     - 依赖：T-001#B-002（任务级）
     - 产物：`skills/dream/scripts/sweep-plan.py`
     - 产物：`skills/dream/SKILL.md`
-    - run 2026-10-11 14:02 default pending→done S9/S10 全删：dedupe 子命令与 _suggest_category 移除（-252 行）、SKILL.md 删两节+分工表那行+加边界排除、method.md 删 s9/s10、routing 删 umbrella 落值、README 修过期引用。证据：--self-test OK、--help 只剩 scan/merge、check-disclosure 通过、grep 无残留。commit 5b957be（分支 dream-v3）。
     - run 2026-10-11 14:02 default done→done 第二条证据：边界节新增「技能库/pack 的整理与优化（合并/umbrella/副本清退/无类目归位）→ SkillWeave」，文档树与 Support files 同步为 S1–S8。
     - run 2026-10-11 17:53 dream-dev done→done 补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**（SKILL.md 无 S9/S10、sweep-plan.py 无 dedupe）；main 上仍是旧文本（删除提交 5b957be 只在 dream-v3）。等这次收尾把 dream-v3 合并进 main 之后，main 侧才同样成立。
+    - run 2026-10-11 17:56 dream-dev done→done 判据更正（handover 的独立复核指出原判据引用了一个已被删除的脚本）；本块在分支 dream-v3 上成立，main 待收尾合并。
 
 ### T-003 判官换 deepseek-flash（JEV 451 不用） — 已完成
 前置 T-001
@@ -144,12 +144,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 14:55` **agent** [assign] T-004#B-001 指派给 default（由本会话（default profile 的 agent）在做）
-- `2026-10-11 15:03` **agent** [status] T-004#B-002: pending → running（先落了 s8 汇报口径（只读落点 vs 真写入分开写，commit 见 worktree）；同块的正文瘦身未动。）
-- `2026-10-11 15:03` **agent** [exec] T-004#B-002: 线程登记已清除（@default 收工）
-- `2026-10-11 15:03` **agent** [status] T-004#B-002: running → pending（回退：刚才误记到这里（s8 汇报口径不是「上下文瘦身」），仍在待办。）
-- `2026-10-11 15:03` **agent** [decision] s8 汇报口径补进 dream-method.md（worktree commit 8930571）：只读落点数据与真写入必须分开写、写入为 0 就明写「0 个包被改动」。起因：本轮汇报把只读的包名和真写入混写，用户误以为我擅自改了包。
-- `2026-10-11 15:13` **agent** [status] T-004#B-001: running → running（按用户口径在 AgentSkill-copy 副本上整批实测（副本已删）：apply 全批 75 行耗时 7.6s → 写入 49 行（每包一次 pathspec commit）、scan 闸挡下 4 行（P2 dangerous、P12/P5/P35 caution）、UsingHermes 因工作区有别人的改动跳过 19 行、WebInspection 非 git 仓跳过 1 行；verify PASS 49 / FAIL 0（dir + sha；diff 如预期显示未 install）。真包工作区除 UsingHermes 的在途改动外全为 0 改动。修了两处真 bug：sha 前缀比（git log --oneline 只印 7 位 → 假 FAIL）、无远端时退回本地 HEAD。差：真推与 retire 未测（retire 会删 profile 真副本，不拿它当测试面）。）
 - `2026-10-11 15:23` **agent** [decision] 用户定案（2026-10-11）：包仓库是测试面 ⇒ 开发期一律 --no-push，测试轮跑到 verify 就停、不推不 retire；真推与退役留给正式轮。Dream 仓库开发完成后把 dream-v3 与主 clone 上别人的提交合并再按指示推。已写进 docs/scope.md §5。
 - `2026-10-11 15:26` **agent** [status] T-004#B-003: pending → running（选定做法（①+② 合体）：判官在 S2 同一批里逐字抄 3–8 条 claims（不给就退回重判，校验已进 judge.py），audit.py 拿 claims 去接收技能目录 grep -nF → 命中给 file:line、未命中进 net-new，全员未命中标 ⚠（落点存疑）。LLM 调用 0（v2 是每条重叠行一个子代理=第二次扇出），证据是 grep 真输出。判官已按新题面重跑中（后台 proc_d87619f42911），跑完 audit.py 出两份形状一致的清单 + wall/调用数。）
 - `2026-10-11 15:26` **agent** [assign] T-004#B-003 指派给 default（本会话在做）
@@ -164,6 +158,12 @@ flowchart LR
 - `2026-10-11 16:28` **agent** [summary] apply.py 加 taskbook 子命令（worktree 9b5dca5）：拿 resolved.json + audit.json 按包拼出可直接派的 writer 任务书 → <dir>/writers.md（每包含 clone 路径、逐行的源/接收目录、判官理由、already-there 与 net-new 清单、六条硬纪律、回执要求）；filter 只认「落点=已有技能」的行。本轮实测 17 行 / 10 包（AgentOrchestration P67 · LabProject P42/P78 · ObsidianManagement P43/P46 · SoftwareDev P66/P94/P96 · UsingComfyUI P16/P69 · UsingEagle P76 · UsingGit P41 · UsingGitAnnex P48/P75 · UsingHermes P1/P24 · UsingZotero P44）。
 - `2026-10-11 16:51` **agent** [summary] 正式轮预检（只读，未写任何包）：① 本轮要落地的 10 个包里 9 个 remote 可达（ssh BatchMode ls-remote 通过），只有 AgentSkill-UsingEagle 是**本地 git 仓但没有远端**（gh 查 flmaximwang/AgentSkill-UsingEagle 不存在）⇒ 那一行不能推，已在 apply.py 里改成「真推时先验远端，没有 origin 就整包跳过并写进报告」（commit aa662ac）。② 包根目录全景：290 个条目 / 288 个是 git 仓 / **258 个没有远端**（与 scan 的 routable=33 · placeholder=257 对得上）⇒ 「新包只报不建」这条规则以后会经常触发。
 - `2026-10-11 17:53` **agent** [status] T-002#B-001: done → done（补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**（SKILL.md 无 S9/S10、sweep-plan.py 无 dedupe）；main 上仍是旧文本（删除提交 5b957be 只在 dream-v3）。等这次收尾把 dream-v3 合并进 main 之后，main 侧才同样成立。）
+- `2026-10-11 17:56` **agent** [status] T-002#B-001: done → done（done_when 已更新）（判据更正（handover 的独立复核指出原判据引用了一个已被删除的脚本）；本块在分支 dream-v3 上成立，main 待收尾合并。）
+- `2026-10-11 22:52` **agent** [decision] 落点池不再写死：~/.hermes/.env 的 DREAM_EXTERNAL_DIRS 指向一份本地 JSON（只装本人点名的目录；Skills-Manager 中央库不进 JSON，改由 external-dirs.py manager-skills 走它的 CLI 现查）。sweep-plan.py 加 --external-dirs（pack_candidates：目录自身或它的一层子目录都是落点）、apply.py 加 pack_path()（apply/verify/taskbook 共用）、round.sh 读 .env（formal 用清单、test 仍用 AgentSkill-copy）。S1 实测：239 技能 / 225 local / 299 落点（routable 53 · placeholder 246）/ 13.9s。commits 22829ed 9427ff5
+- `2026-10-11 23:18` **agent** [summary] 正式口径第 1 轮（走查）：S1 11.4s（239 技能 / local 225 → 预筛 homed 110 · drift 6 · managed 2 → 候选 107）· S2 285.3s（107/107，8 块，deepseek-flash）· S3 0.6s（重叠行 8 · claims 54 · already-there 12 · 零命中 4 · 0 次 LLM）· S4 4.2s（existing 93 / new 14 · 落点 23 包 · 新包 14 · move 99 / merge 8 · 1 行 stale：AgentSkill-UsingSkillsManager 的 HEAD 中途变了）。产物 sweep-20261011_230502-s1b。两个待定：14 个新包里有 ProgressHeartbeat 与 AnsweringProgressHeartbeats 两个同主题包（疑似判官拆重）、新包名出现 AgentSkill-UsingUsingDrawio / UsingUsingExcalidraw（命名公式疑似双 Using）。S5 写入还没跑（会改真包）
+- `2026-10-11 23:35` **agent** [summary] S5/S6 在新鲜测试副本（AgentSkill-copy-dream-r1，逐包 HEAD 与真包一致）上实跑：WRITTEN 74 · BLOCKED 10（安全扫描闸：2 critical hermes_env_access · 1 high role_hijack · 1 high ssh_dir_access · 2 caution python_os_environ 等）· STALE 1（AgentSkill-UsingSkillsManager 真上游变）· 另有 22 条要 writer 改正文（manual）· S6 verify PASS 74 · FAIL 0 · 真包 0 非干净。教训：拿旧副本（17:51 那份 head 与真包不同）跑 apply 会让 42 行误报 stale —— input_commit 只在同一棵树上可比
+- `2026-10-12 00:19` **agent** [decision] S1 两个洞已修（commit 见 repo）：①身份从「名字」改成「相对路径」，find_dups 覆盖全部行并显式上报同名多份（原来只覆盖 local，bundled 的 docx/xlsx 会漏）；②inputs.json 记 profile 每个技能目录的 sha256 指纹，merge 回读比对、变了写 profile-stale.json —— 起因是实测别的会话在 00:17:24 把 default profile 技能树整棵扁平化（237 个技能全躺顶层、0 类目），S1 的数字从 239 变 237，旧结论会悄悄失效
+- `2026-10-12 00:41` **agent** [decision] 15 态 / general 7 态已落地：S1 逐条算 state(A·source·mgr·ext·D)+action 写 inventory 两列与 states.json（含 general 7 态计数），控制台打印态分布与动作分布；scope.md §6 冻表（四轴定义、四种子类的权威副本、可比者清单、判方向三档、装回只交 Skills-Manager）；SKILL.md S1 与 method.md s1 同步；自检断言 15/7 的表形状（D 与「有无可比者」必须一一对应）。当刻实测（226 技能）：noop 110 · judge-destination 107 · reconcile 6 · patch-package 2 · patch-or-restore 1。顺带修的：同名多份检测、profile 技能目录 sha256 指纹（merge 回读→profile-stale.json）、解析器回退链（profile→manager 中央库→external_dirs 包内）
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
