@@ -11,7 +11,7 @@
 
 | # | 口径 | 含义与边界 |
 |---|---|---|
-| ① | **不含「优化/整理 skill pack」这一步 — 已交接（2026-10-11）** | dream 侧已把 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）**连脚本一起删除**：① 移交的动作清单 = 去重 / 无类目归位 / 合并 umbrella / 正文下沉 / `description` 改写；② 接手方 = **SkillWeave**（`https://github.com/flmaximwang/SkillWeave`，契约文件 `docs/contract.md`，命令 `python3 scripts/weave.py layers|checks <pack>`；本技能被删的 S9/S10 两节即对应它的 `propose` 里的「并 / 分」两类动作）；③ 反向：**profile 级读数与闸门（`MAX_AGENT_SKILLS = 120`）不进 SkillWeave**，那是 dream 的活。 |
+| ① | **不含「优化/整理 skill pack」这一步 — 已交接（2026-10-11）** | dream 侧已把 S9（全库去重 + 无类目归位）与 S10（合并 / umbrella）**连脚本一起删除**：① 移交的动作清单 = 去重 / 无类目归位 / 合并 umbrella / 正文下沉 / `description` 改写；② 接手方 = **SkillWeave**（`https://github.com/flmaximwang/SkillWeave`，契约文件 `docs/contract.md`，命令：SkillWeave 的 `weave.py layers|checks <pack>`；本技能被删的 S9/S10 两节即对应它的 `propose` 里的「并 / 分」两类动作）；③ 反向：**profile 级读数与闸门（`MAX_AGENT_SKILLS = 120`）不进 SkillWeave**，那是 dream 的活。 |
 | ② | **一轮 = 一个 profile** | 运行单位是单个 profile（验收用 `default`），跑扫描当刻的**全量** local 候选，**不抽样**。 |
 | ③ | **判官 = deepseek-flash** | JEV 稳定 451（地域限制），不再作为默认判官，也不做重试降级链；判官直接调 deepseek-flash。 |
 | ④ | **判据 = wall clock ≤ 20 min** | 从起跑到「退役完成」，含装回与退役，贴实测时间戳与逐阶段耗时表。 |
