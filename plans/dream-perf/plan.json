@@ -5,7 +5,7 @@
   "goal": "把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。",
   "status": "active",
   "created_at": "2026-10-11T10:08:26+08:00",
-  "updated_at": "2026-10-11T10:16:09+08:00",
+  "updated_at": "2026-10-11T10:20:43+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -238,6 +238,49 @@
       ],
       "note": "",
       "exec": {}
+    },
+    {
+      "id": "T-007",
+      "title": "每拍心跳的慢因探针（同一把尺子）",
+      "owner": "",
+      "status": "pending",
+      "deps": [],
+      "blocks": [
+        {
+          "id": "T-007#B-001",
+          "title": "把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl",
+          "kind": "impl",
+          "status": "done",
+          "owner": "",
+          "doc": "用户 2026-10-11 要求：以后每拍心跳都要分析 dream 为什么慢，并更新本 plan。循环指令自己的纪律是「每拍用同一条命令取指纹，换了取法数字就不可比」「只报与上一拍相比变了的部分」—— 所以这件事必须做成一条命令，而不是每拍手搓五条 sqlite 查询。做法：plans/dream-perf/tools/perf-probe.py（纯 stdlib、只读 ~/.hermes/state.db）一次给出：主 run 的 wall/静默/上下文峰值、LLM 回合中位与最长、工具占比、每次调用的 prompt 与 output、上下文炸弹（单条工具结果大于 40KB）、10 路子代理的调用数与工具往返与跨度、各 profile skills 根 3 小时内的散落文件；按固定规则算出本拍的前二慢因（上下文重放 / 子代理同类问题 / 超长回合 / 静默 / 炸弹 / 越界残留），把这一拍追加进 evidence/rounds.jsonl 并打印与上一拍的差。每拍的动作固定为：跑探针 → 差异只报增量 → 探针给出新慢因就跑 loomerto 加块或改块，没有新慢因就跑 loomerto note 记一行。",
+          "input": "",
+          "output": "",
+          "command": "",
+          "done_when": [
+            "① python3 -B plans/dream-perf/tools/perf-probe.py --self-test 输出 self-test ok（贴原文）；② 真跑一次并把输出贴进 note（含 Δ 上一拍一行）；③ evidence/rounds.jsonl 存在且每拍追加一行合法 JSON（贴 wc -l 与最后一行的键名）；④ 探针报出的慢因与人工核算一致：主 run 每次调用 prompt 56.5K、子代理每调用 61.2K、最长回合 576s（贴人工核算的 sqlite 原文）。"
+          ],
+          "artifacts": [
+            "/Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-probe.py",
+            "/Users/maxim/Repositories/Repo/Dream/plans/dream-perf/evidence/rounds.jsonl"
+          ],
+          "deps": [],
+          "review_of": "",
+          "feedback": "",
+          "exec": {},
+          "status_since": "2026-10-11T10:20:37+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T10:20:37+08:00",
+              "by": "hermes",
+              "from": "pending",
+              "to": "done",
+              "note": "self-test ok；真跑第一拍指纹：主 run 72.9min / 静默 25.9min / 每次调用 prompt 56.5K / 最长回合 576s；子代理 10 个 158 次调用每调用 61.2K；散落文件 1 个（dev-general/skills/_dream_enum.py）"
+            }
+          ]
+        }
+      ],
+      "note": "",
+      "exec": {}
     }
   ],
   "log": [
@@ -337,7 +380,42 @@
       "kind": "block",
       "text": "新增块 T-006#B-001「给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）」",
       "ref": "T-006#B-001"
+    },
+    {
+      "at": "2026-10-11T10:20:37+08:00",
+      "actor": "agent",
+      "kind": "task",
+      "text": "新增任务 T-007「每拍心跳的慢因探针（同一把尺子）」",
+      "ref": "T-007"
+    },
+    {
+      "at": "2026-10-11T10:20:37+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "新增块 T-007#B-001「把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl」",
+      "ref": "T-007#B-001"
+    },
+    {
+      "at": "2026-10-11T10:20:37+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-007#B-001: pending → done（self-test ok；真跑第一拍指纹：主 run 72.9min / 静默 25.9min / 每次调用 prompt 56.5K / 最长回合 576s；子代理 10 个 158 次调用每调用 61.2K；散落文件 1 个（dev-general/skills/_dream_enum.py））",
+      "ref": "T-007#B-001"
+    },
+    {
+      "at": "2026-10-11T10:20:37+08:00",
+      "actor": "agent",
+      "kind": "decision",
+      "text": "用户 2026-10-11 起的固定动作：每拍心跳跑 tools/perf-probe.py 取同一把尺子的指纹，只报增量；探针报出新慢因就加块/改块，没有就 note 记一行。",
+      "ref": ""
+    },
+    {
+      "at": "2026-10-11T10:20:43+08:00",
+      "actor": "agent",
+      "kind": "block",
+      "text": "T-007#B-001 改了 做什么",
+      "ref": "T-007#B-001"
     }
   ],
-  "rev": "24b8bf1650e3"
+  "rev": "a3e10b19aad2"
 }

@@ -2,7 +2,7 @@
 
 > 把单轮 dream 的成本从「47 分钟只走到 S2」压到可接受：削减每回合 prompt 与总回合数、把两条硬事实（判官 451 · cron 审批闸）固化进技能、按 profile 拆批以缩小失败重跑代价。
 
-**进度** 0/7 块（0%） · 状态 `active` · 更新于 2026-10-11 10:16
+**进度** 1/8 块（12%） · 状态 `active` · 更新于 2026-10-11 10:20
 
 **参与方** 本人(human)
 
@@ -25,6 +25,7 @@ flowchart LR
   T-004_B-001["B-001 一轮批次按 profile 拆成可独立跑完的单元"]
   T-005_B-001["B-001 推送 Dream 并重装两技能，回读三件"]
   T-006_B-001["B-001 给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）"]
+  T-007_B-001["B-001 把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl"]
   T-001_B-001 --> T-002_B-001
   T-001_B-001 --> T-005_B-001
   T-002_B-001 --> T-005_B-001
@@ -34,6 +35,8 @@ flowchart LR
   class T-001_B-001,T-003_B-001,T-003_B-002,T-004_B-001,T-006_B-001 ready;
   classDef waiting stroke-width:1px;
   class T-002_B-001,T-005_B-001 waiting;
+  classDef done stroke-width:1px;
+  class T-007_B-001 done;
 ```
 
 ## 任务
@@ -78,6 +81,14 @@ flowchart LR
     - 做什么：实测（2026-10-11 那一轮 S2 的 10 个子代理，143 次 API 调用）：平均每次调用 prompt 55.7K tokens、输出仅 399 tokens（140:1）；281 次工具往返里 read_file 130 次（中位 6.9KB、p90 24KB、最大 104.8KB）、terminal 98 次（结果中位仅 991B）。三个可归因的机制：① skills_list 被 9/10 个子代理调用，每次返回 63,145B 的全库列表 —— 判官根本不需要它，落点空间由题面 answer-space.json 给；② read_file 反复读大文件（57KB / 93KB / 102KB 各一发）与 skill_view 全文，把每个子代理的上下文撑到 100 至 230KB，之后每次调用都重放；③ 判定被拆成一条一个 terminal 往返（98 次、结果中位 991B），每次往返都要付一次完整大 prompt。做法：在 references/dream-agent-roster.md 的任务书通则里写死三条 —— 不许 skills_list 或枚举全库（落点空间只从题面取）；一个批次一次 write_file 落脚本加一次 terminal 跑完，禁止逐条往返；临时脚本只许落自己的 scratch 目录，不许落进任何 profile 的 skills 根。另：本轮实测有子代理把 _dream_enum.py 写进了 profiles/dev-general/skills/ 根目录（留存待清）。
     - 判据：① references/dream-agent-roster.md 里三条约束各有原句（贴出）；② 下一轮 cron 的子代理实测：单子代理 prompt 均值 < 25K tokens 且工具往返数 < 15（从 state.db 的 session_model_usage 与 messages 数出，贴数字）；③ profiles 各 skills 根目录里没有 3 小时内新增的散落 .py/_dream 前缀文件（贴扫描命令与空结果）；④ 本轮遗留的 profiles/dev-general/skills/_dream_enum.py 已清除（贴当时的 ls 与现在的 ls）。
 
+### T-007 每拍心跳的慢因探针（同一把尺子） — 已完成
+- [x] `T-007#B-001` **把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl** _impl_ — 已完成
+    - 做什么：用户 2026-10-11 要求：以后每拍心跳都要分析 dream 为什么慢，并更新本 plan。循环指令自己的纪律是「每拍用同一条命令取指纹，换了取法数字就不可比」「只报与上一拍相比变了的部分」—— 所以这件事必须做成一条命令，而不是每拍手搓五条 sqlite 查询。做法：plans/dream-perf/tools/perf-probe.py（纯 stdlib、只读 ~/.hermes/state.db）一次给出：主 run 的 wall/静默/上下文峰值、LLM 回合中位与最长、工具占比、每次调用的 prompt 与 output、上下文炸弹（单条工具结果大于 40KB）、10 路子代理的调用数与工具往返与跨度、各 profile skills 根 3 小时内的散落文件；按固定规则算出本拍的前二慢因（上下文重放 / 子代理同类问题 / 超长回合 / 静默 / 炸弹 / 越界残留），把这一拍追加进 evidence/rounds.jsonl 并打印与上一拍的差。每拍的动作固定为：跑探针 → 差异只报增量 → 探针给出新慢因就跑 loomerto 加块或改块，没有新慢因就跑 loomerto note 记一行。
+    - 判据：① python3 -B plans/dream-perf/tools/perf-probe.py --self-test 输出 self-test ok（贴原文）；② 真跑一次并把输出贴进 note（含 Δ 上一拍一行）；③ evidence/rounds.jsonl 存在且每拍追加一行合法 JSON（贴 wc -l 与最后一行的键名）；④ 探针报出的慢因与人工核算一致：主 run 每次调用 prompt 56.5K、子代理每调用 61.2K、最长回合 576s（贴人工核算的 sqlite 原文）。
+    - 产物：`/Users/maxim/Repositories/Repo/Dream/plans/dream-perf/tools/perf-probe.py`
+    - 产物：`/Users/maxim/Repositories/Repo/Dream/plans/dream-perf/evidence/rounds.jsonl`
+    - run 2026-10-11 10:20 hermes pending→done self-test ok；真跑第一拍指纹：主 run 72.9min / 静默 25.9min / 每次调用 prompt 56.5K / 最长回合 576s；子代理 10 个 158 次调用每调用 61.2K；散落文件 1 个（dev-general/skills/_dream_enum.py）
+
 ## 日志（近 20 条）
 
 - `2026-10-11 10:08` **agent** [created] 建立 plan：Dream 执行效率优化（2026-10-11 实测基线驱动）
@@ -94,6 +105,11 @@ flowchart LR
 - `2026-10-11 10:08` **agent** [block] 新增块 T-005#B-001「推送 Dream 并重装两技能，回读三件」
 - `2026-10-11 10:16` **agent** [task] 新增任务 T-006「子代理纪律：判官与审计的子代理不许自己撑爆上下文」
 - `2026-10-11 10:16` **agent** [block] 新增块 T-006#B-001「给子代理任务书加三条硬约束（禁全库枚举 · 批量一次跑完 · 临时候不许落 skills 根）」
+- `2026-10-11 10:20` **agent** [task] 新增任务 T-007「每拍心跳的慢因探针（同一把尺子）」
+- `2026-10-11 10:20` **agent** [block] 新增块 T-007#B-001「把每拍心跳的慢因分析做成一条命令，并把指纹逐拍追加进 evidence/rounds.jsonl」
+- `2026-10-11 10:20` **agent** [status] T-007#B-001: pending → done（self-test ok；真跑第一拍指纹：主 run 72.9min / 静默 25.9min / 每次调用 prompt 56.5K / 最长回合 576s；子代理 10 个 158 次调用每调用 61.2K；散落文件 1 个（dev-general/skills/_dream_enum.py））
+- `2026-10-11 10:20` **agent** [decision] 用户 2026-10-11 起的固定动作：每拍心跳跑 tools/perf-probe.py 取同一把尺子的指纹，只报增量；探针报出新慢因就加块/改块，没有就 note 记一行。
+- `2026-10-11 10:20` **agent** [block] T-007#B-001 改了 做什么
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-perf` 生成。
