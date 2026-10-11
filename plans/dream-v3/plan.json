@@ -5,7 +5,7 @@
   "goal": "把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。",
   "status": "active",
   "created_at": "2026-10-11T13:53:27+08:00",
-  "updated_at": "2026-10-11T14:47:44+08:00",
+  "updated_at": "2026-10-11T14:47:50+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -157,7 +157,7 @@
           "id": "T-003#B-001",
           "title": "判官直连 deepseek-flash 分块判",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "",
           "doc": "去掉 JEV 依赖与「每 8–12 条一个判官子代理」的接线，改为主 agent 直接对 judge-input-bodies.json 分块调 deepseek-flash（每块若干条、正文内联），产物仍是 verdicts-*.jsonl；dream-hermes-routing 里写明这条改法与 JEV 451 的历史。",
           "input": "",
@@ -166,13 +166,31 @@
           "done_when": [
             "对 default 全量候选实际产出 verdicts-*.jsonl，条数 = 扫描候选数；贴分块数、每块条数与判定总耗时。"
           ],
-          "artifacts": [],
+          "artifacts": [
+            "skills/dream/scripts/judge.py",
+            "skills/dream/references/dream-judge-routing.md"
+          ],
           "deps": [],
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-11T13:53:45+08:00",
-          "runs": []
+          "status_since": "2026-10-11T14:47:50+08:00",
+          "runs": [
+            {
+              "at": "2026-10-11T14:47:50+08:00",
+              "by": "default",
+              "from": "pending",
+              "to": "done",
+              "note": "判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。"
+            },
+            {
+              "at": "2026-10-11T14:47:50+08:00",
+              "by": "default",
+              "from": "done",
+              "to": "done",
+              "note": "第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。"
+            }
+          ]
         },
         {
           "id": "T-003#B-002",
@@ -543,7 +561,21 @@
       "kind": "decision",
       "text": "T-003 收工：S2 现在是「跑一条命令」——judge.py 99 条 8 块、2 worker 341.6s（并发 3 会撞 Connection reset，已加退避重试并把默认并发降到 2）。S2 的 wall 从 v2 的一整次扇出（10 个子代理）压到分钟级；下一步 T-004 把 S5/S6/S7/S8 也脚本化，并处理 T-004#B-003（S3 每条重叠行一个子代理）。",
       "ref": ""
+    },
+    {
+      "at": "2026-10-11T14:47:50+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-001: pending → done（判官换成 judge.py 分块直调 deepseek-flash：99/99 verdicts，8 块（12KB–138KB），总耗时 341.6s（新题面全重判；含缓存的首跑 166s）。JEV 探活与判官子代理降级链已删。）",
+      "ref": "T-003#B-001"
+    },
+    {
+      "at": "2026-10-11T14:47:50+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-003#B-001: done → done（第二条证据：题面改成 dest_space（含各目录现有技能清单），否则 merge/strengthen 的 dest_skill 会被凭空编出、被 merge 拒收。）",
+      "ref": "T-003#B-001"
     }
   ],
-  "rev": "1b68b8e69997"
+  "rev": "9c48d56bfa3c"
 }
