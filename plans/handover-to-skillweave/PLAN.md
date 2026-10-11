@@ -2,12 +2,13 @@
 
 > 让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。
 
-**进度** 14/15 块（93%） · 状态 `active` · 更新于 2026-10-11 17:56
+**进度** 13/15 块（87%） · 状态 `active` · 更新于 2026-10-11 17:57
 
 **参与方** 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
+- `T-006#B-002` **独立子代理复核（不许自己验自己）** — 进行中 · @dream-dev · 在做 @dream-dev（线程 deleg_d8e69285#0）
 - `T-005#B-001` **`skill-library-stewardship` 与本次移交冲突：改口径或作废** — 已认领 · @dream-dev
 
 ## 图
@@ -30,9 +31,11 @@ flowchart LR
   T-006_B-001["B-001 在 AgentSkill-copy 上跑一轮无人值守，四条断言全过"]
   T-006_B-002["B-002 独立子代理复核（不许自己验自己）"]
   classDef done stroke-width:1px;
-  class T-001_B-001,T-002_B-001,T-002_B-002,T-002_B-003,T-002_B-004,T-002_B-005,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-005_B-002,T-006_B-001,T-006_B-002 done;
+  class T-001_B-001,T-002_B-001,T-002_B-002,T-002_B-003,T-002_B-004,T-002_B-005,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-005_B-002,T-006_B-001 done;
   classDef claimed stroke-width:1px;
   class T-005_B-001 claimed;
+  classDef running stroke-width:1px;
+  class T-006_B-002 running;
 ```
 
 ## 任务
@@ -129,24 +132,24 @@ flowchart LR
     - run 2026-10-11 17:53 dream-dev pending→done dream-v3#T-002#B-001 判为「未合并」⇒ 保持 done 并补一条 note 说明它在分支上成立、main 要等收尾合并；已在 dream-v3 plan 上执行（读回：该块 runs 最后一条是这句）
     - run 2026-10-11 17:56 dream-dev done→done 回应复核的 ✗：它 grep 的词（未合并 / 分支上成立 / main 上要等）没命中，所以判「note 不存在」；实测 note **在**，只是措辞不同。证据：plans/dream-v3/plan.json 该块 runs 第 3 条 = 2026-10-11T17:53:48 dream-dev done→done「补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**…」；PLAN.md 第 72 行（块内 run 行）与第 166 行（日志段）都渲染了这条。复核用的检索词 vs 实际措辞的差异我照实记在这里。
 
-### T-006 验收：一轮无人值守 + 独立复核 — 已完成
+### T-006 验收：一轮无人值守 + 独立复核 — 进行中
 @dream-dev
 - [x] `T-006#B-001` **在 AgentSkill-copy 上跑一轮无人值守，四条断言全过** _impl_ — 已完成 @dream-dev
     - 做什么：按已定口径用测试副本（`~/Documents/AgentSkill-copy`，各仓 origin 已移除），跑一轮 S1–S8。四条断言：① `grep -rn 'S9\|S10' skills/ docs/ README.md` 只在 scope.md 的「已移交」段出现；② `sweep-plan.py --help` 无 dedupe；③ 总量闸门能被触发（构造或 dry-run，贴输出）；④ 产物里含 `input_commit`。
     - 判据：四条断言的命令与原始输出落进本块；任何一条不成立就回到对应块整改，**不许改判据**。
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-175108/resolved.json`
     - run 2026-10-11 17:53 dream-dev pending→done 四条断言全过（原文见日志）；S5 写 54 / 挡 11，S6 PASS 54 · FAIL 0；S2 复用既有 verdicts（同一 id 空间）故不作为计时证据
-- [x] `T-006#B-002` **独立子代理复核（不许自己验自己）** _review_ — 已完成 @dream-dev
+- [ ] `T-006#B-002` **独立子代理复核（不许自己验自己）** _review_ — 进行中 @dream-dev
     - 做什么：派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。
     - 判据：复核输出落文件（路径写进本块），含逐条 ✓/✗ 与不一致明细；有 ✗ 就回到对应块整改。
     - 产物：`/Users/maxim/.hermes/cache/scratch/handover-review.md`
+    - 在做：@dream-dev · 线程 deleg_d8e69285#0 · `/Users/maxim/.hermes/cache/delegation/live/deleg_d8e69285/task-0.log`
     - run 2026-10-11 17:54 dream-dev pending→running 派独立子代理复核（只读、前台命令、不起后台进程）
     - run 2026-10-11 17:56 dream-dev running→done 独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。
+    - run 2026-10-11 17:57 dream-dev done→running 第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）
 
 ## 日志（近 20 条）
 
-- `2026-10-11 17:53` **agent** [status] T-002#B-004: pending → done（check-disclosure.py 已从仓库删除（repo 形状常量归 SkillWeave）；SKILL.md/README 的引用改成 SkillWeave 的 weave.py layers|checks；实测 weave.py checks 对 Dream 报 0 命中）
-- `2026-10-11 17:53` **agent** [status] T-002#B-005: pending → done（scope.md §① 改成「已交接」并写死三件：移交动作清单 / 接手方仓库+contract.md+命令 / 反向（profile 级读数与闸门不进 SkillWeave）；README 边界节同步）
 - `2026-10-11 17:53` **agent** [status] T-003#B-001: pending → done（apply.py install 装前闸门落地并**现场触发**：默认上限 120 时 ⛔『装完 264 个技能 > 120（现有 263 + 新装 1）⇒ 不装。超 144 个』exit 3；--max-skills 400 时放行。⚠ 发现：本机 profile 现有 263 个技能，120 这个上限在当前基线上**必然挡住每一次真装**，要人定口径。）
 - `2026-10-11 17:53` **agent** [status] T-003#B-002: pending → done（apply.py install 装后断言落地：①不在类目下的技能逐条列名 ②local = 0 判据。实测输出：1 个技能不在类目下（mcp-server-integration/SKILL.md）· local 98 个 —— ⚠ 与历史基线 not_in_pack=98 一致，说明 'local=0' 在本机基线上也不成立；只报不动手（归位→SkillWeave），exit 0）
 - `2026-10-11 17:53` **agent** [status] T-003#B-003: pending → done（SKILL.md 常量表只剩 MAX_AGENT_SKILLS=120（标注为 S7 装前闸门），并写明「包内形状一律由 SkillWeave 量、dream 不重复实现第二套」；grep MAX_SKILL_LINES|MAX_DOC_BYTES|MAX_FIRST_LAYER 在 skills/ 下 0 命中）
@@ -165,6 +168,8 @@ flowchart LR
 - `2026-10-11 17:56` **agent** [status] T-005#B-002: done → done（回应复核的 ✗：它 grep 的词（未合并 / 分支上成立 / main 上要等）没命中，所以判「note 不存在」；实测 note **在**，只是措辞不同。证据：plans/dream-v3/plan.json 该块 runs 第 3 条 = 2026-10-11T17:53:48 dream-dev done→done「补记（handover-to-skillweave T-005#B-002 的判定）：这块的 done 在**分支 dream-v3 上成立**…」；PLAN.md 第 72 行（块内 run 行）与第 166 行（日志段）都渲染了这条。复核用的检索词 vs 实际措辞的差异我照实记在这里。）
 - `2026-10-11 17:56` **agent** [exec] T-006#B-002: 线程登记已清除（@dream-dev 收工）
 - `2026-10-11 17:56` **agent** [status] T-006#B-002: running → done（独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。）
+- `2026-10-11 17:57` **agent** [exec] T-006#B-002: 登记线程 deleg_d8e69285#0 @dream-dev · 转录 /Users/maxim/.hermes/cache/delegation/live/deleg_d8e69285/task-0.log（第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台））
+- `2026-10-11 17:57` **agent** [status] T-006#B-002: done → running（第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台））
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render handover-to-skillweave` 生成。

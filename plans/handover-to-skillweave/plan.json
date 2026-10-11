@@ -5,7 +5,7 @@
   "goal": "让 dream 只做「把没有仓库归属的本地技能收编进包 + profile 级读数与闸门」，把「包内结构整理」整体移交给 SkillWeave，并把这件事做到底（正文、脚本、依赖点、README、既有计划全部对齐）。",
   "status": "active",
   "created_at": "2026-10-11T17:41:19+08:00",
-  "updated_at": "2026-10-11T17:56:56+08:00",
+  "updated_at": "2026-10-11T17:57:05+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -544,7 +544,7 @@
           "id": "T-006#B-002",
           "title": "独立子代理复核（不许自己验自己）",
           "kind": "review",
-          "status": "done",
+          "status": "running",
           "owner": "dream-dev",
           "doc": "派一个与执行者不同的子代理，只读本 plan 与仓库，按各块的 done_when 逐条重跑并出 ✓/✗ 表 + 不一致明细。只用前台命令、不起后台进程、不许改被测文件。",
           "input": "",
@@ -559,8 +559,15 @@
           "deps": [],
           "review_of": "",
           "feedback": "",
-          "exec": {},
-          "status_since": "2026-10-11T17:56:56+08:00",
+          "exec": {
+            "by": "dream-dev",
+            "started": "2026-10-11T17:57:05+08:00",
+            "delegation": "deleg_d8e69285",
+            "task_index": 0,
+            "transcript": "/Users/maxim/.hermes/cache/delegation/live/deleg_d8e69285/task-0.log",
+            "note": "第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）"
+          },
+          "status_since": "2026-10-11T17:57:05+08:00",
           "runs": [
             {
               "at": "2026-10-11T17:54:05+08:00",
@@ -575,6 +582,13 @@
               "from": "running",
               "to": "done",
               "note": "独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。"
+            },
+            {
+              "at": "2026-10-11T17:57:05+08:00",
+              "by": "dream-dev",
+              "from": "done",
+              "to": "running",
+              "note": "第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台）"
             }
           ]
         }
@@ -925,7 +939,21 @@
       "kind": "status",
       "text": "T-006#B-002: running → done（独立子代理（deleg_281477ba，只读、前台、2m）复核 13 个 done 块：10 ✓ · 1 ⚠ · 2 ✗。✗ 明细与整改：①T-002#B-001 原判据自相矛盾（要 check-disclosure.py exit 0，而同一任务的 B-004 删了它；转指行也不含被 grep 的 token）⇒ 已改写判据为可核验形式（概念转指一行 + SkillWeave checks）并记明更正。②T-005#B-002 判「note 不存在」= 假阳性：它 grep 的词与实际措辞不同，note 在 plan.json runs 第 3 条、PLAN.md:72 与 :166 都渲染了 ⇒ 已把证据与检索词差异记进该块。⚠ T-001#B-001『output 为空、git log 结果不全』⇒ 已补 6 段原始输出为 artifact（t001-evidence.txt）。另按复核建议补了装前闸门的 blocked 半边存档。）",
       "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:57:05+08:00",
+      "actor": "agent",
+      "kind": "exec",
+      "text": "T-006#B-002: 登记线程 deleg_d8e69285#0 @dream-dev · 转录 /Users/maxim/.hermes/cache/delegation/live/deleg_d8e69285/task-0.log（第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台））",
+      "ref": "T-006#B-002"
+    },
+    {
+      "at": "2026-10-11T17:57:05+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-006#B-002: done → running（第二轮：只复核被报 ✗/⚠ 的 3 个块整改后是否过关（只读、前台））",
+      "ref": "T-006#B-002"
     }
   ],
-  "rev": "8c5288554d68"
+  "rev": "05f77c592875"
 }
