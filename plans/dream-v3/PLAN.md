@@ -2,7 +2,7 @@
 
 > 把 dream 重做成一小时以内可跑完的一轮：default profile + deepseek-flash 跑完整流程（枚举 → 判落点 → 交叉审计 → 写入包 → 独立验证 → 整包重装 → 退役）在 20 分钟内完成。硬口径：①不含「优化/整理 skill pack」这一步（删除 S9 全库去重+无类目归位、S10 合并/umbrella），那部分由用户正在开发的 SkillWeave 项目接手；②一轮 = 一个 profile（default），跑扫描当刻的全量 local 候选，不抽样；③判官用 deepseek-flash（JEV 451 不可用）；④判据 = wall clock ≤ 20 min，贴实测。基线：2026-10-11 两轮实测都超 4 小时（04:00 轮 4h50m 失败；09:07 轮 ≥4h37m 未完，provider 流断拖死）。
 
-**进度** 3/10 块（30%） · 状态 `active` · 更新于 2026-10-11 14:32
+**进度** 3/10 块（30%） · 状态 `active` · 更新于 2026-10-11 14:41
 
 **参与方** 本人(human)
 
@@ -117,7 +117,6 @@ flowchart LR
 
 ## 日志（近 20 条）
 
-- `2026-10-11 13:53` **agent** [task] 新增任务 T-004「机械步骤脚本化：写入/验证/重装/退役」
 - `2026-10-11 13:53` **agent** [task] 新增任务 T-005「20 分钟验收（default + deepseek-flash 跑一轮）」
 - `2026-10-11 13:53` **agent** [task] 新增任务 T-006「推送 + 重装两个 skill + 回读」
 - `2026-10-11 13:53` **agent** [block] 新增块 T-001#B-001「冻结 v3 口径（四条）」
@@ -137,6 +136,7 @@ flowchart LR
 - `2026-10-11 14:05` **agent** [status] T-001#B-002: pending → done（逐阶段归因表落盘：两轮实测（04:00 轮 4h50m 失败 = 子代理等模型响应 15910.8s 被中断；09:07 轮 ≥4h57m 未完）；S1–S8 每阶段的主因与 v3 处置；三条横切（provider 流断 / 环境目录被回收 / cron 审批闸）。基线暴露一个缺口：S3 交叉审计在 v2 里是每行一个子代理，v3 还没有降本块 —— 已补 T-004#B-003。commit 在分支 dream-v3。）
 - `2026-10-11 14:05` **agent** [block] 新增块 T-004#B-003「S3 交叉审计降本：不再每条重叠行一个子代理」
 - `2026-10-11 14:32` **agent** [decision] 判官实测（14:15-14:32）：scan 10.4s（99 候选 / 1.32MB 正文）→ 8 块（每块 ~20-210KB）。单块 141KB 烟测 53.8s 出 5/5 合格 verdict。第一次整批跑（3 workers）时 3 块 ~140KB 的请求同时被 `URLError: Connection reset by peer`（Errno 54）打掉，verdicts 只落 48/99 —— 端点对大并发大请求会 reset。处置：judge.py 加 3 次退避重试（5s/10s），并把并发降到 2；同时把「只在最后写 verdicts」改成每块落地 + 断点续跑（被掐不再白付）。当前 48/99，续跑中（proc_1c7ca25aca74）。
+- `2026-10-11 14:41` **agent** [decision] 判官路径第一版跑通（99/99，166s），但 merge 拒收 10 行 → 两个真缺陷，都已修：① 每块的中间产物我命名成 verdicts-chunk-*.jsonl，正好被 merge 的 verdicts*.jsonl 通配吃掉 ⇒ 变成 109 条重复 verdict（exit 4）；改名 judge-verdicts-chunk-*.jsonl。② 判官题面只给了 290 个目录名、没给**各目录的现有技能清单**，于是 merge/strengthen 的 dest_skill 被它编出来（如 AgentSkill-ObsidianManagement 下的 relayer-clc-classification-paths）⇒ 10 行被拒。改成 dest_space()：工具/主题轴 + 每个非空目录的现有技能名（18.8KB），并在题面写明「dest_skill 必须是列出的名字之一，没有就退回 move + __new__」。另加一道缓存闸：断点续跑要求 prompt sha 逐字节相同，改了题面不会被旧回复静默复用。当前改完题面重判中（proc_aa397cad76da）。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render dream-v3` 生成。
