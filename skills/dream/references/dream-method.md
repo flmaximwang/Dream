@@ -177,7 +177,7 @@ python3 -B skills/dream/scripts/apply.py install --dir <scratch>/sweep-<date>   
    ⇒ **不装**、exit 3，差额与候选清单落 `install-gate.json`。dream 是唯一会把 profile 技能数顶上去的动作，所以由它守。
    注意：上限是**校准旋钮**——撞上它说明该先退役/清退，或者由人改数，不是让脚本自己放松。
 2. **装后形状断言**：① 每个技能路径形如 `skills/<类目>/<name>/`（直接躺在 `skills/` 下 = 无类目，是缺陷）；
-   ② `local`（既不在 `.hub/lock.json` 也不在 `.bundled_manifest`）= 0。越界的逐条列名 → `install-shape.json`。
+   ② `local` = 0 —— **判据已换（2026-10-11）**：skill 管理交给 Skills-Manager 后，`.hub/lock.json` 不再是账本；现在「有归属」= 在**被维护的外部仓库列表**里能找到同名技能且内容一致（`scripts/skill-mirror.py check <profile> --repos-from <仓库清单>` → homed / drift / local 三档）。越界的逐条列名 → `install-shape.json`。
    **只报不动手**：归位是仓库侧的动作 → 报给 **SkillWeave**；自己 `git mv` 会再次越界。
 
 ## s8 · 退役与汇报
