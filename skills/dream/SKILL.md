@@ -194,6 +194,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | 文件 | 承担什么 |
 |---|---|
 | `references/dream-method.md` | S1–S8 的完整做法与判据 |
+| `docs/flow.md`（仓库根） | **一轮的全貌**：输入 → 15 态先行判定 → S1–S8 阶段表 → 闸门 → 开发口径 → 缺口 → 进度锚点 |
 | `references/dream-agent-roster.md` | merge/strengthen 行的 writer 任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
 | `scripts/judge.py` | S2 判官：分块直调语言模型（逐块落盘 + 断点续跑） |

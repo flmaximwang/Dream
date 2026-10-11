@@ -22,7 +22,8 @@
 | `plans/dream-perf/` | 执行效率优化计划（2026-10-11 实测基线驱动：上下文瘦身 / 回合数压缩 / 两条硬事实 / 按 profile 拆批） |
 | `plans/dream-upgrade/` | 本项目开发的 loomerto 计划（**计划持久化在项目里**，随项目一起提交） |
 | `plans/skill-library-stewardship/` | skill 库结构化整理（归类 / 合并 / umbrella-building）——**已移交给 SkillWeave**（2026-10-11）；该计划的存量块与本次交接方向相反，口径待 `plans/handover-to-skillweave/` 的 T-005#B-001 拍板 |
-| `docs/scope.md` | v3 的范围与验收口径（四条硬口径 + 基线） |
+| `docs/flow.md` | **一轮 dream 的全貌**（输入 · 15 态 · S1–S8 · 闸门 · 缺口 · 进度锚点） |
+| `docs/scope.md` | v3 的范围与验收口径（四条硬口径 + 基线 + §6 15 态分类与去向） |
 
 ## 安装
 

@@ -1,0 +1,155 @@
+# Dream v3 · 完整流程（flow.md）
+
+这份是**一轮 dream 的全貌**：谁跑、跑什么命令、产出什么、判据是什么、哪一步要模型、哪一步会停下。
+口径的冻结版在 `docs/scope.md`（§2 四条硬口径、§5 开发测试口径、**§6 15 态分类与逐态去向**）；
+逐步的实操细节在 `skills/dream/references/dream-method.md`（s0–s8）。
+
+---
+
+## 0 · 一轮在干什么
+
+把**一个 profile 里没有归属的技能**，判出它们该落进哪个包 → 写进包仓库 → 独立验证 → 装回 → 退役 profile 里的旧副本。
+**一轮 = 一个 profile**（验收用 `default`），跑扫描当刻的**全量**候选，不抽样。判据是 **wall clock ≤ 20 min**。
+v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umbrella）——那部分已整体移交 **SkillWeave**。
+
+---
+
+## 1 · 输入（开跑前必须齐）
+
+| 输入 | 从哪来 | 说明 |
+|---|---|---|
+| **profile** | `--profile <名>`，默认 `default` | 决定扫哪棵技能树：`$HERMES_HOME/skills` 或 `profiles/<名>/skills` |
+| **落点池** | `.env` 的 `DREAM_EXTERNAL_DIRS` → 一份本地 JSON | JSON 里**只放本人点名的目录**（现在 1 条：`~/Documents/AgentSkill`）；每个目录自身或它的直接子目录＝一个包。Skills-Manager 管的技能**不写进 JSON**，用 `external-dirs.py manager-skills` 走它的 CLI 现查 |
+| **产出目录** | `--out <dir>`；不给就 `~/.hermes/cache/scratch/sweep-<时间戳>/` | 一轮的所有产物都落这里 |
+| **判官凭据** | `~/.hermes/.env` 的 `DEEPSEEK_API_KEY`（**从不打印**）+ `--model`（默认 `deepseek-flash`）/ `--base-url` | 判官直调 API，不经 JEV |
+| **兄弟解析器** | `load-external-skill-index/scripts/skill-index.py` | frontmatter 解析**必须**用它（YAML 坑是真的）；回退链：worktree 旁边 → profile（两种布局）→ Skills-Manager 中央库 → external_dirs 包内 |
+| **模式** | `--test` / `--formal` / `--plan` | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
+
+一条命令跑完整轮：`bash skills/dream/scripts/round.sh [--test|--formal] [--profile <名>] [--out <dir>]`。
+
+---
+
+## 2 · 先行判定：每个技能归到 15 态（Hermes）/ 7 态（general agent）
+
+四根轴各 2 值，**没有可比者时第 4 轴坍缩** → Hermes **15 态**、general agent **7 态**：
+
+- **A** Hermes 来源：`local` 或第三方四种子类 `built-in` / `official` / `bundled` / `hub`
+- **B** 归 Skills-Manager 管否 · **C** 归 `external_dirs` 的某个包管否 · **D** 与可比者内容同否
+- 可比者：external 命中那份 · Skills-Manager 中央库那份 · `.bundled_manifest` 的 md5 · 发行版 `skills/` · 发行版 `optional-skills/`
+
+**只有 5 类动作会动手**（其余一律 `noop`），完整 15 态表见 `scope.md` §6：
+
+| 动作 | 出现在哪几态 | 谁做 |
+|---|---|---|
+| `judge-destination`（判落点） | `local·no·no` | S2 判官 → S5 写入 |
+| `reconcile`（合回/重装） | `local·no·ext·differs`、`local·yes·ext·differs` | 先判方向，再合回包或让 manager 重装 |
+| `patch-package`（建 patch 包） | `local·yes·no·differs`、`third·yes·no·differs` | 建我维护的包 → manager 装 |
+| `patch-or-restore` | `third·no·no·differs` | 先判方向：本地新→patch；远端新→更新本地 |
+| `noop` | 其余 | 不动 |
+
+**判方向**（只在 `differs` 时需要）：拿 profile 那份撞所有者那一侧的历史版本 ——
+命中某历史版本 ⇒ 本地旧（远端新，动作＝更新本地）；所有者命中 HEAD 而 profile 谁都不命中 ⇒
+本地已偏离上游（动作＝patch／收编）；那一侧没有历史可比 ⇒ **方向未知，只报**。
+
+**装回只有一个所有者**：装/更新一律交 **Skills-Manager**；dream 不再用 `hermes skills install`，也不退役它装的东西。
+
+---
+
+## 3 · 阶段（S1–S8）
+
+| 阶段 | 谁跑 | 命令 | 输入 | 产出（都在 `--out` 里） | 判据 / 停下条件 |
+|---|---|---|---|---|---|
+| **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 有候选才继续；同名多份会被显式报出；解析器找不到 → exit 2 |
+| **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json` | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；非流式（卡流正是 v2 的死因） |
+| **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
+| **S4 自动决议** | 脚本（只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名>` | 判官结果 + `inputs.json` | `resolved.json`（逐行机器可读决议，带 `input_commit`/`stale`）· `plan.md` · `install-cmds.sh` · `stale.json` · `profile-stale.json` | 覆盖率 100%，否则 exit 4；上游/profile 变了 → 标 stale，别在旧结论上动手 |
+| **S5 写入** | 脚本 + **writer 子代理** | `apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run]`；正文改写：`apply.py taskbook` → 按包派 writer | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md` | 扫描闸非 `safe` → 回滚不提交；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
+| **S6 独立验证** | 脚本（只读） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 | 逐行 PASS/FAIL（`verify-r1.log` 之类） | 有 FAIL → exit 1，回 S5 修 |
+| **S7 装回** | 脚本 | `apply.py install --dir <out> [--max-skills <n>]` | `install-cmds.sh` + profile | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave，不自己 `git mv` |
+| **S8 退役** | 脚本 + 汇报 | `apply.py retire --dir <out> --backup ~/.hermes/backups/dream-retire` | verify 通过的行 | 先 `tar czf` 备份（路径写进汇报）再删 profile 副本 | 只对**回读通过**的行动手；修不动的那行跳过，副本不删 |
+| **收尾汇报** | 主 agent | —— | 上面全部产物 | 四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事 | 只读产出与真写入**分开写**（只读：N 行涉及 M 个包名／真写入：K 个包 + 各自 sha） |
+
+逐阶段计时落 `stages.tsv`（`round.sh` 自动记），这就是「20 分钟」的证据形状。
+
+---
+
+## 4 · 哪几步仍然要模型（其余全是脚本）
+
+1. **S2 判官**：每条候选读全文 → 二选一（工具轴/主题轴）→ 挑落点 → 逐字抄 3–8 条 `claims`。
+   脚本只负责分块、HTTP、JSONL 拼装、覆盖率报告。
+2. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**
+   （`apply.py taskbook` 生成 `writers.md`，一个包一个 writer，任务书与五步形状见 `references/dream-agent-roster.md`）。
+3. **S4 的逐行决议**：按「无人值守」判，不等人、不用 `clarify`、不发表单。
+
+主 run 的上下文纪律（决定这一轮跑不跑得完）：**只跑命令、只读摘要**，不读脚本源码、不读长清单——
+`references/dream-method.md` s0。
+
+---
+
+## 5 · 闸门与证据（都在脚本里，不靠自觉）
+
+| 闸门 | 位置 | 作用 |
+|---|---|---|
+| 输入指纹 | `scan` → `inputs.json` | 每包 HEAD + 产出文件 sha256；S5 前比对，上游变了跳过整包 |
+| **profile 指纹** | `scan` → `inputs.json`；`merge` 回读 | 每个技能目录的 sha256；树被别的会话改动 → 标 `profile-stale.json`（技能树是会动的，实测 239→237→226） |
+| 同名多份 | `scan` → `inventory.tsv.duplicate_of` / `prescreen.json` | 身份＝相对路径，名字只用于找可比者；同名两份会互相顶替，必须显式处理 |
+| 扫描闸 | `apply` 每行 | 非 `safe` 就回滚不提交（`dangerous`/`caution` 见扫描闸手册） |
+| 装前总量闸 | `install` | 现有 ∪ 新装 ≤ `MAX_AGENT_SKILLS`（300），超了不装 |
+| 装后形状断言 | `install` | 技能都在 `skills/<类目>/<名>/`；外部仓库里找不到对等物的算 `local`（`skill-mirror.py check`，**不看 `.hub/lock.json`**） |
+
+---
+
+## 6 · 开发 / 测试口径（用户 2026-10-11 定）
+
+- 开发期一律 `--no-push`（包仓库是测试面）；测试轮跑到 `verify` 就停，**不推、不 retire**。
+- 测试面 = `cp -Rc ~/Documents/AgentSkill ~/Documents/AgentSkill-copy` → 每个仓 `git remote remove origin`
+  → `apply/verify --packs-root <副本>` → 测完删副本。**判据：真包 `git status --porcelain` 必须为 0。**
+- 拿旧副本跑会大面积误报 stale（`input_commit` 只在同一棵树上可比）——**必须新建副本**。
+- 改技能一律在外部包仓库里改 → commit → push → 再由 manager 装回；不在 profile 里直接改。
+
+---
+
+## 7 · 已知缺口（下一步要补）
+
+- **S7 还在发 `hermes --profile <名> skills install/update`**（`merge` 生成的 `install-cmds.sh`），
+  与 `scope.md` §6「装回只交 Skills-Manager」不一致。要改：`install-cmds.sh` 生成 `skills-manager-cli skills install/update/deploy`，
+  `install` 走 manager 并回读它自己的账（`deployed_to`）。
+- `drift`/`local` 的形状断言目前**只报不拦**；是否硬失败未定。
+- 判方向的②③两档（撞历史版本）还没有落成命令——目前是人工/模型判。
+
+---
+
+## 8 · 一页图
+
+```
+输入(profile · 落点池 · out · 判官凭据 · 解析器 · 模式)
+   │
+S1 scan ── 15 态 + 候选 ── inventory / judge-input / inputs(指纹) / states.json      [脚本·只读]
+   │
+S2 judge ── 每候选一条决定 ── verdicts-<model>.jsonl                                  [模型·脚本调 API]
+   │
+S3 audit ── claims 逐条 grep 接收侧 ── audit.md / audit.json                          [脚本·0 LLM]
+   │
+S4 merge ── 逐行决议 ── resolved.json / plan.md / install-cmds.sh / stale             [脚本·只写 out]
+   │
+S5 apply ── 机械行写入包 ── commits / apply-report.json                               [脚本]
+        └─ merge/strengthen 行 → taskbook → writers.md → 按包派 writer               [模型]
+   │
+S6 verify ── 逐行 PASS/FAIL                                                          [脚本·只读]
+   │
+S7 install ── 装前总量闸 + 装回 + 装后形状断言                                        [脚本→(待)Skills-Manager]
+   │
+S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报                                    [脚本+主 agent]
+```
+
+---
+
+## 9 · 进度锚点（每次改这张表就更新）
+
+| 环节 | 状态 |
+|---|---|
+| 输入口径（`DREAM_EXTERNAL_DIRS` JSON + `external-dirs.py`） | ✅ 落地 |
+| 15 态 / 7 态分类与逐态去向 | ✅ 落地（`scan` 逐条算 `state`/`action` + `states.json`；`scope.md` §6） |
+| S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
+| S7–S8 | ⏳ 未真跑（要人点头；且 S7 待改走 Skills-Manager） |
+| 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
