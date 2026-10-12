@@ -1,0 +1,10 @@
+{
+  "note": "每个 fixture 的期望分类。general=通用解决方案（进包）；preference=用户偏好、env=本机环境（都是压缩写记忆、不进包）。",
+  "expect": {
+    "parse-csv-with-pandas": "general",
+    "git-bisect-workflow": "general",
+    "jev-unreachable-here": "env",
+    "local-python-interpreters": "env",
+    "console-language-preference": "preference"
+  }
+}

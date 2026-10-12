@@ -83,7 +83,7 @@ run() {          # run <阶段名> <命令...>
   echo "[round] ▶ $name @ $h0 :: $*"
   "$@" > "$out/$(echo "$name" | tr -d ' ').log" 2>&1; rc=$?
   t1=$(date +%s); local h1; h1=$(date +%H:%M:%S)
-  nums=$(grep -oE '[0-9]+/[0-9]+ (条判定|verdicts)|verdicts=[0-9]+/[0-9]+|candidates=[0-9]+|覆盖率 100%|写入 [0-9]+ 行|PASS [0-9]+ · FAIL [0-9]+' \
+  nums=$(grep -oE '[0-9]+/[0-9]+ (条判定|verdicts)|verdicts=[0-9]+/[0-9]+|candidates=[0-9]+|覆盖率 100%|写入 [0-9]+ 行|PASS [0-9]+ · FAIL [0-9]+|classified=[0-9]+/[0-9]+' \
          "$out/$(echo "$name" | tr -d ' ').log" | tail -1)
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$h0" "$h1" "$((t1-t0))" "$rc" "${nums:-—}" >> "$stages"
   tail -3 "$out/$(echo "$name" | tr -d ' ').log"
@@ -106,7 +106,8 @@ if [ $plan_only -eq 1 ]; then
   cat <<EOF
 [round] mode=$mode profile=$profile 落点池=$([ "$mode" = test ] && echo "$packs" || echo "$ext") out=$out
   S1 枚举      sweep-plan.py scan   --profile $profile --out $out ${loc_arg[*]}
-  S2 判官      judge.py             --dir $out  （backends/chunk 从 ~/.hermes/dream-judge.json 读）
+  S1.5 分类闸门 triage.py           --dir $out  （general → S2；preference/env → 压缩写记忆、不进包）
+  S2 判官      judge.py             --dir $out --input judge-input-bodies.routed.json  （backends/chunk 从 ~/.hermes/dream-judge.json 读）
   S3 交叉审计  audit.py             --dir $out
   S4 决议      sweep-plan.py merge  --dir $out --profile $profile $([ "$sm" = 1 ] && echo --skills-manager)
   S5 写入      apply.py apply       --dir $out --profile $profile ${loc_arg[*]} ${apply_extra[*]:-（真推）}
@@ -118,7 +119,8 @@ EOF
 fi
 
 run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" "${loc_arg[@]}" --parser-script "$PARSER"
-run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out"
+run "S1.5 分类闸门" "$PY" -B "$SKILL_DIR/scripts/triage.py" --dir "$out"
+run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out" --input judge-input-bodies.routed.json
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
 run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile" "$([ "$sm" = 1 ] && echo --skills-manager)"
 run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" --profile "$profile" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"

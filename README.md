@@ -1,6 +1,7 @@
 # Dream
 
-把一批「没有仓库归属」的本地技能**无人值守**地批量收编进技能包仓库：枚举 → 按内容判落点 → 交叉审计 →
+把一批「没有仓库归属」的本地技能**无人值守**地批量收编进技能包仓库：枚举 → **先分类**（通用解决方案 / 用户偏好 /
+本机环境；只有通用方案进包，其余压缩后写进记忆）→ 按内容判落点 → 交叉审计 →
 自动决议 → 写入 → 独立验证 → 整包重装 → 退役。
 
 **边界（2026-10-11，已交接）**：dream 只做**profile 侧**的两件事——把「没有仓库归属」的本地技能**收编进包**、
@@ -26,11 +27,13 @@
 | `skills/dream/` | **general 方法主技能**（`SKILL.md` 第一层 + `references/dream-method.md` 细节 + `scripts/sweep-plan.py`） |
 | `skills/dream-hermes-routing/` | Hermes 适配技能（profile 容器判据 / Skills-Manager 安装命令 / 可插拔判官接线） |
 | `plans/dream-v3/` | **当前计划**：Dream v3 —— 一轮 ≤20 分钟、砍掉 skill-pack 优化步骤（口径冻结在 `docs/scope.md`） |
+| `plans/judge-triage-gate/` | S1.5 分类闸门（通用方案 / 用户偏好 / 本机环境）的 loomerto 计划与实测证据 |
 | `plans/dream-perf/` | 执行效率优化计划（2026-10-11 实测基线驱动：上下文瘦身 / 回合数压缩 / 两条硬事实 / 按 profile 拆批） |
 | `plans/dream-upgrade/` | 本项目开发的 loomerto 计划（**计划持久化在项目里**，随项目一起提交） |
 | `plans/skill-library-stewardship/` | skill 库结构化整理（归类 / 合并 / umbrella-building）——**已移交给 SkillWeave**（2026-10-11）；该计划的存量块与本次交接方向相反，口径待 `plans/handover-to-skillweave/` 的 T-005#B-001 拍板 |
 | `docs/flow.md` | **一轮 dream 的全貌**（输入 · 16 态 · S1–S8 · 闸门 · 缺口 · 进度锚点） |
-| `docs/scope.md` | v3 的范围与验收口径（四条硬口径 + 基线 + §6 16 态分类与去向） |
+| `docs/scope.md` | v3 的范围与验收口径（五条硬口径 + 基线 + §6 16 态分类与去向） |
+| `tests/triage/` | S1.5 分类闸门的验收：5 条 fixture（程序文档 / 本机环境记录 / 用户偏好）+ `acceptance.py`（真模型跑，贴逐条结果） |
 
 ## 安装
 

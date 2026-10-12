@@ -213,6 +213,8 @@ def _extract_evidence(body: str) -> str:
         line = line.strip()
         if not line or line.startswith("#") or line.startswith("---"):
             continue
+        if re.match(r"^[A-Za-z_][\w-]*:\s", line):   # frontmatter 的 YAML 键行（name: / description:）不是正文证据
+            continue
         if len(line) >= 20:
             # Truncate to 120 chars
             return line[:120]
@@ -363,6 +365,173 @@ def judge_jev(items: list[dict], answer_space: dict, *, key: str,
     return verdicts, ""
 
 
+# ─── S1.5 分类闸门（triage）的后端 ───────────────────────────────────────────────
+# 与「判落点」是两次独立的判断：先判一条技能是**通用解决方案**还是**用户偏好 / 本机环境**，
+# 分完类才分流（general → 进 S2 判落点；其余 → 压缩后写记忆、不进包）。
+# 形状的校验放在这里（`validate_triage_rows`），两个后端与 triage.py 共用同一套判据。
+
+TRIAGE_KINDS = ("general", "preference", "env")
+
+_TRIAGE_RULES = """你是 dream 批次（把「没有仓库归属」的本地技能收编进技能包仓库）的**分类闸门**。
+在挑落点之前，先判这一条技能属于哪一类——分类决定它接下来的去路：
+
+- `general`（通用）：**对某个具体问题的、可复用的解决方案**。换台机器、换个会话、换个人，内容照样成立。
+  例子：某个程序/工具的用法、一段固定流程或方法、某个学科的固定操作、可复用的排障步骤。
+  → 去路：收编进包（进下一步「挑落点」）。
+- `preference`（偏好）：**某个用户本人**的口味或约定（用什么语言、什么语气、要不要先确认、命名与排版习惯）。
+  **换了主人就不成立**。→ 去路：压缩后写进记忆，**不进包**。
+- `env`（本机环境）：记的是**这一台机器 / 这个 harness 的现状**（某个服务在这台机器上不可达、某个本地路径 /
+  端口 / 版本 / 凭据、某个只在这台机器上存在的布局）。**换了机器就不成立**。→ 去路：压缩后写进记忆，**不进包**。
+
+硬口径：
+0. **读全文判**，不许只看 name / description。**只在这三类里选一类**，不要新增第四类。
+1. 每条必须回一条**正文原句**做证据（30–120 字符）；空 evidence 不算判。
+2. 一条里既有「通用做法」又有「本机现状」时，看**这条技能靠什么才活着**：靠本机现状才成立 → `env`；
+   本机现状只是举例、做法本身通用 → `general`。
+3. 拿不准：给最接近的一类，把疑问写进 why，confidence 给低值。
+4. **非 general 的行还要给 `memory`**：把这条技能**压缩成一段可直接写进记忆的短文**——`title` 一行 +
+   `text` 几句话（保留关键值：路径 / 端口 / 版本 / 命令），丢掉只对包结构有用的东西（references 清单、
+   脚本清单、包内类目）。`general` 的行 `memory` 给 null。
+
+输出格式：**只输出 JSONL**，一条候选一行，不要解释、不要 markdown 代码围栏。每行形状：
+{"id":"P12","kind":"general","why":"…","evidence":"正文：「…」","confidence":0.9,"memory":null}
+{"id":"P31","kind":"env","why":"…","evidence":"正文：「…」","confidence":0.85,"memory":{"title":"JEV 在本机不可达","text":"…"}}
+"""
+
+
+def validate_triage_rows(rows: list, want: list) -> tuple[list, list]:
+    """逐条校验分类结果，形状不对的丢掉并报出（从不静默）。-> (good, bad)
+
+    判据（与 `_TRIAGE_RULES` 一一对应）：id 在 `want` 里 · kind 三类之一 · evidence 非空 ·
+    非 general 必须给出压缩后的 `memory{title,text}`（那是它唯一的去路）。
+    `reusable` 由脚本算（`kind == "general"`），不采信模型自报。
+    """
+    good, bad = [], []
+    for r in rows:
+        rid = str(r.get("id") or "").strip()
+        if rid not in want:
+            bad.append(f"unknown id {rid!r}")
+            continue
+        kind = str(r.get("kind") or "").strip()
+        if kind not in TRIAGE_KINDS:
+            bad.append(f"{rid}: kind={kind!r}（只能是 {'/'.join(TRIAGE_KINDS)} 之一）")
+            continue
+        if not str(r.get("evidence") or "").strip():
+            bad.append(f"{rid}: 空 evidence（只凭 name/desc 的判法不算数）")
+            continue
+        row = {"id": rid, "kind": kind, "reusable": kind == "general",
+               "why": str(r.get("why") or ""), "evidence": str(r.get("evidence") or ""),
+               "confidence": r.get("confidence"), "memory": None}
+        if kind != "general":
+            m = r.get("memory") or {}
+            title, text = str(m.get("title") or "").strip(), str(m.get("text") or "").strip()
+            if not (title and text):
+                bad.append(f"{rid}: {kind} 行必须给压缩后的 memory{{title,text}}（它的去路是写记忆，不是进包）")
+                continue
+            row["memory"] = {"title": title, "text": text}
+        good.append(row)
+    return good, bad
+
+
+def _build_triage_prompt(items: list[dict]) -> str:
+    """Build the full classification prompt for OpenAI-compatible backends."""
+    blocks = []
+    for it in items:
+        blocks.append("\n".join([
+            f"### {it['id']} · skill={it['skill']} · category={it.get('category') or '(无类目)'}",
+            f"description: {it.get('description') or ''}",
+            "--- SKILL.md 全文 ---",
+            f"{it.get('body') or ''}"]))
+    return (_TRIAGE_RULES + f"\n待分类候选（逐条判，输出条数必须等于 {len(items)}）：\n\n" + "\n".join(blocks))
+
+
+def triage_openai(items: list[dict], *, key: str, model: str,
+                  base_url: str, timeout: int) -> tuple[list[dict], str]:
+    """OpenAI-compatible backend for the classification gate."""
+    prompt = _build_triage_prompt(items)
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=json.dumps({"model": model, "stream": False, "temperature": 0,
+                         "messages": [{"role": "user", "content": prompt}]}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = json.loads(r.read().decode())
+    except Exception as e:  # noqa: BLE001
+        return [], f"{type(e).__name__}: {e}"
+
+    good, bad = validate_triage_rows(_parse_jsonl(body["choices"][0]["message"]["content"]),
+                                     [it["id"] for it in items])
+    return good, "" if good else ("; ".join(bad[:3]) or "no valid JSONL in response")
+
+
+def triage_jev(items: list[dict], *, key: str, model: str,
+               base_url: str, timeout: int) -> tuple[list[dict], str]:
+    """JEV backend for the classification gate: one choice question per item, full body in `state`.
+
+    Per item (not batched) because classification must read the *whole* document and a shared `state`
+    can only carry one body — the same reason the destination round is per item.
+
+    JEV cannot generate text, so `memory.text` is the mechanically-extracted evidence plus a collapsed
+    head of the body; `why` says so, and the main agent reviews before writing the memory.
+    """
+    rows = []
+    for it in items:
+        body = it.get("body") or ""
+        state = (f"技能名：{it['skill']}\n描述：{it.get('description') or ''}\n"
+                 f"--- SKILL.md 全文 ---\n{body[:6000]}")
+        q = {it["id"]: {
+            "type": "choice",
+            "instructions": "读完整篇正文后：这条技能属于下面哪一类？",
+            "criteria": {
+                "general": "对某个具体问题的、可复用的解决方案（换台机器 / 换个会话 / 换个人照样成立）",
+                "preference": "某个用户本人的口味或约定（换了主人就不成立）",
+                "env": "这一台机器 / 这个 harness 的现状（换了机器就不成立）",
+            },
+        }}
+        answers, err = _jev_call_questions(q, state, model, key, base_url, timeout)
+        if err:
+            return rows, f"JEV triage round: {err}"
+        a = answers.get(it["id"]) or {}
+        kind = str(a.get("choice") or "")
+        conf = float((a.get("probabilities") or {}).get(kind, a.get("confidence") or 0))
+        ev = _extract_evidence(body)
+        rows.append({
+            "id": it["id"], "kind": kind, "evidence": ev, "confidence": round(conf, 2),
+            "why": f"JEV choice={kind!r}({conf:.2f})；JEV 不生成文本 ⇒ memory 由脚本机械压缩，写记忆前请复核",
+            "memory": None if kind == "general" else
+                      {"title": it["skill"], "text": f"{ev} {' '.join(body.split())[:600]}".strip()[:700]},
+        })
+    good, bad = validate_triage_rows(rows, [it["id"] for it in items])
+    return good, "" if good else ("; ".join(bad[:3]) or "no valid rows")
+
+
+def triage_chunk(items: list[dict], backend: dict, *, key_file: pathlib.Path,
+                 timeout: int) -> tuple[list[dict], str]:
+    """Call a backend's classification function. -> (rows, error)."""
+    btype = backend.get("type", "openai")
+    model = backend.get("model", "")
+    base_url = backend.get("base_url", "")
+    key = _read_key(backend.get("key_env", ""), key_file)
+    if not key:
+        return [], f"no key for {backend.get('name')} ({backend.get('key_env')})"
+    if btype == "jev":
+        return triage_jev(items, key=key, model=model, base_url=base_url, timeout=timeout)
+    return triage_openai(items, key=key, model=model, base_url=base_url, timeout=timeout)
+
+
+def triage_chunk_with_fallback(items: list[dict], backends: list[dict], *,
+                               key_file: pathlib.Path, timeout: int) -> tuple[list[dict], str, str]:
+    """Try backends in order for the classification gate. -> (rows, source_name, error)."""
+    last_err = ""
+    for b in backends:
+        rows, err = triage_chunk(items, b, key_file=key_file, timeout=timeout)
+        if rows:
+            return rows, b.get("name", "?"), ""
+        last_err = f"{b.get('name')}: {err}"
+    return [], "", last_err or "no backends configured"
+
+
 # ─── configuration ───────────────────────────────────────────────────────────────
 
 
@@ -483,6 +652,41 @@ def _self_test() -> int:
                 fails.append(f"load_config: backends={backends} ccfg={ccfg}")
         except SystemExit as e:
             fails.append(f"load_config raised: {e}")
+
+    # 7. 分类闸门：validate_triage_rows 只放行形状对的行（general 无 memory / 非 general 必须有 memory）
+    triage_rows = [
+        {"id": "P1", "kind": "general", "evidence": "正文：「…」", "why": "w", "memory": None},
+        {"id": "P2", "kind": "env", "evidence": "e", "why": "w", "memory": {"title": "t", "text": "x"}},
+        {"id": "P3", "kind": "env", "evidence": "e", "why": "w"},                                   # 缺 memory
+        {"id": "P4", "kind": "preference", "evidence": " ", "why": "w",
+         "memory": {"title": "t", "text": "x"}},                                                    # 空 evidence
+        {"id": "P5", "kind": "other", "evidence": "e", "why": "w"},                                 # 第四类
+        {"id": "P9", "kind": "general", "evidence": "e", "why": "w"},                               # 不在 want 里
+    ]
+    good, bad = validate_triage_rows(triage_rows, ["P1", "P2", "P3", "P4", "P5"])
+    if [r["id"] for r in good] != ["P1", "P2"] or len(bad) != 4:
+        fails.append(f"validate_triage_rows: good={[r['id'] for r in good]} bad={bad}")
+    if not all(r["reusable"] == (r["kind"] == "general") for r in good):
+        fails.append("validate_triage_rows: reusable 没跟 kind 走")
+    if good and good[1].get("memory", {}).get("title") != "t":
+        fails.append("validate_triage_rows: memory 载荷没带上")
+
+    # 8. triage 分派：type=jev 走 triage_jev，type=openai 走 triage_openai（无网络）
+    tseen = {}
+    orig_tjev, orig_toai = triage_jev, triage_openai
+    globals()["triage_jev"] = lambda *a, **k: (tseen.setdefault("jev", True) or [], "")
+    globals()["triage_openai"] = lambda *a, **k: (tseen.setdefault("openai", True) or [], "")
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
+            f.write("K=x\n")
+            kf2 = pathlib.Path(f.name)
+        triage_chunk([], {"name": "j", "type": "jev", "key_env": "K"}, key_file=kf2, timeout=1)
+        triage_chunk([], {"name": "o", "type": "openai", "key_env": "K"}, key_file=kf2, timeout=1)
+        kf2.unlink()
+    finally:
+        globals()["triage_jev"], globals()["triage_openai"] = orig_tjev, orig_toai
+    if not (tseen.get("jev") and tseen.get("openai")):
+        fails.append(f"triage dispatch: {tseen}")
 
     if fails:
         for f in fails:

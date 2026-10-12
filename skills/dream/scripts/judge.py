@@ -93,13 +93,16 @@ def parse_verdicts(verdicts: list, want: list, model: str) -> tuple:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True, help="the --out dir from `scan`")
+    ap.add_argument("--input", default="judge-input-bodies.json",
+                    help="候选文件（默认 scan 冻结那份；S1.5 分类闸门跑过后指 judge-input-bodies.routed.json，"
+                         "即只判 general 那一类）")
     ap.add_argument("--limit", type=int, default=0, help="judge only the first N candidates (smoke test)")
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--dry-run", action="store_true", help="print the chunk plan, call nothing")
     args = ap.parse_args()
 
     d = pathlib.Path(args.dir).expanduser()
-    items = json.loads((d / "judge-input-bodies.json").read_text())
+    items = json.loads((d / args.input).read_text())
     answer_space = dest_space(d)
 
     # Load pluggable backends and chunk config from ~/.hermes/dream-judge.json

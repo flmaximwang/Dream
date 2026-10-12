@@ -1,14 +1,15 @@
 # Dream v3 · 完整流程（flow.md）
 
 这份是**一轮 dream 的全貌**：谁跑、跑什么命令、产出什么、判据是什么、哪一步要模型、哪一步会停下。
-口径的冻结版在 `docs/scope.md`（§2 四条硬口径、§5 开发测试口径、**§6 16 态分类与逐态去向**）；
+口径的冻结版在 `docs/scope.md`（§2 五条硬口径、§5 开发测试口径、**§6 16 态分类与逐态去向**）；
 逐步的实操细节在 `skills/dream/references/dream-method.md`（s0–s8）。
 
 ---
 
 ## 0 · 一轮在干什么
 
-把**一个 profile 里没有归属的技能**，判出它们该落进哪个包 → 写进包仓库 → 独立验证 → 装回 → 退役 profile 里的旧副本
+把**一个 profile 里没有归属的技能**，**先过一道分类闸门**（通用解决方案 / 用户偏好 / 本机特定环境 —— 只有通用方案
+进包，其余压缩后写进记忆）→ 判出它们该落进哪个包 → 写进包仓库 → 独立验证 → 装回 → 退役 profile 里的旧副本
 → **（默认）对本轮动过的包跑一遍 SkillWeave**，把包内的分层披露整理掉。
 **一轮 = 一个 profile**（验收用 `default`），跑扫描当刻的**全量**候选，不抽样。判据是 **wall clock ≤ 20 min**
 （**只管 S1–S8 的机械阶段**；S9 是默认追加的一步，单独计时、写进汇报——它吃掉的预算不算在 20 分钟里，超了就先跳过）。
@@ -71,7 +72,8 @@ v3 **不自己实现** skill-pack 的结构优化（去重、无类目归位、�
 | 阶段 | 谁跑 | 命令 | 输入 | 产出（都在 `--out` 里） | 判据 / 停下条件 |
 |---|---|---|---|---|---|
 | **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 候选 = `action=judge-destination` 那一类（**当前实现是旧的 `verdict=local`，今天两者恰好等价，两套判据并存**）；同名多份会被显式报出；解析器找不到 → exit 2 |
-| **S2 判官** | 脚本调模型 API | `judge.py --dir <out>`（后端/chunk 从 `~/.hermes/dream-judge.json` 读） | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<backend>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因）；后端按配置顺序尝试 |
+| **S1.5 分类闸门** | 脚本调模型 API | `triage.py --dir <out>`（后端/chunk 从 `~/.hermes/dream-judge.json` 读，与 S2 同一份配置） | `judge-input-bodies.json`（**全部** `judge-destination` 候选） | `triage-<backend>.jsonl`（id / kind / reusable / why / evidence / confidence / memory）· `triage-summary.json`（计数 + `memory_queue` = 非 general 的行 + 压缩载荷）· `judge-input-bodies.routed.json`（**只留 `general`**，= S2 的输入） | 三类：`general` 进 S2；`preference`/`env` 不进包（压缩写记忆 + 退役）。覆盖率必须 100%（有行没判出 → exit 1）；空 `evidence` 的行丢掉；非 general 缺 `memory` 的行丢掉；非流式、后端按配置顺序尝试 |
+| **S2 判官** | 脚本调模型 API | `judge.py --dir <out> --input judge-input-bodies.routed.json`（后端/chunk 从 `~/.hermes/dream-judge.json` 读） | `judge-input-bodies.routed.json`（**只装 S1.5 判为 `general` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<backend>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因）；后端按配置顺序尝试 |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
 | **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名> [--skills-manager] [--manager-agent <名>]` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | 新技能：`apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run] [--changes-out <路径>]`；已有技能被改：`apply.py taskbook` → 按包派 writer（**不做回归测试**） | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md`；改动清单默认在会话里报，给了 `--changes-out` 就落盘 | 扫描闸非 `safe` → 回滚不提交；name/desc 与包内已有撞车 → 跳过该行先改名/改 desc；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
@@ -124,11 +126,14 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 
 ## 4 · 哪几步仍然要模型（其余全是脚本）
 
-1. **S2 判官**：每条候选读全文 → 二选一（工具轴/主题轴）→ 挑落点 → 逐字抄 3–8 条 `claims`。
+1. **S1.5 分类闸门**：每条候选读全文 → 三类之一（`general` / `preference` / `env`）→ 逐字抄一条正文 `evidence`；
+   非 `general` 的还要把这条技能**压缩成一段可写进记忆的短文**（`memory{title,text}`）。
+   脚本只负责分块、HTTP、形状校验与分流（`judge-input-bodies.routed.json`）；后端与 S2 同一份配置。
+2. **S2 判官**：每条候选读全文 → 二选一（工具轴/主题轴）→ 挑落点 → 逐字抄 3–8 条 `claims`。
    脚本只负责分块、HTTP、JSONL 拼装、覆盖率报告；后端从 `~/.hermes/dream-judge.json` 读，按顺序尝试。
-2. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**（看 diff 合并，**不回归测试**）
+3. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**（看 diff 合并，**不回归测试**）
    （`apply.py taskbook` 生成 `writers.md`，一个包一个 writer，任务书与五步形状见 `references/dream-agent-roster.md`）。
-3. **S4 的逐行决议**：按「无人值守」判，不等人、不用 `clarify`、不发表单。
+4. **S4 的逐行决议**：按「无人值守」判，不等人、不用 `clarify`、不发表单。
 
 主 run 的上下文纪律（决定这一轮跑不跑得完）：**只跑命令、只读摘要**，不读脚本源码、不读长清单——
 `references/dream-method.md` s0。
@@ -185,6 +190,8 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
    │
 S1 scan ── 16 态 + 候选 ── inventory / judge-input / inputs(指纹) / states.json      [脚本·只读]
    │
+S1.5 triage ── 三类分流 ── general→routed / preference·env→memory_queue(写记忆)     [模型·脚本调 API]
+   │
 S2 judge ── 每候选一条决定 ── verdicts-<model>.jsonl                                  [模型·脚本调 API]
    │
 S3 audit ── claims 逐条 grep 接收侧 ── audit.md / audit.json                          [脚本·0 LLM]
@@ -211,6 +218,7 @@ S9 SkillWeave ── 对本轮动过的包跑分层披露整理（**默认、不
 |---|---|
 | 输入口径（`DREAM_EXTERNAL_DIRS` JSON + `external-dirs.py`） | ✅ 落地 |
 | 16 态 / 7 态分类与逐态去向 | 🟡 **半落地**：S1 算出来并落报表；**S2 已按 `action` 接线**（候选只取 `judge-destination`，题面带归类）。未落地：`reconcile`/`patch-package`/`patch-or-restore` 仍无承接阶段 |
+| S1.5 分类闸门 | ✅ **落地并接进 `round.sh`**：`triage.py`（三类 · 可插拔后端 · 形状校验 · 分流三份产物）+ `merge` 认 routed 覆盖率；离线自检 `--self-test`，真模型验收 `tests/triage/acceptance.py`（5 fixture 两类全判对，见 `plans/judge-triage-gate/`） |
 | S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
 | S7 装回 | 🟡 命令清单已按三条路生成（`--skills-manager` 开关已加；不再出现 hermes 自己的安装命令），**未真跑** |
 | S8 退役 | ⏳ 未真跑；口径要按"装回有多个所有者"重写（Skills-Manager 装的那份不该由 dream 删） |

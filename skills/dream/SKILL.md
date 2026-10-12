@@ -5,12 +5,16 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 
 # dream · 批量收编一批本地 skill 进技能包仓库（通用方法）
 
-一条批次：**枚举 → 判落点 → 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 → 退役**。
+一条批次：**枚举 → 先分类（通用 / 偏好 / 本机环境）→ 判落点 → 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 → 退役**。
 本文件是第一层披露：边界 + 分工表 + 决议规则 + 每一步一行转指。细节在 `references/`，按文末文档树进入。
 
 ## 边界（先读这一节）
 
-- 本 skill 独占的是**批次**：一次枚举、一次判断、一次按规则决议、按包并发、一次整包重装。
+- 本 skill 独占的是**批次**：一次枚举、**一次分类**、一次按内容判落点、一次按规则决议、按包并发、一次整包重装。
+- **先分类再收编（S1.5）**：候选先过一道分类闸门（`triage.py`）—— 只有 `general`（对某个具体问题的**可复用**
+  解决方案）才进 S2 判落点、写进包；`preference`（用户个人偏好）/ `env`（本机 / harness 特定环境）**不进包**：
+  压缩成一段 `memory` 载荷写进记忆（用**所处 harness 提供的记忆工具**，本 skill 不绑定记忆基座），
+  再按 S8 退役 profile 副本。判据与命令：`references/dream-triage-gate.md`。
 - 不属于本 skill：单个 skill 的收编（→ `recruit-learning-in-profile`）、装/更/卸机制（→ `install-` /
   `update-` / `remove-hermes-skills`）、跨 profile 补齐（→ `maintain-hermes-profile-skill-parity`）、
   一轮会话自己的收获（→ `recruit-learning-in-session`）。
@@ -40,7 +44,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | 阶段 | 谁做 | 为什么非它不可 | 明确不许 |
 |---|---|---|---|
 | S1 枚举 | **主 agent 跑 `sweep-plan.py scan`** | 上百条候选手抄必错；判官输入必须是**脚本产物**（凭记忆转写的题面曾逐条与源文件不同，整轮结论作废） | 不读技能正文、不判断归属 |
-| S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；后端从 `~/.hermes/dream-judge.json` 读，当前支持 JEV 与 OpenAI 兼容端点；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
+| S1.5 分类闸门 | **主 agent 跑 `triage.py`**（后端/分块同 S2，从 `~/.hermes/dream-judge.json` 读） | 「该不该进包」必须**独立于**「进哪个包」判：混在一次里判，本机现状记录与用户偏好会被硬塞进包、永久住在对外可见的仓库里（换台机器就不成立） | 不许把三类并成一类；非 `general` 的行**不许**再送进 S2；空 `evidence` 的行丢掉 |
+| S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；后端从 `~/.hermes/dream-judge.json` 读，当前支持 JEV 与 OpenAI 兼容端点；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.routed.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
 | S3 交叉审计 | **主 agent 跑 `audit.py`**（判官的 `claims` × `grep -nF` 接收侧） | 只有 `grep` 的真输出能给出接收侧 `file:line`；模型转述不算证据 | 不改任何文件；只出两张清单 |
 | S4 自动决议 | **主 agent 跑 `sweep-plan.py merge` + 规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
 | S5 写入 | **主 agent 跑 `apply.py apply`**（新技能：只拷贝 + 查 name/desc 撞车 + 扫描闸 + pathspec 提交推送）；**`merge`/`strengthen` 行按包派一个 writer 子代理看 diff 合并正文**（不做回归测试） | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许子代理起后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
@@ -82,6 +87,27 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 S1 还逐条算 **16 态**（`state` / `action`）：态的定义、可比者与逐态去向见 `docs/scope.md` §6；产出 `states.json`
 （hermes 16 态 + general agent 7 态）。控制台的 `16 态（hermes）=` 与 `逐态去向=` 两行先看，再决定这一轮做哪些态。
 
+## S1.5 · 分类闸门
+
+**在挑落点之前先问一句：这条技能该不该进包？** 三类，判据是**可复用性**（换台机器 / 换个会话 / 换个人还成立吗）：
+
+- `general` —— 对某个具体问题的**可复用解决方案** → 进 S2 挑落点。
+- `preference` —— **某个用户本人**的口味或约定（换了主人就不成立）→ **不进包**。
+- `env` —— **这一台机器 / 这个 harness 的现状**（服务不可达、本地路径 / 端口 / 版本 / 凭据；换了机器就不成立）→ **不进包**。
+
+非 general 的两类：脚本给一段压缩好的 `memory{title,text}`，由主 agent **用所处 harness 提供的记忆工具**
+写进记忆（不绑定记忆基座），然后按 S8 退役 profile 副本。这一步只有模型能判（读全文、逐条回正文证据），
+脚本负责分块、HTTP、形状校验与分流。
+
+```bash
+python3 -B skills/dream/scripts/triage.py --dir <scan 的 --out 目录>   # 实测 5 条 2.4s（JEV）/ 5.5s（deepseek）
+```
+
+读它最后两行摘要（`classified=N/M · general=… preference=… env=…` 与分流行）；产出三份：
+`triage-<backend>.jsonl`（逐条）· `triage-summary.json`（计数 + `memory_queue`）·
+`judge-input-bodies.routed.json`（**S2 的输入**）。S4 的覆盖率只算 routed 里那几条，被分流的行不算缺判。
+完整判据、JEV 短板与复核口径：`references/dream-triage-gate.md`。
+
 ## S2 · 路由判断
 
 **第一步是二选一，不是挑名字**：这条技能的**主语**是「某个软件/工具」还是「一类任务/学科」（主题）？
@@ -92,7 +118,8 @@ S1 还逐条算 **16 态**（`state` / `action`）：态的定义、可比者与
 **只判 `action=judge-destination` 那一类**（S1 已逐条算出归类，`local·local·mgr=no·ext=no`）：题面里每条候选带一行
 「归类」，硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」。归类不是这一类的行，判官要指出并给 `confidence=0`。
 
-做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（后端与分块参数从 `~/.hermes/dream-judge.json` 读）。
+做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录> --input judge-input-bodies.routed.json`
+（后端与分块参数从 `~/.hermes/dream-judge.json` 读；那份 routed 文件就是 S1.5 判出来的 general 那一类）。
 **只读它最后那行 wall/verdicts 摘要**。
 
 ## S3 · 交叉审计
@@ -198,6 +225,8 @@ prepare → disclosure → dispatch → apply → verify → （动了 descripti
 - **不要把 N 个候选一次塞进一个子代理**：上下文爆掉、判断质量崩，还违背「一个包一个 writer」的边界。
 - **不要同一个包派两个 writer**：README、生成段、提交会互相踩。
 - **不要用 `mv` 当迁移**：包是 source of truth，副本只在回读之后退役。
+- **不要把「本机现状 / 用户偏好」当通用方案收进包**：先过 S1.5 分类闸门（`triage.py`）——
+  非 `general` 的走记忆（压缩后写进记忆工具）并退役副本，**不进 S2、不进包**。
 - **不要让主 run 读脚本源码或长清单**：那正是这一轮跑不完的原因；只跑命令、只读摘要。
 - **不要给「只关某个 profile 的记录或流程」建包**：新包只吃通用方法。
 
@@ -226,6 +255,8 @@ prepare → disclosure → dispatch → apply → verify → （动了 descripti
 | `docs/flow.md`（仓库根） | **一轮的全貌**：输入 → 16 态先行判定 → S1–S8 阶段表 → 闸门 → 开发口径 → 缺口 → 进度锚点 |
 | `references/dream-agent-roster.md` | merge/strengthen 行的 writer 任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
+| `references/dream-triage-gate.md` | S1.5 分类闸门：三类判据、`memory` 载荷、命令与产出、复核口径 |
+| `scripts/triage.py` | S1.5 分类闸门：分块调后端（与 judge 同一份配置），落 triage 三份产物（`--self-test` 离线自检） |
 | `scripts/judge.py` | S2 判官：分块调模型（逐块落盘 + 断点续跑；后端从 `~/.hermes/dream-judge.json` 读） |
 | `scripts/judge_backends.py` | 可插拔后端：JEV + OpenAI 兼容，按配置顺序尝试（`--self-test` 离线自检） |
 | `dream-judge.example.json` | 判官配置示例：复制到 `~/.hermes/dream-judge.json` 并按需改后端列表 |

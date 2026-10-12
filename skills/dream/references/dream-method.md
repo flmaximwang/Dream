@@ -48,6 +48,12 @@ python3 -B skills/dream/scripts/sweep-plan.py scan \
    其中只有 33 个可路由。可路由**只决定这个落点以后能不能装回来，不限制它能否当落点**——空壳由 writer
    在写入前补 remote。`.git` 是**文件**（不是目录）的目录不是包（那是别的 clone 的 worktree），脚本过滤掉。
 
+## s1.5 · 分类闸门
+
+完整判据、命令与产出：`references/dream-triage-gate.md`（本文件不重复一份）。一句话：**只有 `general`**
+（对某个具体问题的**可复用**解决方案）进 s2；`preference`（用户个人偏好）/ `env`（本机 / harness 特定环境）
+压缩成 `memory{title,text}` 写进记忆（用适配层给的记忆工具）、**不进包**，随后按 s8 退役副本。
+
 ## s2 · 路由判断
 
 **入口判据**：只判 `action=judge-destination` 的候选（S1 的 16 态里唯一"要动手"的那一类：三方都没主）。

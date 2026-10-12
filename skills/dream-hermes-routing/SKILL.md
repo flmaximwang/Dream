@@ -5,8 +5,8 @@ description: "Use when 要给某个 Hermes profile 批量收编没有仓库归�
 
 # dream-hermes-routing · dream 方法在 Hermes 上的适配层
 
-**方法本体不在这里**：批次算法（枚举 → 判落点 → 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 →
-退役）在同仓库的 `skills/dream`。本技能只补 Hermes 的三处接口：**容器判据 / 安装命令 / 判官接线**。
+**方法本体不在这里**：批次算法（枚举 → 分类 → 判落点 → 交叉审计 → 无人值守决议 → 写入 → 独立验证 → 整包重装 →
+退役）在同仓库的 `skills/dream`。本技能只补 Hermes 的四处接口：**容器判据 / 安装命令 / 判官接线 / 记忆写入**。
 先在 `skill_view dream` 读方法本体，再回本文件拿 Hermes 的具体值。
 
 ## 1 · 容器判据（Hermes 的 profile；Skills-Manager 接管之后）
@@ -149,9 +149,23 @@ python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录>
 3. `skills-manager-cli --json skills show <名>` 的 `path` 指向中央库那份、`deployed_to` 含这个 profile 的
    agent key（只证明来源与部署，不证明内容一致）。
 
-## 6 · 扩展点：别的 agent 照本文件形状加
+## 6 · 记忆写入（S1.5 分类闸门分流出来的那两类）
+
+S1.5（`triage.py`）把候选分成三类，只有 `general` 进包；`preference`（用户偏好）/ `env`（本机 / harness
+特定环境）**不进包** —— 脚本在 `triage-summary.json` 的 `memory_queue` 里给出每条的压缩载荷
+`memory{title,text}`，**写进记忆这件事由主 agent 用 Hermes 自己的记忆工具做**：
+
+- **用什么写**：Hermes 的记忆工具（当前实例是 hindsight；主 agent 直接把 `title` + `text` 写成一条记忆即可——
+  内容已经是压缩过的一段，别再自己发挥）。
+- **不绑定基座**：换成别的 memory provider / 别的 harness，照各自的记忆工具写同样的 `title` + `text`——
+  方法本体只写「适配层提供记忆的写入口」，不写死任何一家。
+- **写法**：`title` 当标题、`text` 当正文；`memory` 为空的行**不写**（那是脚本按形状丢掉的坏行，先回 S1.5 重判）。
+- **写完**：按 S8 的口径退役 profile 里的副本（先 `tar czf` 备份、再删；回读没通过不许删）。
+- **JEV 后端的例外**：JEV 不生成文本，它的 `memory.text` 是脚本机械压的（`why` 里写明）——写之前自己看一遍。
+
+## 7 · 扩展点：别的 agent 照本文件形状加
 
 Dream 为一个 agent 提供一个适配技能：**general 方法本体只有一个（`skills/dream`），适配技能一个 agent 一个**。
-新 agent 的适配技能按本文件的形状写（容器判据 / 落点空间 / 安装命令 / 判官接线 / 回读三件），
+新 agent 的适配技能按本文件的形状写（容器判据 / 落点空间 / 安装命令 / 判官接线 / 记忆写入 / 回读三件），
 目录名 `<agent>-routing`，正文里写明「方法本体在同仓库 `skills/dream`」。**不要**把 agent 专有机制写回
 `skills/dream`。

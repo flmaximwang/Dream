@@ -1,7 +1,9 @@
 # 判官：把候选判出落点（v3 的路子与判据）
 
-v3 只有一条判官路径：**主 agent 跑 `scripts/judge.py`**——它把 `judge-input-bodies.json` 按字节分块，
-**每块一次模型请求**（非流式），落 `verdicts-<model>.jsonl`。
+v3 只有一条判官路径：**主 agent 跑 `scripts/judge.py`**——它把 `judge-input-bodies.routed.json`（S1.5 判为
+`general` 的那一类）按字节分块，**每块一次模型请求**（非流式），落 `verdicts-<model>.jsonl`。
+**分类闸门（S1.5）不是这一步**：它先判「这条技能该不该进包」，有自己的脚本 `triage.py` 与自己的文档
+`dream-triage-gate.md`；本文件只讲 S2「挑落点」。
 没有「每 8–12 条一个分类子代理」：v2 那条路整批算下来是**第二次扇出**，wall 由最慢的孩子
 决定，是 4–5 小时那两轮的主要成本之一。
 

@@ -671,7 +671,17 @@ def _resolve(r: dict, v: dict, packs: dict, by_norm: dict, bad: list):
 
 def cmd_merge(args) -> int:
     out = pathlib.Path(args.dir).expanduser()
-    judge_input = json.loads((out / "judge-input.json").read_text(encoding="utf-8"))
+    all_input = json.loads((out / "judge-input.json").read_text(encoding="utf-8"))
+    # S1.5 分类闸门（triage.py）把「用户偏好 / 本机环境」的候选分流去记忆（不进包），它们的 id 不该再算进
+    # S2 的覆盖率。产物在 = 本轮跑了闸门；产物不在 = 没跑闸门，按全量走（向后兼容）。
+    in_scope = None
+    routed = out / "judge-input-bodies.routed.json"
+    if routed.is_file():
+        in_scope = {r["id"] for r in json.loads(routed.read_text(encoding="utf-8"))}
+        dropped = [r["id"] for r in all_input if r["id"] not in in_scope]
+        print(f"[sweep-plan] 分类闸门：{len(dropped)} 条判为 preference/env → 不进包（写记忆），"
+              f"本轮判落点 {len(in_scope)} 条")
+    judge_input = [r for r in all_input if in_scope is None or r["id"] in in_scope]
     packs = {p["repo"]: p for p in json.loads((out / "packs.json").read_text(encoding="utf-8"))}
     routable = {k: v for k, v in packs.items() if not v.get("empty")}
     by_norm: dict = {}
@@ -696,7 +706,7 @@ def cmd_merge(args) -> int:
                 bad.append(f"{f.name}: duplicate verdict for {vid}")
             else:
                 verdicts[vid] = v
-    known = {r["id"] for r in judge_input}
+    known = {r["id"] for r in all_input}
     bad += [f"{vid}: id is not in judge-input.json (ids are a scan artifact — re-run scan, keep the pair)"
             for vid in verdicts if vid not in known]
 
@@ -1037,6 +1047,16 @@ def self_test() -> int:
         assert [r["repo"] for r in resolved] == ["AgentSkill-UsingFake", "AgentSkill-RunningLocalBatches",
                                                 "AgentSkill-RunningLocalBatches"], resolved
         assert [r["collided"] for r in resolved] == [True, False, True], resolved
+
+        # S1.5 分类闸门（triage.py）：routed 文件在 ⇒ 覆盖率只算它那几条（被分流的行不进包、不算缺判）；
+        # 产物不在 ⇒ 回到全量口径（向后兼容，没跑闸门的轮次照旧）。
+        routed = tmp / "out" / "judge-input-bodies.routed.json"
+        routed.write_text(json.dumps([b for b in bodies if b["id"] == "P1"], ensure_ascii=False),
+                          encoding="utf-8")
+        merge(ok1, code=0)                       # 只有 P1 在范围内 → 覆盖率 100%
+        merge(code=4)                            # 范围内一条都没判 → 仍是缺判，不许悄悄放过
+        routed.unlink()
+        merge(ok1, ok2, ok3, code=0)             # 拿掉闸门产物 → 又按全量（P2/P3 重新算进覆盖率）
 
     finally:
         HERMES_HOME = real
