@@ -14,8 +14,11 @@
     skill-mirror.py same <技能名> <仓库路径> <profile 技能目录> [--skill-dir <相对目录>]
 
     # ③ 判据本体：把整个 profile 的技能对一遍外部仓库列表
-    skill-mirror.py check <profile 根> --repo <仓库> [--repo <仓库> ...] [--json]
-    skill-mirror.py check <profile 根> --repos-from <每行一个仓库路径的文件>
+    skill-mirror.py check <profile> --repo <仓库> [--repo <仓库> ...] [--json]
+    skill-mirror.py check <profile> --repos-from <每行一个仓库路径的文件>
+    # <profile> 收**路径**（`~/.hermes` 或它的 skills/）也收**名字**（`default` / `dev-general`）——
+    # 同一个工具族里 sweep-plan/apply 收的是名字，这里历史上收路径，两种都认。
+    # 仓库列表可以直接从 Skills-Manager 生成：skill-mirror.py repos-from-manager
 
     skill-mirror.py --self-test
 
@@ -28,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -115,14 +119,46 @@ def classify(skill_dir: pathlib.Path, index: dict) -> dict:
                 matches=[r["repo_path"] for r in res], detail={r["repo_path"]: r["diff"] for r in res})
 
 
+def profile_arg(arg: str) -> pathlib.Path:
+    """`check` 的位置参数：给路径就用路径，给 profile **名字**就按 Hermes 根解析。
+
+    历史上这里只收路径，而同族的 sweep-plan/apply 收的是名字（`--profile default`）—— 于是
+    `check default` 会被当成一个叫 `default` 的相对目录，报「check 需要 --repo」（实测踩过）。
+    两种都认：认不出名字就原样当路径返回，由调用方报错。
+    """
+    p = pathlib.Path(arg).expanduser()
+    if p.is_dir():
+        return p
+    home = pathlib.Path(os.environ.get("HERMES_HOME") or pathlib.Path.home() / ".hermes")
+    if (home / "profiles").is_dir() or (home / "hermes-agent").is_dir():
+        root = home
+    else:
+        root = home.parent.parent if home.parent.name == "profiles" else home
+    cand = root if arg in ("", "default") else root / "profiles" / arg
+    return cand if cand.is_dir() else p
+
+
 def profile_skills(profile: pathlib.Path) -> list:
+    """一个 profile 下所有技能目录。**必须跟着符号链接走**：Skills-Manager 部署的就是符号链接
+    （`skills/<名>` → `~/.skills-manager/skills/<名>`），而 `rglob` 不进符号链接目录 —— 用它会把
+    它装的技能全看成不存在（与 `sweep-plan.walk_skill_dirs` / `apply.walk_skill_mds` 同一口径）。"""
     prof = pathlib.Path(profile).expanduser()
     root = prof / "skills" if (prof / "skills").is_dir() else prof
-    out = []
-    for md in root.rglob("SKILL.md"):
-        if set(md.parts) & SKIP_DIRS:
+    out, seen = [], set()
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
+        rel = pathlib.Path(dirpath).relative_to(root).parts
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        if len(rel) > 4:                                     # 太深，不可能是技能目录
+            dirnames[:] = []
             continue
-        out.append(md.parent)
+        key = os.path.realpath(dirpath)
+        if key in seen:                                      # 符号链接成环时别转圈
+            dirnames[:] = []
+            continue
+        seen.add(key)
+        if "SKILL.md" in filenames:
+            out.append(pathlib.Path(dirpath))
+            dirnames[:] = []
     return sorted(out)
 
 
@@ -165,7 +201,7 @@ def cmd_check(args) -> int:
         sys.exit("check 需要 --repo <仓库> 或 --repos-from <文件>")
     skill_dirs = args.skill_dirs or []
     index = build_index(repos, skill_dirs)
-    skills = profile_skills(pathlib.Path(args.profile))
+    skills = profile_skills(profile_arg(args.profile))
     rows = []
     for s in skills:
         c = classify(s, index)
