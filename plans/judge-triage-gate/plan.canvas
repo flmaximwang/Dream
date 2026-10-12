@@ -117,8 +117,8 @@
    "y": 1340,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-004#B-003\n清理 worktree 与临时证据\n\n`ready` · @-\n\n从主 clone 侧 git worktree remove ../Dream.wt-triage → 删分支 judge-triage-gate → worktree prune；tests/ 的临时产物不留（acceptance.py 默认自删临时目录）。"
+   "color": "4",
+   "text": "### T-004#B-003\n清理 worktree 与临时证据\n\n`done` · @-\n\n从主 clone 侧 git worktree remove ../Dream.wt-triage → 删分支 judge-triage-gate → worktree prune；tests/ 的临时产物不留（acceptance.py 默认自删临时目录）。"
   }
  ],
  "edges": [

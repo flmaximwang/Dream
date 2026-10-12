@@ -5,7 +5,7 @@
   "goal": "给 dream 的判官加一道前置分类闸门（S1.5）：按新技能全文判它属于「general 通用解决方案 / preference 用户个人偏好 / env 本机特定环境」三类，只有 general 才进 S2 判落点、写进包；其余两类压缩成 memory{title,text} 写进记忆（用所处 harness 提供的记忆工具，不绑定记忆基座）、不进包，并按 S8 退役 profile 副本。限制：新开 worktree 做。验收：写一批像程序文档的技能 + 一批像本机环境记录的技能（例如 JEV 不可达），证实判官确实能分出两类；合并回 main 并推送。",
   "status": "active",
   "created_at": "2026-10-13T00:38:51+08:00",
-  "updated_at": "2026-10-13T00:43:34+08:00",
+  "updated_at": "2026-10-13T00:44:06+08:00",
   "cadence": {
     "digest_hours": 6,
     "quiet_hours": "23:00-08:00"
@@ -402,7 +402,7 @@
           "id": "T-004#B-003",
           "title": "清理 worktree 与临时证据",
           "kind": "impl",
-          "status": "pending",
+          "status": "done",
           "owner": "",
           "doc": "从主 clone 侧 git worktree remove ../Dream.wt-triage → 删分支 judge-triage-gate → worktree prune；tests/ 的临时产物不留（acceptance.py 默认自删临时目录）。",
           "input": "",
@@ -416,8 +416,16 @@
           "review_of": "",
           "feedback": "",
           "exec": {},
-          "status_since": "2026-10-13T00:39:29+08:00",
-          "runs": []
+          "status_since": "2026-10-13T00:44:06+08:00",
+          "runs": [
+            {
+              "at": "2026-10-13T00:44:06+08:00",
+              "by": "hermes",
+              "from": "pending",
+              "to": "done",
+              "note": ""
+            }
+          ]
         }
       ],
       "note": "",
@@ -724,7 +732,21 @@
       "kind": "summary",
       "text": "独立复核结论：核心正确性成立，无阻塞项。复核另外确认它自己没写仓库（HEAD 仍 b84cea6、无新增未跟踪文件），并把复核期间 plans/judge-triage-gate/ 的 4 个文件被改动标为「父侧 loomerto 记账」，非它所为——与我的记账时间点吻合。",
       "ref": ""
+    },
+    {
+      "at": "2026-10-13T00:44:06+08:00",
+      "actor": "agent",
+      "kind": "status",
+      "text": "T-004#B-003: pending → done",
+      "ref": "T-004#B-003"
+    },
+    {
+      "at": "2026-10-13T00:44:06+08:00",
+      "actor": "agent",
+      "kind": "summary",
+      "text": "收尾：worktree Dream.wt-triage 已从主 clone 侧 git worktree remove（未在 worktree 里切 main）→ 删分支 judge-triage-gate → prune。回读：worktree list 只剩主 clone（2428190 [main]）、本地分支只剩 main、主 clone git status 干净、目录已不存在。tests/ 的临时产物由 acceptance.py 自删。最终 origin/main = 2428190eb43239630d234783ff7ed207eefe3d6。",
+      "ref": ""
     }
   ],
-  "rev": "1d71e5c36a3e"
+  "rev": "bfacaaccee98"
 }

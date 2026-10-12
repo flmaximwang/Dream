@@ -2,13 +2,13 @@
 
 > 给 dream 的判官加一道前置分类闸门（S1.5）：按新技能全文判它属于「general 通用解决方案 / preference 用户个人偏好 / env 本机特定环境」三类，只有 general 才进 S2 判落点、写进包；其余两类压缩成 memory{title,text} 写进记忆（用所处 harness 提供的记忆工具，不绑定记忆基座）、不进包，并按 S8 退役 profile 副本。限制：新开 worktree 做。验收：写一批像程序文档的技能 + 一批像本机环境记录的技能（例如 JEV 不可达），证实判官确实能分出两类；合并回 main 并推送。
 
-**进度** 11/12 块（92%） · 状态 `active` · 更新于 2026-10-13 00:43
+**进度** 12/12 块（100%） · 状态 `active` · 更新于 2026-10-13 00:44
 
 **参与方** Hermes(dev-general)(agent) · 本人(human)
 
 ## 现在该谁动（NOW / NEXT）
 
-- `T-004#B-003` **清理 worktree 与临时证据** — 待认领 · @未指派
+- （没有在途工作）
 
 ## 图
 
@@ -28,9 +28,7 @@ flowchart LR
   T-004_B-003["B-003 清理 worktree 与临时证据"]
   T-002_B-002 --> T-002_B-003
   classDef done stroke-width:1px;
-  class T-001_B-001,T-001_B-002,T-001_B-003,T-002_B-001,T-002_B-002,T-002_B-003,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002 done;
-  classDef ready stroke-width:1px;
-  class T-004_B-003 ready;
+  class T-001_B-001,T-001_B-002,T-001_B-003,T-002_B-001,T-002_B-002,T-002_B-003,T-003_B-001,T-003_B-002,T-003_B-003,T-004_B-001,T-004_B-002,T-004_B-003 done;
 ```
 
 ## 任务
@@ -80,7 +78,7 @@ flowchart LR
     - run 2026-10-13 00:39 hermes pending→done 
     - run 2026-10-13 00:40 hermes done→done 
 
-### T-004 交付：合并回 main 并推送 — 待认领
+### T-004 交付：合并回 main 并推送 — 已完成
 - [x] `T-004#B-001` **worktree 隔离改 + 提交（分支 judge-triage-gate）** _impl_ — 已完成
     - 做什么：从主 clone 开 worktree ../Dream.wt-triage（分支 judge-triage-gate，基于当时的 main），全部改动与提交都在 worktree 里做，主 clone 不切分支。
     - 判据：git -C <主 clone> worktree list 里有 Dream.wt-triage；提交只在分支 judge-triage-gate 上
@@ -89,14 +87,13 @@ flowchart LR
     - 做什么：按包规：不在 worktree 里切 main。回主 clone 执行 git -C <主 clone> merge judge-triage-gate，再 git -C <主 clone> push origin main；推送后核对 origin/main == 本地 main。
     - 判据：git -C <主 clone> status 干净；git ls-remote origin main 的 sha == 本地 main 的 sha
     - run 2026-10-13 00:40 hermes pending→done 
-- [ ] `T-004#B-003` **清理 worktree 与临时证据** _impl_ — 待认领
+- [x] `T-004#B-003` **清理 worktree 与临时证据** _impl_ — 已完成
     - 做什么：从主 clone 侧 git worktree remove ../Dream.wt-triage → 删分支 judge-triage-gate → worktree prune；tests/ 的临时产物不留（acceptance.py 默认自删临时目录）。
     - 判据：worktree list 只剩主 clone；分支只剩 main；主 clone git status --porcelain 干净
+    - run 2026-10-13 00:44 hermes pending→done 
 
 ## 日志（近 20 条）
 
-- `2026-10-13 00:39` **agent** [block] 新增块 T-003#B-003「Hermes 适配层：记忆写入（§6）」
-- `2026-10-13 00:39` **agent** [status] T-003#B-001: pending → done
 - `2026-10-13 00:39` **agent** [status] T-003#B-002: pending → done
 - `2026-10-13 00:39` **agent** [status] T-003#B-003: pending → done
 - `2026-10-13 00:39` **agent** [block] 新增块 T-004#B-001「worktree 隔离改 + 提交（分支 judge-triage-gate）」
@@ -115,6 +112,8 @@ flowchart LR
 - `2026-10-13 00:43` **agent** [exec] T-002#B-003: 线程登记已清除（@hermes 收工）
 - `2026-10-13 00:43` **agent** [status] T-002#B-003: running → done（独立复核（子代理 deleg_4df58076，只读、前台、181s、28 次调用）6 项断言逐条真命令核实：①三脚本 --self-test 退 0 ✓ ②validate_triage_rows 真丢坏行（缺 kind/第四类/空 evidence/非 general 缺 memory/id 不在 want 共 6 类全弃）且模型自报 reusable=false 被忽略、脚本按 kind 算出 true ✓ ③merge 真按 routed 算覆盖率：无 routed → coverage 1/3 exit 4；routed=[P1] → exit 0；routed=[P1,P2] 只判 P1 → exit 4（范围内缺口仍拦，不无脑放行）✓ ④round.sh S1(L121)→S1.5(L122)→S2(L123 带 --input) 顺序与 --plan 实跑一致 ✓ ⑤三处文档命令与 triage.py 实际参数吻合 ✓ ⑥-d scope.md「五条硬口径」与 ①–⑤ 一致 ✓。✗ 只有三处文档不一致（非逻辑）：(a) SKILL.md 支持文件表漏 scripts/external-dirs.py（既有）(b) SKILL.md 的 Generated-by-Scripts 树未重生成（机器所有，既有、已缺 4 个脚本）(c) flow.md §3 标题「阶段（S1–S8）」与 round.sh 头注释未纳入 S1.5/S9。整改：a、c 当场修（本提交）；b 不手改（机器所有、手改会被生成器覆盖，留作已知漂移）；flow.md §9 的 74/挡10 与底部实测表 78/挡12 是两个不同轮次的记录，按「记录不改」保持原样。）
 - `2026-10-13 00:43` **agent** [summary] 独立复核结论：核心正确性成立，无阻塞项。复核另外确认它自己没写仓库（HEAD 仍 b84cea6、无新增未跟踪文件），并把复核期间 plans/judge-triage-gate/ 的 4 个文件被改动标为「父侧 loomerto 记账」，非它所为——与我的记账时间点吻合。
+- `2026-10-13 00:44` **agent** [status] T-004#B-003: pending → done
+- `2026-10-13 00:44` **agent** [summary] 收尾：worktree Dream.wt-triage 已从主 clone 侧 git worktree remove（未在 worktree 里切 main）→ 删分支 judge-triage-gate → prune。回读：worktree list 只剩主 clone（2428190 [main]）、本地分支只剩 main、主 clone git status 干净、目录已不存在。tests/ 的临时产物由 acceptance.py 自删。最终 origin/main = 2428190eb43239630d234783ff7ed207eefe3d6。
 
 ---
 plan.json 是唯一真相；本文件与 plan.html / plan.canvas 由 `plan.py render judge-triage-gate` 生成。
