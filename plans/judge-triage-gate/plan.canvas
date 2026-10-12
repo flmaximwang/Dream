@@ -57,8 +57,8 @@
    "y": 40,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-002#B-003\n独立复核：判据、接线与数字对不对\n\n`ready` · @-\n\n另一个人（子代理，只读、前台、不许起后台进程）独立复核：① triage.py 的形状校验真的丢坏行、reusable 真是脚本算的；② merge 真的按 routed 算覆盖率（不是只看打印）；③ round.sh 的 S1.5/S2 接线对得上；④ 重跑 self-test 与 acceptance 拿到的数字与"
+   "color": "4",
+   "text": "### T-002#B-003\n独立复核：判据、接线与数字对不对\n\n`done` · @hermes\n\n另一个人（子代理，只读、前台、不许起后台进程）独立复核：① triage.py 的形状校验真的丢坏行、reusable 真是脚本算的；② merge 真的按 routed 算覆盖率（不是只看打印）；③ round.sh 的 S1.5/S2 接线对得上；④ 重跑 self-test 与 acceptance 拿到的数字与"
   },
   {
    "id": "T-003#B-001",
@@ -107,8 +107,8 @@
    "y": 1210,
    "width": 300,
    "height": 110,
-   "color": "3",
-   "text": "### T-004#B-002\n合并回主 clone 的 main + push origin main\n\n`ready` · @-\n\n按包规：不在 worktree 里切 main。回主 clone 执行 git -C <主 clone> merge judge-triage-gate，再 git -C <主 clone> push origin main；推送后核对 origin/main == 本地 main。"
+   "color": "4",
+   "text": "### T-004#B-002\n合并回主 clone 的 main + push origin main\n\n`done` · @-\n\n按包规：不在 worktree 里切 main。回主 clone 执行 git -C <主 clone> merge judge-triage-gate，再 git -C <主 clone> push origin main；推送后核对 origin/main == 本地 main。"
   },
   {
    "id": "T-004#B-003",

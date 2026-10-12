@@ -263,8 +263,9 @@ prepare → disclosure → dispatch → apply → verify → （动了 descripti
 | `scripts/audit.py` | S3 交叉审计：`claims` 逐条 grep，出 already-there / net-new |
 | `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire` + `taskbook`（按包拼 writer 任务书） |
 | `scripts/skill-mirror.py` | profile 技能 ↔ 外部仓库的对等物：`where` / `same` / `check`（homed / drift / local 三档） |
-| `scripts/round.sh` | S1–S8 一条命令编排 + 逐阶段计时落 `stages.tsv`（`--test` 走副本 / `--plan` 只看清单） |
+| `scripts/round.sh` | S1 → S1.5 → S2–S8 一条命令编排 + 逐阶段计时落 `stages.tsv`（`--test` 走副本 / `--plan` 只看清单） |
 | `scripts/sweep-plan.py` | `scan` / `merge`（含 `--self-test`） |
+| `scripts/external-dirs.py` | 落点池清单（`.env` 的 `DREAM_EXTERNAL_DIRS` 指向的本地 JSON）：`init` / `show` / `check` / `refresh` / `manager-skills`（含 `--self-test`） |
 
 ## Skill Structure
 

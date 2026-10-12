@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# dream v3 · 一轮的编排器：按 S1→S8 顺序跑，逐阶段记时间，产出 stages.tsv（口径④「wall ≤ 20 min」的证据形状）。
+# dream v3 · 一轮的编排器：按 S1 → S1.5（分类闸门）→ S2–S8 →（S9 由主 agent 调 SkillWeave）顺序跑，
+# 逐阶段记时间，产出 stages.tsv（口径④「wall ≤ 20 min」的证据形状）。
 #
 #   bash skills/dream/scripts/round.sh --test              # 开发/测试轮：写到 AgentSkill-copy、--no-push、不退役
 #   bash skills/dream/scripts/round.sh --profile default   # 正式轮：写真包、推送、退役（默认就是正式轮）
 #   bash skills/dream/scripts/round.sh --plan              # 只打印这一轮会跑什么（不执行）
 #
-# 这一轮里**要模型做**的两件事不在本脚本内：S2 的判官（judge.py 直调，脚本负责调它）与 S5 里
-# merge/strengthen 行的正文改写（跑完 apply 后打印清单，由主 agent 派 writer）。脚本只编排机械阶段。
+# 这一轮里**要模型做**的几步不在本脚本内（脚本只负责调它们）：S1.5 的分类闸门（triage.py）与 S2 的判官
+# （judge.py 直调）；S5 里 merge/strengthen 行的正文改写则跑完 apply 后打印清单、由主 agent 派 writer。
+# 脚本只编排机械阶段。
 set -uo pipefail
 
 PY=$(command -v python3)
