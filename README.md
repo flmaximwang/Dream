@@ -9,6 +9,13 @@
 （契约：SkillWeave 的 `docs/contract.md`）。反向亦然：**profile 级读数与闸门（`MAX_AGENT_SKILLS`）不进 SkillWeave**。
 目标：一轮 ≤20 分钟（见 `plans/dream-v3/`）。
 
+**一轮的默认形状（2026-10-13 改）**：收编之后**默认跑一遍 SkillWeave**——调它的 `weave.py`，不自己实现那套动作——
+把本轮动过的包的分层披露整理掉。**跑 SkillWeave 不强制**：包太小、预算不够、或本轮没有任何包被写入时可以跳过，
+但要在收尾汇报里写明**跳过了哪些包、为什么**。**跑 SkillWeave 时遇到的问题提 SkillWeave 的 issue**
+（`flmaximwang/SkillWeave`）；dream 自己的问题提 Dream 的 issue。SkillWeave 的命令顺序
+（`prepare → disclosure → dispatch → apply → verify → visualize → deliver`）以它仓库的 `docs/flow.md` 为准
+（**唯一流程来源**），本仓库不复制一份。
+
 **一个方法本体 + 一个 agent 一个适配技能**：方法本体不把任何 agent 当主语；某个 agent 的容器判据、
 安装命令与判官接线由该 agent 的适配技能提供。
 

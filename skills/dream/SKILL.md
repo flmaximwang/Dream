@@ -19,6 +19,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
   `docs/contract.md`，命令：SkillWeave 的 `weave.py`（`layers|checks|propose <pack>`））。dream 只做两件事：
   把「没有仓库归属的本地技能」收编进包仓库并装回（S1–S8），以及**读 profile 的数、守 profile 的闸门**
   （`MAX_AGENT_SKILLS`）。**反向**：profile 级读数与闸门不进 SkillWeave。
+- **但一轮默认调用它（2026-10-13 改）**：S5 之后**默认跑一遍 SkillWeave**（S9）整理本轮动过的包——「不实现」不等于
+  「不调用」；**不强制**，跳过要写明原因。**跑它的问题提 SkillWeave 的 issue**，dream 的问题提 Dream 的 issue。
 - **固定顺序**：`dream 收编（跨包归属）→ SkillWeave 分层（包内结构）→ darwin 磨 description（单技能效果）`。
   **同一个对象上，下游不许越过上游改**：SkillWeave 改过路径后 dream 的落点映射就是 stale（`input_commit` 会拦），
   而 description 的打磨不该发生在路径还在动的时候。
@@ -45,6 +47,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | S6 验证 | **主 agent 跑 `apply.py verify`**（逐行核目录 / sha / `diff -rq` 装好的副本） | 「自己写自己验」有乐观偏差 —— v3 改成脚本只读核验，结果按行 PASS/FAIL 落 `apply-report.json` | 只读；FAIL 的行回 S5 修，不静默放过 |
 | S7 整包重装 | **主 agent 跑 `apply.py install`**（执行 `merge` 生成的 `install-cmds.sh`） | 命令由 lock 证据生成、条数与代价要在眼前 | 不装本批没改动的包 |
 | S8 退役与汇报 | **主 agent 跑 `apply.py retire`** | 删除是最后一步，且必须等回读（脚本先 `tar czf` 再删） | 回读没通过不许删 |
+| S9 SkillWeave（**默认跑、不强制**） | **主 agent 调 SkillWeave 的 CLI** | 「该拆 / 该并 / 该改写」是判断，机械执行在它的 CLI 里 —— dream 不实现第二套形状常量 | 不替它改脚本（问题提 `flmaximwang/SkillWeave` 的 issue）；跳过了必须写明原因 |
 
 并发上限 10：>10 个包时按包分波（每波 ≤10 个 writer）。所有子代理**前台跑完即结束**——子代理起后台进程会把
 完成通知的会话路由 pin 到子代理身上，人面会话被顶掉。子代理不能提问，**主 agent 也不提问**。
@@ -162,6 +165,22 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 退役**只在回读通过之后**（脚本只对 verify 过的行动手）：先 `tar czf` 备份并把路径写进汇报，再删本地副本；
 回读有 FAIL 的行先修，修不动的那行跳过（**副本不删**）。最后汇报四段：枚举数 · 判定表 · **每行对应的证据** ·
 ≤3 条要人拍板的事。**只读产出与真写入分开写**（只读：N 行落点涉及 M 个包名 / 真写入：K 个包仓库 + 各自 sha）。
+
+## S9 · SkillWeave（**默认跑，不强制**）
+
+S5 写入之后，对本轮**动过的包**（`apply-report.json` 里 `WRITTEN` 行的包名）跑一遍 SkillWeave，把包内的分层披露
+整理掉。**dream 不实现这套动作**——调 SkillWeave 的 CLI，命令顺序以它仓库的 `docs/flow.md`（**唯一流程来源**）为准：
+
+```
+prepare → disclosure → dispatch → apply → verify → （动了 description/入口才有）judge+score → visualize → deliver
+```
+
+`SW=<SkillWeave 克隆>/scripts/weave.py`，`PACK=<包目录>`；`deliver` 是**默认动作**：合回真包 main 并 push 各 remote、
+回读、重跑 visualize、清 worktree/分支。用法与坑见 SkillWeave 的 `skills/skillweave/SKILL.md`。
+
+- **不强制**：包太小 / S1–S8 已经吃满预算 / 本轮没有任何包被写入 → 跳过，并在收尾汇报里写明**跳过了哪些包、为什么**。
+- **不吃 20 分钟预算**：`≤20 min` 只判 S1–S8 的机械阶段；S9 单独计时写进汇报，超了就先跳过。
+- **只报不改**：SkillWeave 自己的毛病提 `flmaximwang/SkillWeave` 的 issue，dream 不替它改脚本。
 
 ## 检查点
 

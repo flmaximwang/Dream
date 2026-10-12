@@ -3,7 +3,7 @@
 
 口径（本人 2026-10-11 定）：`~/.hermes/.env` 里加一个键
 
-    DREAM_EXTERNAL_DIRS=/Users/maxim/.hermes/dream-external.json
+    DREAM_EXTERNAL_DIRS=<清单 JSON 的绝对路径>          # 例：$HOME/.hermes/dream-external.json
 
 指向一个**本地 JSON**，里面只放**本人点名**的目录（dream 允许当作「外部仓库/落点池」的那些）。
 JSON 不自动生成、不手抄自 Skills-Manager —— 想说清「Skills-Manager 管着哪些技能」时，

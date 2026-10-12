@@ -8,9 +8,14 @@
 
 ## 0 · 一轮在干什么
 
-把**一个 profile 里没有归属的技能**，判出它们该落进哪个包 → 写进包仓库 → 独立验证 → 装回 → 退役 profile 里的旧副本。
-**一轮 = 一个 profile**（验收用 `default`），跑扫描当刻的**全量**候选，不抽样。判据是 **wall clock ≤ 20 min**。
-v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umbrella）——那部分已整体移交 **SkillWeave**。
+把**一个 profile 里没有归属的技能**，判出它们该落进哪个包 → 写进包仓库 → 独立验证 → 装回 → 退役 profile 里的旧副本
+→ **（默认）对本轮动过的包跑一遍 SkillWeave**，把包内的分层披露整理掉。
+**一轮 = 一个 profile**（验收用 `default`），跑扫描当刻的**全量**候选，不抽样。判据是 **wall clock ≤ 20 min**
+（**只管 S1–S8 的机械阶段**；S9 是默认追加的一步，单独计时、写进汇报——它吃掉的预算不算在 20 分钟里，超了就先跳过）。
+v3 **不自己实现** skill-pack 的结构优化（去重、无类目归位、合并/umbrella）——那部分归 **SkillWeave**（已交接）；
+但一轮**默认调用**它（§3 的 S9）—— 「不实现」不等于「不调用」。**不强制**：包太小 / 预算不够 / 本轮没有任何包被写入
+可以跳过，跳过要在收尾汇报里写明**跳过了哪些包、为什么**。
+**跑 SkillWeave 时遇到的问题提 SkillWeave 的 issue**（`flmaximwang/SkillWeave`）；dream 自己的问题提 Dream 的 issue。
 
 ---
 
@@ -73,7 +78,8 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **S6 独立验证** | 脚本（只读，0 次模型调用） | `apply.py verify --dir <out> [--external-dirs <json>]` | 落点 clone + 决议 + S5 的报告 | 逐行 PASS/FAIL（日志可留下，如 `verify-r1.log`） | 见下方「S6 逐行核什么」；有 FAIL → exit 1，回 S5 修 |
 | **S7 装回** | 脚本（按归属分三条路，见下） | `apply.py install --dir <out> --profile <名> [--max-skills <n>]` | `install-cmds.sh` + profile + `merge` 的 `--skills-manager`（**默认开**，`--no-skills-manager` 才关） | `install-gate.json`（装前总量闸）· `install-shape.json`（装后形状断言） | 现∪装 > `MAX_AGENT_SKILLS`（**300**）→ 不装、exit 3；形状越界只报给 SkillWeave、不自己 `git mv` |
 | **S8 退役** | 脚本 + 汇报 | `apply.py retire --dir <out> --backup ~/.hermes/backups/dream-retire` | verify 通过的行 | 先 `tar czf` 备份（路径写进汇报）再删 profile 副本 | 只对**回读通过**的行动手；修不动的那行跳过，副本不删 |
-| **收尾汇报** | 主 agent | —— | 上面全部产物 | 四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事 | 只读产出与真写入**分开写**（只读：N 行涉及 M 个包名／真写入：K 个包 + 各自 sha） |
+| **S9 SkillWeave**（**默认跑、不强制**） | 主 agent 调 SkillWeave 的 CLI | `weave.py prepare → disclosure → dispatch → apply → verify → visualize → deliver`（顺序以 SkillWeave 的 `docs/flow.md` 为准，**唯一流程来源**） | 本轮 S5 动过的包 = `apply-report.json` 里 `WRITTEN` 行的包名 | 各包的工作副本 + `BASELINE.md` / `DISCLOSURE.md` / `dispatch/`；`deliver` 默认合回真包 main + push + 回读 + 清 worktree | 包太小 / 预算不够 / 本轮没有包被写入 → 跳过并在汇报写明原因；SkillWeave 自己的问题**只报不改**（提 `flmaximwang/SkillWeave` 的 issue，dream 不替它改脚本） |
+| **收尾汇报** | 主 agent | —— | 上面全部产物 | 四段：枚举数 · 判定表 · **每行对应的证据** · ≤3 条要人拍板的事 | 只读产出与真写入**分开写**（只读：N 行涉及 M 个包名／真写入：K 个包 + 各自 sha）；S9 要单独写一句：跑了哪些包 / 跳过了哪些与原因 |
 
 逐阶段计时落 `stages.tsv`（`round.sh` 自动记），这就是「20 分钟」的证据形状。
 
@@ -193,6 +199,8 @@ S6 verify ── 逐行 PASS/FAIL                                               
 S7 install ── 装前总量闸 + 装回 + 装后形状断言                                        [脚本→(待)Skills-Manager]
    │
 S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报                                    [脚本+主 agent]
+   │
+S9 SkillWeave ── 对本轮动过的包跑分层披露整理（**默认、不强制**；deliver 合回真包 main + push）  [模型·调外部 CLI]
 ```
 
 ---
@@ -206,6 +214,7 @@ S8 retire ── tar 备份 → 删 profile 副本 → 四段汇报             
 | S1–S6 | ✅ 跑通过（测试副本：写 74 / 挡 10 / verify PASS 74 · FAIL 0） |
 | S7 装回 | 🟡 命令清单已按三条路生成（`--skills-manager` 开关已加；不再出现 hermes 自己的安装命令），**未真跑** |
 | S8 退役 | ⏳ 未真跑；口径要按"装回有多个所有者"重写（Skills-Manager 装的那份不该由 dream 删） |
+| S9 SkillWeave（默认、不强制） | 🟡 **口径已定**（2026-10-13：收编后默认调 SkillWeave 一次，问题提它的 issue）；**未接进 `round.sh`**——目前由主 agent 在 S5 之后按包手动跑 SkillWeave 的 CLI |
 | 正文改写（writer） | ⏳ 任务书已生成过（`writers.md`），真跑待 S5 正式轮 |
 
 ## S7 装回 / S8 退役 的实测次序（2026-10-12 真跑出来的）
