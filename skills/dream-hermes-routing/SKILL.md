@@ -1,6 +1,6 @@
 ---
 name: dream-hermes-routing
-description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与可插拔判官（judge.py 分块调模型，后端从 dream-judge.json 读）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
+description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、Skills-Manager 安装命令（skills-manager-cli 两拍：install --local → deploy --agent hermes-<profile>）与可插拔判官（judge.py 分块调模型，后端从 dream-judge.json 读）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
 ---
 
 # dream-hermes-routing · dream 方法在 Hermes 上的适配层
@@ -9,21 +9,40 @@ description: "Use when 要给某个 Hermes profile 批量收编没有仓库归�
 退役）在同仓库的 `skills/dream`。本技能只补 Hermes 的三处接口：**容器判据 / 安装命令 / 判官接线**。
 先在 `skill_view dream` 读方法本体，再回本文件拿 Hermes 的具体值。
 
-## 1 · 容器判据（Hermes 的 profile）
+## 1 · 容器判据（Hermes 的 profile；Skills-Manager 接管之后）
 
-Hermes 上一个 profile 的 skill 有三种容器，**只有 `local` 是候选**——判据是 lock 与 manifest，不是目录名：
+**装/更/卸的唯一所有者是 Skills-Manager**（用户 2026-10-11 起完全接管 Hermes 的 skill）。所以判据不再是
+「有没有 `.hub/lock.json` 条目」，而是**谁管着它** —— 两边都不管的才是候选：
 
-- `hub` — 名字是 `<profile>/skills/.hub/lock.json` 的 `installed` 的键 ⇒ 已有仓库与更新路径，跳过。
-- `bundled` — 名字在 `<profile>/skills/.bundled_manifest` 里 ⇒ Hermes 自带的种子，不属于用户，跳过。
-- `local` — 两者都不是 ⇒ 没有 lock 条目、没有 source of truth、没有生命周期 ⇒ 候选。
+- **归 Skills-Manager 管**（B 轴 = yes）— 名字在它的库里（`skills-manager-cli --json skills list`）。
+  每个技能在库里都有自己的来源与更新路径 ⇒ 已有归属，跳过。
+  它在某个 profile 里的部署**就是一条符号链接**：`<profile>/skills/<名>` → `~/.skills-manager/skills/<名>`；
+  `skills-manager-cli --json skills show <名>` 的 `deployed_to` 列出它装了哪些 agent。
+- **Hermes 自带种子**（A 轴 = bundled）— 名字在 `<profile>/skills/.bundled_manifest`（`名字:md5`）⇒ 不属于用户，跳过。
+- **`hub` 残留**（A 轴 = hub）— 名字在 `<profile>/skills/.hub/lock.json`。那是 `hermes skills install` 时代
+  留下的条目：权威副本在远端，profile 里**没有任何本地可比者** ⇒ 归到 `third·hub·mgr=no·ext=no·fold`，
+  动作 `noop`、只报不动。
+- **`local`** — 三者都不是 ⇒ 候选（`local·local·mgr=no·ext=no·fold` ⇒ `judge-destination`）。
 
-profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
-`--profile` 是**全局前置 flag**（`hermes --profile X skills install …`），子命令里没有这个参数。
+**Skills-Manager 侧一个 profile 就是一个 agent**（`skills-manager-cli --json agents list`）：
+
+| agent key | skills_dir |
+|---|---|
+| `hermes-default` | `~/.hermes/skills` |
+| `hermes-<profile>` | `~/.hermes/profiles/<profile>/skills` |
+
+装回时的 `--agent` 就用这个 key（`merge` 默认拼 `hermes-<profile>`，`--manager-agent` 可改）。
+内置的 `hermes` agent 是另一条（已被停用以免两份），别用它。
+
+profile 根：**default = Hermes 根（`~/.hermes`）**，其余 = `<根>/profiles/<名字>/`。
+注意 `HERMES_HOME` 指的是**当前活动 profile 的家**（跑 default 时它就是根）——所以脚本自己认根，
+**不直接拿 `HERMES_HOME` 当根**：否则在 dev-general 会话里跑 `--profile default` 会去扫 dev-general（实测踩过）。
 
 ⚠️ **看着像 `local`、但该从上游装回的一类**：目录里带 `_meta.json` / `skill-card.md`（ClawHub 记号）、
-正文头部自报 `GitHub: <url>`、或正文写着 `.claude/skills/<名>/` 这类上游自带路径。它没有 lock 往往只是被
+正文头部自报 `GitHub: <url>`、或正文写着 `.claude/skills/<名>/` 这类上游自带路径。它没有归属往往只是被
 手工拷进来过。**这类行照样要有落点**（方法本体没有「留本地」），但 `why` 以 `upstream:<owner>/<repo>` 开头，
-主 agent 在汇报里单列「该从上游装回（本次先并入 <包>；改走 `hermes skills install <owner>/<repo>/…` 由用户定）」。
+主 agent 在汇报里单列「该从上游装回（本次先并入 <包>；改走
+`"$CLI" skills install <owner>/<repo>[@skill]` 由用户定）」。
 
 ## 2 · 落点空间（Hermes 的答案空间）
 
@@ -41,26 +60,48 @@ profile 根：default = `~/.hermes`，其余 = `~/.hermes/profiles/<名字>/`。
 给无类目技能归位，都属于技能库的结构整理，由 **SkillWeave** 项目负责（用户 2026-10-11 定）。
 本适配技能只覆盖「收编进包 → 装回 → 回读」这条链（§3 / §5）。
 
-## 3 · 安装命令（`hermes skills`）
+## 3 · 安装命令（`skills-manager-cli`，两拍）
 
 ```bash
-hermes skills uninstall <裸名> -y                       # 退役旧来源
-hermes skills install <owner>/<repo>/skills/<名> --category <类目> -y
-hermes skills update  <裸名>                            # 整包重装用
-hermes skills list                                     # 回读名字与类目
+CLI="$HOME/.skills-manager/bin/skills-manager-cli"      # 必须绝对路径：非交互 shell 的 PATH 里没有它
+agent="hermes-<profile>"                                  # 这个 profile 在它那儿的 agent key（default → hermes-default）
+
+# ① 装回一枚技能：先进中央库，再部署给这个 agent
+"$CLI" skills install --local --name "<技能名>" "<包>/skills/<技能名>"   # 本地包 → 中央库
+"$CLI" skills deploy  --agent "$agent" "<技能名>"                       # 中央库 → profile（挂成符号链接）
+
+# ② 整包重装：库里已有的成员，取件 + 重新部署
+"$CLI" skills update "<技能名>"
+"$CLI" skills deploy --agent "$agent" "<技能名>"
+
+# ③ 回读 / 只在它自己的库里退掉
+"$CLI" --json skills show "<技能名>"        # path · source_ref · deployed_to
+"$CLI" --json agents list                   # 这个 profile 的 agent key 与 skills_dir
+"$CLI" skills undeploy --agent "$agent" "<技能名>"
 ```
+
+**装回是两拍，不是一次**（实测的行为，不是可选）：
+
+1. `skills install --local --name <名> <本地包里的技能目录>` → 进中央库（这一步总成功）。
+2. `skills deploy --agent hermes-<profile> <名>` → **会被拒**：profile 里那份还是本地目录，它报
+   `Refusing to replace …: it is not managed by Skills Manager`。
+3. 所以要先 S8 退役（`tar czf` 备份 → 删掉 profile 里的本地副本）。
+4. 再跑一次第 2 步（`deploy`）→ 挂上，profile 里变成指向中央库的**符号链接**。
 
 坑（踩过）：
 
-- **`hermes skills check` 一次只吃一个名字**；不带名字会把 90+ 个技能逐个对远端核，卡死一次交付。
-- **`hermes skills list` 的 Name 列会截断** ⇒ 用完整名 grep 它零命中。回读以 `diff -rq` 与 lock 为准。
-- **别信收尾那句 `Updated N skill(s).`**（扫描被拒时照打）。
-- 装了脚本的副本要用 **`python3 -B`** 跑，否则 `__pycache__` 会让 `update` 报「kept your local edits」。
-- **不许用 `head`/`tail` 截 `hermes skills` 的长命令**：SIGPIPE 会让安装半途死掉。重定向到日志再读回。
-- 安装到**同一个类目**时会就地替换掉原来的 lockless 副本 —— 那是目标态（一个名字一个目录），不是少了一步。
+- **命令必须用 CLI 绝对路径**：非交互 shell 的 PATH 里没有 `skills-manager-cli`，写裸名字整段
+  `command not found`（exit 127）。
+- **`install` 只跑落点真在磁盘上的行**：`merge` 是按计划生成的，被扫描闸挡掉的行、以及 `merge` 行的源技能
+  （正文已并进接收方，本就不该单独装）都在命令清单里，照着跑就是 `skill not found`。
+  `apply.py install` 会先过滤出 `install-cmds.filtered.sh` 再跑。
+- **同一份 merge 生成的命令会随 profile 现状换形**：profile 里已是符号链接的技能生成 `update`，
+  还不是的生成 `install --local`。所以**装回之前要重跑一次 `merge`**（本轮实测 86 条从 install 变成 update）。
+- **`--json` 才有机器可读回执**；不带它读不到 `deployed_to` / `path`，回读就只能靠 `diff`。
+- 装了脚本的副本要用 **`python3 -B`** 跑，否则 `__pycache__` 会让下次取件报「kept your local edits」。
 
-**扫描闸**：push 之前预测扫描 verdict。非 `safe` 先按扫描闸手册改写形态；`dangerous` 的 revision 在 hub 上
-**永远装不上**，`--force` 也覆盖不了。
+**扫描闸**：push 之前预测扫描 verdict。非 `safe` 先按扫描闸手册改写形态；`dangerous` 的 revision 装不上，
+`--force` 也覆盖不了。
 
 ## 4 · 判官接线（可插拔后端，配置驱动）
 
@@ -103,9 +144,10 @@ python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录>
 
 ## 5 · 回读三件（收工判据）
 
-1. `diff -rq <clone>/skills/<名> <profile>/skills/<类目>/<名>` 为空；
+1. `diff -rq <包>/skills/<名> <profile>/skills/<类目>/<名>` 为空（profile 里那份是符号链接，`diff` 会跟进去）；
 2. 逐文件 sha256 全部 MATCH（**内容判据**，不许拿 `source_revision` / commit sha 代替）；
-3. `.hub/lock.json` 里 `installed.<裸名>.identifier` 指向该 repo 的 `skills/<名>`（只证明来源）。
+3. `skills-manager-cli --json skills show <名>` 的 `path` 指向中央库那份、`deployed_to` 含这个 profile 的
+   agent key（只证明来源与部署，不证明内容一致）。
 
 ## 6 · 扩展点：别的 agent 照本文件形状加
 

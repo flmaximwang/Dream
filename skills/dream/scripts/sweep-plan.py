@@ -16,10 +16,14 @@ Run it with the venv interpreter (it needs pyyaml, for the same reason load-exte
 `description: >-` must be resolved as YAML, not regexed):
     ~/.hermes/hermes-agent/venv/bin/python3
 
-Classification is the three kinds this pack already names, and only the third is a candidate:
-    hub-installed   name is a key in <profile>/skills/.hub/lock.json     -> skip (repo + update path)
-    bundled         name is a line in <profile>/skills/.bundled_manifest -> skip (Hermes' own seed)
-    profile-local   neither -> CANDIDATE (no lock entry, no source of truth, no lifecycle)
+Classification — the **A axis** (whose upstream this copy is), read from the target profile's own ledgers:
+    hub-installed   name is a key in <profile>/skills/.hub/lock.json     -> A=hub
+    bundled         name is a line in <profile>/skills/.bundled_manifest -> A=bundled
+    built-in/official  name is in the release tree (<hermes 根>/hermes-agent/{skills,optional-skills})
+    otherwise -> A=local, CANDIDATE
+Whether a skill is already homed is decided later, in `prescreen`: a skill an external pack carries, or one
+Skills-Manager's own library holds, does not become a candidate — that is what "owned" means now that
+Skills-Manager deploys the profile's skills (it registers each profile as its own agent: `hermes-<profile>`).
 
 ## v2 · 判官要读全文，答案空间是全部 AgentSkill-* 目录（2026-10-10 用户改口径）
 
@@ -50,6 +54,20 @@ from typing import NoReturn
 
 HERMES_HOME = pathlib.Path(os.environ.get("HERMES_HOME") or pathlib.Path.home() / ".hermes")
 SKIP_DIRS = {".hub", ".git", ".archive", "__pycache__", "quarantine", ".trash"}
+HERMES_REPO = "hermes-agent"
+
+
+def hermes_root() -> pathlib.Path:
+    """Hermes 的根：底下同时有 `skills/` 与 `hermes-agent/` 的那一层。
+
+    `HERMES_HOME` 指的是**当前活动 profile 的家**：跑 default 时它就是根，跑别的 profile 时
+    它是 `<根>/profiles/<名>`。所以 `--profile default` 不能直接拿 `HERMES_HOME` 当根 ——
+    在 dev-general 会话里跑 `--profile default` 会扫到 dev-general（实测踩过）。这里先把根认出来，
+    `--profile` 再相对根解析，脚本因此与「在哪个 profile 的会话里跑」无关。
+    """
+    if (HERMES_HOME / "profiles").is_dir() or (HERMES_HOME / HERMES_REPO).is_dir():
+        return HERMES_HOME
+    return HERMES_HOME.parent.parent if HERMES_HOME.parent.name == "profiles" else HERMES_HOME
 # The sibling that already owns frontmatter parsing (YAML, not regex) and the pack index format.
 PARSER_SKILL = "load-external-skill-index"
 STAY_LOCAL, UNJUDGED = "__stay_local__", "__unjudged__"
@@ -86,7 +104,8 @@ def die(code: int, msg: str) -> NoReturn:
 
 
 def profile_root(profile: str) -> pathlib.Path:
-    root = HERMES_HOME if profile in ("", "default") else HERMES_HOME / "profiles" / profile
+    base = hermes_root()
+    root = base if profile in ("", "default") else base / "profiles" / profile
     if not (root / "skills").is_dir():
         die(3, f"no skills tree under {root} — profile {profile!r} not found")
     return root
@@ -251,7 +270,7 @@ def dir_fingerprint(mirror, d: pathlib.Path) -> str:
     return h.hexdigest()
 
 
-# ---------------------------------------------------------------- 15 态分类（2026-10-11 用户拍板）
+# ---------------------------------------------------------------- 16 态分类（2026-10-11 用户拍板；2026-10-12 补第 16 格）
 # A = hermes 侧来源：local 或「第三方维护」四种子类 built-in / official / bundled / hub
 # B = 归 Skills-Manager 管否 · C = 归 external_dirs 管否 · D = 与可比者内容相同否（无所有者时坍缩）
 # 第三方的权威副本：built-in/optional 在发行版树里、bundled 在 .bundled_manifest、hub 在 .hub/lock.json
@@ -264,9 +283,14 @@ STATE_ACTIONS = {
     ("local", "yes", "no", "differs"): "patch-package",       # 第三方技能上的本地改动 → 建 patch 包 → manager 装
     ("local", "yes", "yes", "same"): "noop",
     ("local", "yes", "yes", "differs"): "reconcile",          # 以我的包为源合回 → manager 重装
-    # 第三方组（8 态，来源无关的处置相同）
+    # 第三方组（9 态，来源无关的处置相同）
     ("third", "no", "no", "same"): "noop",                    # 与官方副本一致
     ("third", "no", "no", "differs"): "patch-or-restore",     # 先判方向：本地新→patch 包；远端新→更新本地
+    # 第 16 格（2026-10-12 实测出现，原表按「第三方必有本地可比者」写的，前提已经不成立）：
+    # 第三方、B/C 都不管、**本地没有任何可比者**。典型是 `hermes skills install` 留下的 hub 副本
+    # （A=hub 由 `.hub/lock.json` 认出，但它的权威副本在远端，profile 里没有同名的
+    # built-in/official/bundled/external/manager 那一份）。判不出 same/differs ⇒ 只报不动。
+    ("third", "no", "no", "fold"): "noop",
     ("third", "no", "yes", "same"): "noop",
     ("third", "no", "yes", "differs"): "noop",                # 官方是源，不碰（确是我加的改动 → patch 包）
     ("third", "yes", "no", "same"): "noop",
@@ -277,8 +301,13 @@ STATE_ACTIONS = {
 
 
 def third_party_dirs() -> dict:
-    """第三方来源的权威副本（名字 → 目录）：发行版 skills/ 与 optional-skills/。"""
-    src = HERMES_HOME.parent / "hermes-agent" if HERMES_HOME.parent.name != "hermes-agent" else HERMES_HOME
+    """第三方来源的权威副本（名字 → 目录）：发行版 skills/ 与 optional-skills/。
+
+    发行版仓库在 `<hermes 根>/hermes-agent`。旧写法拿 `HERMES_HOME.parent` 去拼，default 时那是家目录、
+    别的 profile 时那是 `profiles/` —— 永远指不到，实测 `tp` 一直是空字典（A 轴因此从没认出过
+    built-in/official）。
+    """
+    src = hermes_root() / HERMES_REPO
     out = {}
     for tag, sub in (("built-in", "skills"), ("official", "optional-skills")):
         d = src / sub
@@ -304,7 +333,7 @@ def hermes_source(n: str, tp: dict, manifest: dict, lock: set) -> str:
 
 def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict,
                 exclude: tuple = ()) -> dict:
-    """一条 profile 技能的 15 态归属：source/A/B/C/D + action。
+    """一条 profile 技能的 16 态归属：source/A/B/C/D + action。
     exclude 里是技能名前缀：命中的本轮一律不动（`--exclude loomerto`＝这人正在手改，别碰）。"""
     n = r["name"]; d = r["_md"].parent
     source = hermes_source(n, tp, manifest, r.get("lock_names", set()))
@@ -319,7 +348,7 @@ def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, mani
     if n in manifest:
         owners.append("manifest")
         try:
-            sys.path.insert(0, str(HERMES_HOME.parent / "hermes-agent"))
+            sys.path.insert(0, str(hermes_root() / HERMES_REPO))
             from tools.skills_sync import _matches_origin_hash
             same = same or _matches_origin_hash(d, manifest[n])
         except Exception:                                     # 拿不到账本就不下这个结论（保守：不算 same）
@@ -359,14 +388,15 @@ def prescreen(args, packs, rows, local, mirror) -> None:
         managed = {s.get("name", "") for s in mgr_rows if s.get("name")}   # 别叫 rows：会盖住传入的 profile 行
     except SystemExit:                      # CLI 不在/报错都不该让一轮挂掉
         managed = set()
-    sk_lock = HERMES_HOME / "skills" / ".hub" / "lock.json"
+    root = profile_root(args.profile)          # A 轴的两份账本按**目标 profile** 读，不按 HERMES_HOME
     tp = third_party_dirs()
-    lock_names = set(json.load(open(sk_lock))["installed"]) if sk_lock.is_file() else set()
-    try:
-        manifest = {l.split(":")[0]: l.strip().split(":")[1]
-                    for l in open(HERMES_HOME / "skills" / ".bundled_manifest") if l.strip()}
-    except OSError:
-        manifest = {}
+    lock_names = set(read_lock(root))
+    manifest = {}
+    _bm = root / "skills" / ".bundled_manifest"
+    if _bm.is_file():
+        for line in _bm.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.strip() and ":" in line:
+                manifest[line.split(":", 1)[0]] = line.strip().split(":", 1)[1]
     manager_dirs = {}
     for x in sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager"):
         n = x.get("name")
@@ -444,7 +474,7 @@ def cmd_scan(args) -> int:
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
     mirror = sibling_module("skill-mirror.py")
     prescreen(args, packs, rows, local, mirror)
-    # 候选 = 15 态里 action 为 judge-destination 的那一类（= 三方都没主）。旧的 verdict==local 口径保留
+    # 候选 = 16 态里 action 为 judge-destination 的那一类（= 三方都没主）。旧的 verdict==local 口径保留
     # 只作对账：两边不一致就报出来，别让两套判据各自漂。
     cands = [r for r in local if r.get("action") == "judge-destination"]
     legacy = {r["dir"] for r in local if r["verdict"] == "local"}
@@ -554,12 +584,12 @@ def cmd_scan(args) -> int:
     (out / "states.json").write_text(json.dumps(dict(
         generated_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
         rules="A=local|第三方(built-in/official/bundled/hub) · B=skills-manager 管否 · C=external_dirs 管否 · "
-              "D=与可比者内容同否（无所有者则坍缩）→ hermes 15 态；general agent 去掉 A 轴 → 7 态",
+              "D=与可比者内容同否（无所有者则坍缩）→ hermes 16 态；general agent 去掉 A 轴 → 7 态",
         counts_hermes=dict(st_counts), actions=dict(act_counts), counts_general=dict(gen_counts),
         rows=[dict(skill=r["name"], dir=r["dir"], state=r.get("state", ""), action=r.get("action", ""),
                    source=r.get("state_source", ""), comparators=r.get("comparators", []))
               for r in rows if r.get("state")]), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[sweep-plan] 15 态（hermes）=" + " · ".join(f"{k} {v}" for k, v in st_counts.most_common()))
+    print(f"[sweep-plan] 16 态（hermes）=" + " · ".join(f"{k} {v}" for k, v in st_counts.most_common()))
     print(f"[sweep-plan] 逐态去向=" + " · ".join(f"{k}={v}" for k, v in act_counts.most_common()))
     print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
           f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
@@ -1025,14 +1055,21 @@ def self_test() -> int:
         assert dir_fingerprint(_mi, _d) != _f1, "内容一变指纹必须变"
         (_d / "references" / "x.md").write_text("y\n"); (_d / "new.md").write_text("n\n")
         assert dir_fingerprint(_mi, _d) != _f1, "多一个文件指纹也要变"
-    # 15 态表自检：A(2)×B(2)×C(2)×D(2)=16，减去「无所有者时 D 坍缩」那 1 格 → 恰好 15
-    _keys = {(a, b, c, d) for a in ("local", "third") for b in ("no", "yes")
-             for c in ("no", "yes") for d in ("same", "differs", "fold")}
-    # 「无所有者 ⇔ D 必须是 fold」——两个方向都要卡：没有可比者时不许出现 same/differs，
-    # 有可比者时也不许用 fold 偷懒
-    _valid = {k for k in _keys if (k[3] == "fold") == (k[0] == "local" and k[1] == "no" and k[2] == "no")}
+    # 态表自检：A(2)×B(2)×C(2)×D(3)=24 里的合法子集。D=fold 只在**本地没有可比者**时出现：
+    #   · local·no·no —— 谁都不管、也没有第三方来源 ⇒ **只能** fold（它就是候选）      1 格
+    #   · third·no·no —— 第三方，但可比者可能只在远端（hub 副本）⇒ same/differs/fold 都可能 3 格
+    # 其余 6 个 (A,B,C) 组合（B 或 C 至少一个 yes，或第三方有 built-in/official/bundled 那份）必须给出 same/differs。
+    _triples = [(a, b, c) for a in ("local", "third") for b in ("no", "yes") for c in ("no", "yes")]
+    _valid = set()
+    for a, b, c in _triples:
+        if (a, b, c) == ("local", "no", "no"):
+            _valid.add((a, b, c, "fold"))
+            continue
+        _valid |= {(a, b, c, "same"), (a, b, c, "differs")}
+        if (a, b, c) == ("third", "no", "no"):
+            _valid.add((a, b, c, "fold"))
     assert _valid == set(STATE_ACTIONS), sorted(_valid ^ set(STATE_ACTIONS))
-    assert len(_valid) == 15, len(_valid)
+    assert len(_valid) == 16, len(_valid)
     # general agent：去掉 A 轴 → B(2)×C(2)×D(3) 减去同一处坍缩 = 7
     _g = {(b, c, d) for b in ("no", "yes") for c in ("no", "yes") for d in ("same", "differs", "fold")}
     _gv = {k for k in _g if (k[2] == "fold") == (k[0] == "no" and k[1] == "no")}
@@ -1047,7 +1084,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan", help="enumerate candidates + packs, freeze the judge input")
-    s.add_argument("--profile", default="default", help="default = $HERMES_HOME, else profiles/<name>")
+    s.add_argument("--profile", default="default",
+                   help="default = Hermes 根（~/.hermes），其余 = <根>/profiles/<名>")
     s.add_argument("--packs-root", default="~/Documents/AgentSkill", help="where the AgentSkill-* checkouts live")
     s.add_argument("--external-dirs", default="",
                    help="DREAM_EXTERNAL_DIRS 那份 JSON：列出的目录（或它们的直接子目录）就是落点候选池")
@@ -1059,8 +1097,9 @@ def main() -> int:
     s.set_defaults(func=cmd_scan)
     m = sub.add_parser("merge", help="judge verdicts (JSONL) -> plan.md + install-cmds.sh")
     m.add_argument("--dir", required=True, help="the --out dir from scan")
-    m.add_argument("--skills-manager", action="store_true",
-                   help="本次运行是否把该 profile 的技能交给 Skills-Manager 管（决定装回走第②路还是第③路）")
+    m.add_argument("--skills-manager", action=argparse.BooleanOptionalAction, default=True,
+                   help="本次运行是否把该 profile 的技能交给 Skills-Manager 装（默认开；"
+                        "`--no-skills-manager`＝走第③路直接复制，给不归它管的 agent 用）")
     m.add_argument("--manager-agent", default="", help="Skills-Manager 侧这个 profile 的 agent 名（默认 hermes-<profile>）")
     m.add_argument("--profile", default="default")
     m.add_argument("--verdicts", action="append", default=[],

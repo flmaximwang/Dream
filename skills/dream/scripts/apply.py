@@ -36,8 +36,25 @@ import time
 MAX_AGENT_SKILLS = 300
 SKIP_DIRS = {".hub", ".git", ".archive", "__pycache__", "quarantine", ".trash"}
 
-HERMES_HOME = pathlib.Path.home() / ".hermes"
+def _hermes_root() -> pathlib.Path:
+    """Hermes 的根：`HERMES_HOME` 是**当前活动 profile 的家**（跑 default 时它就是根），据此认根。
+
+    与 `sweep-plan.hermes_root()` 同一口径 —— 两个脚本必须对「profile 目录在哪」给同一个答案，
+    否则 scan 读 A 树、install 却去数 B 树（实测：apply 一直硬编码 `~/.hermes`）。
+    """
+    h = pathlib.Path(os.environ.get("HERMES_HOME") or pathlib.Path.home() / ".hermes")
+    if (h / "profiles").is_dir() or (h / "hermes-agent").is_dir():
+        return h
+    return h.parent.parent if h.parent.name == "profiles" else h
+
+
+HERMES_HOME = _hermes_root()                     # Hermes 根，不是「当前 profile 的家」
 HERMES_REPO = HERMES_HOME / "hermes-agent"
+
+
+def profile_dir(profile: str) -> pathlib.Path:
+    """目标 profile 的根：`default` = Hermes 根，其余 = <根>/profiles/<名>。"""
+    return HERMES_HOME if profile in ("", "default") else HERMES_HOME / "profiles" / profile
 
 
 def sh(cmd, cwd=None, check=False):
@@ -403,7 +420,7 @@ def do_verify(args) -> int:
             where, remote_ok = "HEAD 历史里（未推）", True
         else:
             where, remote_ok = "不在这个包的历史里", False
-        installed = list((HERMES_HOME / "skills").rglob(name))
+        installed = list((profile_dir(getattr(args, "profile", "default")) / "skills").rglob(name))
         diff = sh(["diff", "-rq", str(pack / "skills" / name), str(installed[0])]).stdout.strip() if installed else "not installed yet"
         line = f"{r['id']} dir={dir_ok} 提交在{where}({sha}) diff={'-' if not diff else diff[:60]}"
         (oks if dir_ok and remote_ok else fails).append(line)
@@ -464,7 +481,7 @@ def do_install(args) -> int:
     # 与 `cp -R ".../skills/<名>"`（直接复制）。只认老格式的话会算出"装回 0"，闸门等于失效（实测）。
     incoming = set(re.findall(r'--name "([^"]+)"', text)) | set(re.findall(r'/skills/([^"/]+)"', text))
     incoming -= set(re.findall(r'^\s*skills-manager-cli\s+skills\s+update "([^"]+)"', text, re.M))
-    prof = HERMES_HOME / "skills"
+    prof = profile_dir(getattr(args, "profile", "default")) / "skills"
     current = profile_skill_names(prof, d)
     # 分母要扣掉本轮"搬进包、装完就退役"的那些本地副本：它们不是净增（S8 会把本地那份删掉）。
     # 不扣的话，凡是一轮正常搬迁都会被这道闸挡住（实测 232 + 89 > 300）。
@@ -533,25 +550,37 @@ def do_install(args) -> int:
     # 越界只报不动手：归位是仓库侧的动作 → SkillWeave（自己 git mv 会再次越界）。
     shape = dict(not_under_category=[], local=[])
     if r.returncode == 0:
-        names = set()
-        for md in prof.rglob("SKILL.md"):
+        # 「有归属」的判据（Skills-Manager 接管后）：profile 里那一项是**它部署的符号链接**
+        # （指向 ~/.skills-manager/skills/<名>），或属于 Hermes 自带的种子（`.bundled_manifest`），
+        # 或名字在 `.hub/lock.json` 里（那是 `hermes skills install` 时代留下的、源在远端）。
+        # 旧口径拿 `.hub/lock.json` 当**唯一**账本 —— SM 接管后它只剩历史条目，会把已部署的技能全算成 local。
+        mds = walk_skill_mds(prof)
+        names, deployed = set(), set()
+        for md in mds:
             rel = md.relative_to(prof)
-            if set(rel.parts) & SKIP_DIRS:
-                continue
+            names.add(md.parent.name)
+            if md.parent.is_symlink():
+                deployed.add(md.parent.name)
+                continue     # 它部署的形状就是**扁平** skills/<名>：类目层是 Hermes 老口径，别套在它头上
             if len(rel.parts) < 3:
                 shape["not_under_category"].append(str(rel))
-            names.add(md.parent.name)
-        lock = json.loads((prof / ".hub" / "lock.json").read_text()).get("installed", {}) \
-            if (prof / ".hub" / "lock.json").is_file() else {}
-        bundled = {l.split(":")[0].strip() for l in (prof / ".bundled_manifest").read_text().splitlines()
-                   if l.strip()} if (prof / ".bundled_manifest").is_file() else set()
-        shape["local"] = sorted(names - set(lock) - bundled)
+        bundled = {l.split(":", 1)[0].strip() for l in (prof / ".bundled_manifest").read_text().splitlines()
+                   if ":" in l} if (prof / ".bundled_manifest").is_file() else set()
+        lock_names = set()
+        _lk = prof / ".hub" / "lock.json"
+        if _lk.is_file():
+            try:
+                lock_names = set(json.loads(_lk.read_text()).get("installed", {}))
+            except (OSError, ValueError):
+                lock_names = set()
+        shape["local"] = sorted(names - deployed - bundled - lock_names)
         (d / "install-shape.json").write_text(json.dumps(shape, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if shape["not_under_category"] or shape["local"]:
             print(f"[install] ⚠ 装后形状：{len(shape['not_under_category'])} 个技能不在类目下"
                   f"（{shape['not_under_category'][:3]}…）· local {len(shape['local'])} 个"
                   f"（{shape['local'][:3]}…）→ {d/'install-shape.json'}")
-            print("[install] 归位是仓库侧的事 → 报给 SkillWeave；dream 不自己 git mv。")
+            print("[install] 归位是仓库侧的事 → 报给 SkillWeave；dream 不自己 git mv。"
+                  "（Skills-Manager 部署的扁平符号链接不算越界）")
         else:
             print("[install] 装后形状 ok：技能都在类目下、local = 0")
     return r.returncode
@@ -629,7 +658,7 @@ def main() -> int:
     ap.add_argument("--test", action="store_true", help="taskbook：按测试面写（禁 push）")
     ap.add_argument("--changes-out", default="", help="把本轮的改动清单落一份到这里（默认只在会话里报）")
     ap.add_argument("--max-skills", type=int, default=MAX_AGENT_SKILLS,
-                    help="S7 装前闸门的上限（默认 MAX_AGENT_SKILLS=120；这是给人留的校准旋钮）")
+                    help=f"S7 装前闸门的上限（默认 MAX_AGENT_SKILLS={MAX_AGENT_SKILLS}；这是给人留的校准旋钮）")
     a = ap.parse_args()
     if a.cmd == "--self-test":
         return self_test()

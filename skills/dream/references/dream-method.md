@@ -16,8 +16,8 @@
 
 ## s1 · 枚举
 
-**每条技能先归 15 态再谈落点**（口径与逐态去向：`docs/scope.md` §6）。四轴 = A 来源（local／第三方四种子类）·
-B 归 Skills-Manager 管否 · C 归 external_dirs 管否 · D 与可比者同否（无所有者时坍缩 → 15 态）。
+**每条技能先归 16 态再谈落点**（口径与逐态去向：`docs/scope.md` §6）。四轴 = A 来源（local／第三方四种子类）·
+B 归 Skills-Manager 管否 · C 归 external_dirs 管否 · D 与可比者同否（无所有者时坍缩 → 16 态）。
 只有 `local·mgr=no·ext=no`（判落点）、`ext·differs`（合回/重装、先判方向）、`mgr·differs`（patch 包）三类要动手；
 `third·differs` 走"先判方向"，其余一律不动。算好的结果在 `inventory.tsv` 的 `state`/`action` 两列与 `states.json`。
 
@@ -50,7 +50,7 @@ python3 -B skills/dream/scripts/sweep-plan.py scan \
 
 ## s2 · 路由判断
 
-**入口判据**：只判 `action=judge-destination` 的候选（S1 的 15 态里唯一"要动手"的那一类：三方都没主）。
+**入口判据**：只判 `action=judge-destination` 的候选（S1 的 16 态里唯一"要动手"的那一类：三方都没主）。
 `judge-input-bodies.json` 每条带 `state`/`action`/`comparators`，判官题面里每条候选带「归类」行 —— 归类不是这一类的，
 判官要在 `why` 里指出并给 `confidence=0`，不许硬判落点。
 

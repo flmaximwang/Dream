@@ -47,9 +47,15 @@
 `worktree prune`，并确认主 clone 的 `git status --porcelain` 干净（不许在 worktree 里切 main 来清理）。
 条目见 `plans/dream-v3` 的 `T-006#B-002`。
 
-## 6 · 15 态分类与逐态去向（用户 2026-10-11 拍板）
+## 6 · 16 态分类与逐态去向（用户 2026-10-11 拍板；2026-10-12 补第 16 格）
 
-四根轴各 2 值；Hermes 侧 **15 态**、general agent 侧 **7 态**（无 A 轴，且同一处坍缩）。
+四根轴各 2 值；Hermes 侧 **16 态**、general agent 侧 **7 态**（无 A 轴，且同一处坍缩）。
+
+**为什么是 16 不是 15**：原表的前提是「第三方来源必有本地可比者」。Skills-Manager 接管后这个前提不成立 ——
+`hermes skills install` 时代的 `hub` 副本（名字在 `.hub/lock.json` 里）**权威副本只在远端**，profile 里没有
+任何同名的 built-in / official / bundled / external / manager 那一份 ⇒ 判不出 same/differs ⇒ 第 4 轴坍缩。
+2026-10-12 在 dev-general profile 实测撞上（9 条 hub 技能），当时 `STATE_ACTIONS` 没有这一格，
+`scan` 直接 `KeyError: ('third', 'no', 'no', 'fold')` 崩掉。
 
 - **A 轴 · Hermes 来源**：`local`，或**第三方维护**的四种子类，按此优先级取第一个命中：
   - `built-in` = 发行版 `~/.hermes/hermes-agent/skills/`
@@ -60,7 +66,7 @@
 - **C 轴**：归 `external_dirs`（`.env` 的 `DREAM_EXTERNAL_DIRS` 那份 JSON）里的某个包管否（同名且能定位到那份目录）
 - **D 轴**：与**可比者**内容相同/不同。可比者 = external 命中那份 · Skills-Manager 中央库那份 ·
   `.bundled_manifest` 的 md5 · 发行版 `skills/` 那份 · 发行版 `optional-skills/` 那份。
-  **没有可比者时 D 坍缩** —— 只有 `A=local·B=no·C=no` 这一格（所以是 15 不是 16）。
+  **没有可比者时 D 坍缩** —— 出现在两格：`A=local·B=no·C=no`（就是候选）与 `A=third·B=no·C=no`（如 hub 副本）。
 
 | 态 | 去向 |
 |---|---|
@@ -73,16 +79,20 @@
 | local · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
 | 第三方 · 任一种 · mgr=no · ext=no · same | 不动 |
 | 第三方 · 任一种 · mgr=no · ext=no · differs | **先判方向**：本地新 → patch 包；远端新 → 更新本地 |
+| 第三方 · 任一种 · mgr=no · ext=no · **fold** | 不动（本地无任何可比者、权威副本在远端，如 `hub` 副本；只报） |
 | 第三方 · mgr=no · ext=yes · same / differs | 不碰（官方是源；确是我加的改动才走 patch） |
 | 第三方 · mgr=yes · ext=no · same | 不动 |
 | 第三方 · mgr=yes · ext=no · differs | **建 patch 包** → manager 装 patch |
 | 第三方 · mgr=yes · ext=yes · same | 不动 |
 | 第三方 · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
 
-**装回按归属分三条路**（默认做法，可改；细节见 `docs/flow.md` §3「S7 装回的三条路」）：
+**装回按归属分三条路**（细节见 `docs/flow.md` §3「S7 装回的三条路」）：
 ① 归 Skills-Manager 管的 → 交它装（`skills-manager-cli skills update` + `deploy`）；
-② 不归它管、但本次运行传了 `--skills-manager` → 交它**从本地那份包**装（`skills install --local` + `deploy`）；
+② 不归它管、但**本次运行把技能交给它管**（`merge` 的 `--skills-manager`，**2026-10-12 起默认开**，
+   要关用 `--no-skills-manager`）→ 交它**从本地那份包**装（`skills install --local --name` + `deploy`）；
 ③ 两者都不是 → **直接复制**技能目录进 profile（与 agent 无关）。
+**Hermes 侧默认走 ②**：装/更/卸的唯一所有者是 Skills-Manager；`--agent` 用它在 Skills-Manager 侧的那个
+profile key（`hermes-default` / `hermes-<profile>`，见 `dream-hermes-routing` §1）。
 dream 不走 agent 自己的安装命令（`hermes … skills install`）——那套没有跨 agent 的普适性；
 代价是自己要负责"装到哪、类目怎么放"，好处是换 agent 不用改流程。
 装/更新的**所有者只有一个**：同一枚技能要么由 Skills-Manager 管，要么由直接复制管，别同时动。
@@ -94,4 +104,9 @@ dream 不走 agent 自己的安装命令（`hermes … skills install`）——�
 
 **落地物**：`sweep-plan.py scan` 逐条算 `state`（`A·source·mgr·ext·D`）与 `action`，写进 `inventory.tsv`
 两列（`state` / `action`）与 `states.json`（含 general agent 的 7 态计数）；控制台打印态分布与动作分布。
-`--hermes <profile>` 给 Hermes 侧 15 态；不给 A 轴时（general agent）就是同一份数据的 7 态视图。
+`--hermes <profile>` 给 Hermes 侧 16 态；不给 A 轴时（general agent）就是同一份数据的 7 态视图。
+
+**profile 解析（2026-10-12 修）**：`--profile default` = **Hermes 根**（`~/.hermes`），其余 = `<根>/profiles/<名>`。
+脚本自己认根 —— `HERMES_HOME` 是**当前活动 profile 的家**（跑 default 时它才是根），不能直接当根用；
+否则在 dev-general 会话里跑 `--profile default` 会去扫 dev-general。A 轴的两份账本（`.hub/lock.json` /
+`.bundled_manifest`）也按**目标 profile** 读，不按 `HERMES_HOME`。

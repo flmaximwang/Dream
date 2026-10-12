@@ -24,7 +24,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
   而 description 的打磨不该发生在路径还在动的时候。
 - **本 skill 不把任何 agent 当主语**：某 agent 的容器判据（哪些 skill 算「没有仓库归属」）、安装/更新/卸载命令、
   判官接线、私有路径，一律由**该 agent 的适配技能**提供。**Hermes 的落点见同族 `dream-hermes-routing`**
-  （容器 = profile 的 lock/manifest；安装 = `hermes skills install/update/uninstall`；判官 = 分块直调语言模型）。
+  （容器 = 「归 Skills-Manager 管 / Hermes 自带种子 / 都不管」；安装 = `skills-manager-cli`（两拍：
+  `install --local` → `deploy --agent hermes-<profile>`）；判官 = 分块直调语言模型）。
   本文件正文只写「适配层提供 X」。
 
 ## 主 run 的上下文纪律（决定这一轮跑不跑得完）
@@ -75,8 +76,8 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 `judge-input-bodies.json`（内联正文）、`packs.json`、`answer-space.json`、`pack-index.txt`。
 脚本自报 counts，先核一遍再往下走。完整做法：`references/dream-method.md#s1`。
 
-S1 还逐条算 **15 态**（`state` / `action`）：态的定义、可比者与逐态去向见 `docs/scope.md` §6；产出 `states.json`
-（hermes 15 态 + general agent 7 态）。控制台的 `15 态（hermes）=` 与 `逐态去向=` 两行先看，再决定这一轮做哪些态。
+S1 还逐条算 **16 态**（`state` / `action`）：态的定义、可比者与逐态去向见 `docs/scope.md` §6；产出 `states.json`
+（hermes 16 态 + general agent 7 态）。控制台的 `16 态（hermes）=` 与 `逐态去向=` 两行先看，再决定这一轮做哪些态。
 
 ## S2 · 路由判断
 
@@ -135,12 +136,14 @@ python3 -B skills/dream/scripts/apply.py verify --dir <scan 的 --out 目录>  #
 ## S7 · 整包重装
 
 ```bash
-python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录>   # 跑 install-cmds.sh，日志落盘
+python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录> --profile <名>   # 跑 install-cmds.sh，日志落盘
 ```
 
 `install-cmds.sh` 由 `merge` 按**归属**生成，只有三条路（不再出现 agent 自己的安装命令）：① 归 Skills-Manager 管的
-→ 交它 `update`+`deploy`；② 不归它管但本次传了 `--skills-manager` → 交它 `install --local`（从本地那份包）+ `deploy`；
-③ 都不是 → 直接复制进 profile。口径与代价：`docs/flow.md` §3「S7 装回的三条路」。
+→ 交它 `update`+`deploy`；② 不归它管、但**本次运行把技能交给它管**（`--skills-manager`，**默认开**，
+`--no-skills-manager` 才关）→ 交它 `install --local --name`（从本地那份包）+ `deploy --agent hermes-<profile>`；
+③ 都不是 → 直接复制进 profile。**Hermes 侧默认走 ②**（Skills-Manager 是唯一所有者）。
+口径与代价：`docs/flow.md` §3「S7 装回的三条路」；命令与坑：`dream-hermes-routing` §3。
 
 先数条数写进汇报（一包 20 行 = 20 个 prompt 行，是代价）。先 `install` 新成员，再 `update` 改动过的与
 **本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：`dream-hermes-routing`。
@@ -201,7 +204,7 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | 文件 | 承担什么 |
 |---|---|
 | `references/dream-method.md` | S1–S8 的完整做法与判据 |
-| `docs/flow.md`（仓库根） | **一轮的全貌**：输入 → 15 态先行判定 → S1–S8 阶段表 → 闸门 → 开发口径 → 缺口 → 进度锚点 |
+| `docs/flow.md`（仓库根） | **一轮的全貌**：输入 → 16 态先行判定 → S1–S8 阶段表 → 闸门 → 开发口径 → 缺口 → 进度锚点 |
 | `references/dream-agent-roster.md` | merge/strengthen 行的 writer 任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
 | `scripts/judge.py` | S2 判官：分块调模型（逐块落盘 + 断点续跑；后端从 `~/.hermes/dream-judge.json` 读） |

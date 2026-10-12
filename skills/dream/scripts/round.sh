@@ -23,7 +23,9 @@ if [ ! -f "$PARSER" ]; then echo "[round] 找不到 load-external-skill-index �
 
 profile=default
 mode=formal
-sm=0
+# Skills-Manager 接管了 Hermes profile 的技能 ⇒ 装回默认走它（merge 的第②路）。
+# 要绕开它（别的 agent / 该 profile 不归它管）加 `--no-skills-manager`。
+sm=1
 plan_only=0
 out=""
 while [ $# -gt 0 ]; do
@@ -107,10 +109,10 @@ if [ $plan_only -eq 1 ]; then
   S2 判官      judge.py             --dir $out  （backends/chunk 从 ~/.hermes/dream-judge.json 读）
   S3 交叉审计  audit.py             --dir $out
   S4 决议      sweep-plan.py merge  --dir $out --profile $profile $([ "$sm" = 1 ] && echo --skills-manager)
-  S5 写入      apply.py apply       --dir $out ${loc_arg[*]} ${apply_extra[*]:-（真推）}
-  S6 验证      apply.py verify      --dir $out ${loc_arg[*]}
-  $([ "$mode" = test ] && echo "  S7/S8        测试轮跳过（不 install、不 retire）" || echo "  S7 重装      apply.py install --dir $out
-  S8 退役      apply.py retire  --dir $out --backup ~/.hermes/backups/dream-retire")
+  S5 写入      apply.py apply       --dir $out --profile $profile ${loc_arg[*]} ${apply_extra[*]:-（真推）}
+  S6 验证      apply.py verify      --dir $out --profile $profile ${loc_arg[*]}
+  $([ "$mode" = test ] && echo "  S7/S8        测试轮跳过（不 install、不 retire）" || echo "  S7 重装      apply.py install --dir $out --profile $profile
+  S8 退役      apply.py retire  --dir $out --profile $profile --backup ~/.hermes/backups/dream-retire")
 EOF
   exit 0
 fi
@@ -119,10 +121,10 @@ run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile 
 run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out"
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
 run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile" "$([ "$sm" = 1 ] && echo --skills-manager)"
-run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"
-run "S6 验证"      "$PY" -B "$SKILL_DIR/scripts/apply.py" verify --dir "$out" "${loc_arg[@]}"
+run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" --profile "$profile" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"
+run "S6 验证"      "$PY" -B "$SKILL_DIR/scripts/apply.py" verify --dir "$out" --profile "$profile" "${loc_arg[@]}"
 if [ "$mode" = formal ]; then
-  run "S7 重装"    "$PY" -B "$SKILL_DIR/scripts/apply.py" install --dir "$out"
-  run "S8 退役"    "$PY" -B "$SKILL_DIR/scripts/apply.py" retire --dir "$out" --backup "$HOME/.hermes/backups/dream-retire"
+  run "S7 重装"    "$PY" -B "$SKILL_DIR/scripts/apply.py" install --dir "$out" --profile "$profile"
+  run "S8 退役"    "$PY" -B "$SKILL_DIR/scripts/apply.py" retire --dir "$out" --profile "$profile" --backup "$HOME/.hermes/backups/dream-retire"
 fi
 summary
