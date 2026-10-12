@@ -104,7 +104,7 @@ if [ $plan_only -eq 1 ]; then
   cat <<EOF
 [round] mode=$mode profile=$profile 落点池=$([ "$mode" = test ] && echo "$packs" || echo "$ext") out=$out
   S1 枚举      sweep-plan.py scan   --profile $profile --out $out ${loc_arg[*]}
-  S2 判官      judge.py             --dir $out --chunk-bytes 140000 --workers 2
+  S2 判官      judge.py             --dir $out  （backends/chunk 从 ~/.hermes/dream-judge.json 读）
   S3 交叉审计  audit.py             --dir $out
   S4 决议      sweep-plan.py merge  --dir $out --profile $profile $([ "$sm" = 1 ] && echo --skills-manager)
   S5 写入      apply.py apply       --dir $out ${loc_arg[*]} ${apply_extra[*]:-（真推）}
@@ -116,7 +116,7 @@ EOF
 fi
 
 run "S1 枚举"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" scan --profile "$profile" --out "$out" "${loc_arg[@]}" --parser-script "$PARSER"
-run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out" --chunk-bytes 140000 --workers 2
+run "S2 判官"      "$PY" -B "$SKILL_DIR/scripts/judge.py" --dir "$out"
 run "S3 交叉审计"  "$PY" -B "$SKILL_DIR/scripts/audit.py" --dir "$out"
 run "S4 决议"      "$PY" -B "$SKILL_DIR/scripts/sweep-plan.py" merge --dir "$out" --profile "$profile" "$([ "$sm" = 1 ] && echo --skills-manager)"
 run "S5 写入"      "$PY" -B "$SKILL_DIR/scripts/apply.py" apply --dir "$out" "${loc_arg[@]}" "${apply_extra[@]+"${apply_extra[@]}"}"

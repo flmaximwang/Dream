@@ -21,7 +21,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | **profile** | `--profile <名>`，默认 `default` | 决定扫哪棵技能树：`$HERMES_HOME/skills` 或 `profiles/<名>/skills` |
 | **落点池** | `.env` 的 `DREAM_EXTERNAL_DIRS` → 一份本地 JSON | JSON 里**只放本人点名的目录**（现在 1 条：`~/Documents/AgentSkill`）；每个目录自身或它的直接子目录＝一个包。Skills-Manager 管的技能**不写进 JSON**，用 `external-dirs.py manager-skills` 走它的 CLI 现查 |
 | **产出目录** | `--out <dir>`；不给就 `~/.hermes/cache/scratch/sweep-<时间戳>/` | 一轮的所有产物都落这里 |
-| **判官凭据** | `~/.hermes/.env` 的 `DEEPSEEK_API_KEY`（**从不打印**）+ `--model`（默认 `deepseek-flash`）/ `--base-url` | 判官直调 API，不经 JEV |
+| **判官配置** | `~/.hermes/dream-judge.json`：有序后端列表（当前支持 `jev` 与 `openai` 两类）+ `chunk_bytes` / `workers` / `key_file`；key 从 `key_file`（默认 `~/.hermes/.env`）按各后端 `key_env` 读（**从不打印**）；示例见 `skills/dream/dream-judge.example.json` | 按数组顺序尝试，第一个返回 verdicts 的胜出 |
 | **兄弟解析器** | `load-external-skill-index/scripts/skill-index.py` | frontmatter 解析**必须**用它（YAML 坑是真的）；回退链：worktree 旁边 → profile（两种布局）→ Skills-Manager 中央库 → external_dirs 包内 |
 | **模式与开关** | `--test` / `--formal` / `--plan`；`--exclude <前缀>`（重复可给，命中的技能本轮一律不动）；`--skills-manager`（本次运行是否把该 profile 的技能交给 Skills-Manager 管，决定 S7 走第②还是第③条路） | `--test`：写 `AgentSkill-copy`、`--no-push`、跳过 S7/S8；`--formal`：真包＋真推＋装回＋退役；`--plan`：只打印这一轮会跑什么 |
 
@@ -66,7 +66,7 @@ v3 **不含** skill-pack 的结构优化（去重、无类目归位、合并/umb
 | 阶段 | 谁跑 | 命令 | 输入 | 产出（都在 `--out` 里） | 判据 / 停下条件 |
 |---|---|---|---|---|---|
 | **S1 枚举** | 脚本（只读） | `sweep-plan.py scan --profile <名> --external-dirs <json> --out <dir> [--parser-script <p>]` | profile 技能树 + 落点池 + 解析器 | `inventory.tsv`（含 `verdict`/`state`/`action`/`duplicate_of`）· `judge-input.json` · `judge-input-bodies.json` · `packs.json` · `answer-space.json` · `pack-index.txt` · `inputs.json`（每包 HEAD + 文件 sha256 + **profile 技能目录 sha256**）· `prescreen.json` · `states.json` | 候选 = `action=judge-destination` 那一类（**当前实现是旧的 `verdict=local`，今天两者恰好等价，两套判据并存**）；同名多份会被显式报出；解析器找不到 → exit 2 |
-| **S2 判官** | 脚本调模型 API | `judge.py --dir <out> [--chunk-bytes 140000 --workers 2]` | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<model>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因） |
+| **S2 判官** | 脚本调模型 API | `judge.py --dir <out>`（后端/chunk 从 `~/.hermes/dream-judge.json` 读） | `judge-input-bodies.json`（**只装 `action=judge-destination` 的候选**，每条带 `state`/`action`/`comparators`） | `verdicts-<backend>.jsonl`（每条：id / dest / why / evidence / claims / confidence） | 覆盖率必须 100%；题面里每条候选带「归类」行、硬口径第 0 条写明「批只有这一种归类，任务只有挑落点」；非流式（卡流正是 v2 的死因）；后端按配置顺序尝试 |
 | **S3 交叉审计** | 脚本（0 次 LLM） | `audit.py --dir <out>` | `verdicts*.jsonl` + 接收技能目录 | `audit.md` / `audit.json`（一条 claim 一行；命中给 `file:line`，未命中进 net-new） | 「全员未命中」的行标 ⚠ = 落点可能选错，退回 S2 |
 | **S4 自动决议** | 脚本（0 次模型调用，只写 `--out`） | `sweep-plan.py merge --dir <out> --profile <名> [--skills-manager] [--manager-agent <名>]` | S2 的 `verdicts-<model>.jsonl` + S3 的 `audit.*` + S1 的 `inputs.json` | `resolved.json`（逐行决议）· `plan.md`（按落点分组给人看）· `install-cmds.sh`（装回命令清单，**不执行**）· `stale.json` · `profile-stale.json` | 见下方「S4 校验什么」；有未判定或被拒收的行 → exit 4 |
 | **S5 写入** | 脚本 + **writer 子代理** | 新技能：`apply.py apply --dir <out> [--external-dirs <json>] [--no-push] [--dry-run] [--changes-out <路径>]`；已有技能被改：`apply.py taskbook` → 按包派 writer（**不做回归测试**） | `resolved.json` + `audit.md` | 各包 git commit（新包先建仓 + README）· `apply-report.json` · `writers.md`；改动清单默认在会话里报，给了 `--changes-out` 就落盘 | 扫描闸非 `safe` → 回滚不提交；name/desc 与包内已有撞车 → 跳过该行先改名/改 desc；包工作区有别人的改动 → 跳过该包；`merge`/`strengthen` 行脚本**不动**，交 writer |
@@ -119,7 +119,7 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 ## 4 · 哪几步仍然要模型（其余全是脚本）
 
 1. **S2 判官**：每条候选读全文 → 二选一（工具轴/主题轴）→ 挑落点 → 逐字抄 3–8 条 `claims`。
-   脚本只负责分块、HTTP、JSONL 拼装、覆盖率报告。
+   脚本只负责分块、HTTP、JSONL 拼装、覆盖率报告；后端从 `~/.hermes/dream-judge.json` 读，按顺序尝试。
 2. **S5 的 `merge`/`strengthen` 行**：要改接收技能的正文 → 由主 agent 按包派 **writer 子代理**（看 diff 合并，**不回归测试**）
    （`apply.py taskbook` 生成 `writers.md`，一个包一个 writer，任务书与五步形状见 `references/dream-agent-roster.md`）。
 3. **S4 的逐行决议**：按「无人值守」判，不等人、不用 `clarify`、不发表单。

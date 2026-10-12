@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# dream 开发用 git worktree（不进包）
+worktrees/

@@ -37,7 +37,7 @@ description: "Use when 要把一批「没有仓库归属」的技能批量收编
 | 阶段 | 谁做 | 为什么非它不可 | 明确不许 |
 |---|---|---|---|
 | S1 枚举 | **主 agent 跑 `sweep-plan.py scan`** | 上百条候选手抄必错；判官输入必须是**脚本产物**（凭记忆转写的题面曾逐条与源文件不同，整轮结论作废） | 不读技能正文、不判断归属 |
-| S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
+| S2 路由 | **主 agent 跑 `judge.py`**（按字节分块，每块一次**非流式**请求、逐块落盘、断点续跑；后端从 `~/.hermes/dream-judge.json` 读，当前支持 JEV 与 OpenAI 兼容端点；题面与判据见 `references/dream-judge-routing.md`） | 判断必须独立于枚举：判官只读 `judge-input-bodies.json`，不看 profile 的技能目录 | 不许只凭 name/desc 落点（空 `evidence` 的 verdict 会被丢掉）；不许人工改 `source`/`model` |
 | S3 交叉审计 | **主 agent 跑 `audit.py`**（判官的 `claims` × `grep -nF` 接收侧） | 只有 `grep` 的真输出能给出接收侧 `file:line`；模型转述不算证据 | 不改任何文件；只出两张清单 |
 | S4 自动决议 | **主 agent 跑 `sweep-plan.py merge` + 规则**（见「无人值守」） | 无人值守下没有闸口：规则把「明确归位」与「没判完」分开 | 不问人、不等人 |
 | S5 写入 | **主 agent 跑 `apply.py apply`**（新技能：只拷贝 + 查 name/desc 撞车 + 扫描闸 + pathspec 提交推送）；**`merge`/`strengthen` 行按包派一个 writer 子代理看 diff 合并正文**（不做回归测试） | 同一 clone 里两个 writer 会互相踩 README、生成段与提交 | 不许 `git add -A`、不许子代理起后台进程、不许碰本包之外的路径、不许替别人提交在途文件 |
@@ -88,8 +88,8 @@ S1 还逐条算 **15 态**（`state` / `action`）：态的定义、可比者与
 **只判 `action=judge-destination` 那一类**（S1 已逐条算出归类，`local·local·mgr=no·ext=no`）：题面里每条候选带一行
 「归类」，硬口径第 0 条写明「这批只有这一种归类，任务只有挑落点」。归类不是这一类的行，判官要指出并给 `confidence=0`。
 
-做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（默认 `--chunk-bytes 140000`、`--workers 2`）。
-实测 99 候选 = 8 块、整批 341–447s。**只读它最后那行 wall/verdicts 摘要**。
+做法：主 agent 跑 `scripts/judge.py --dir <scan 的 --out 目录>`（后端与分块参数从 `~/.hermes/dream-judge.json` 读）。
+**只读它最后那行 wall/verdicts 摘要**。
 
 ## S3 · 交叉审计
 
@@ -204,7 +204,9 @@ python3 -B skills/dream/scripts/apply.py retire --dir <scan 的 --out 目录> --
 | `docs/flow.md`（仓库根） | **一轮的全貌**：输入 → 15 态先行判定 → S1–S8 阶段表 → 闸门 → 开发口径 → 缺口 → 进度锚点 |
 | `references/dream-agent-roster.md` | merge/strengthen 行的 writer 任务书、并发与分波、收据清单 |
 | `references/dream-judge-routing.md` | S2 判官题面模板、分块、`dest` 形状、`claims`、`source` 标注、复核口径 |
-| `scripts/judge.py` | S2 判官：分块直调语言模型（逐块落盘 + 断点续跑） |
+| `scripts/judge.py` | S2 判官：分块调模型（逐块落盘 + 断点续跑；后端从 `~/.hermes/dream-judge.json` 读） |
+| `scripts/judge_backends.py` | 可插拔后端：JEV + OpenAI 兼容，按配置顺序尝试（`--self-test` 离线自检） |
+| `dream-judge.example.json` | 判官配置示例：复制到 `~/.hermes/dream-judge.json` 并按需改后端列表 |
 | `scripts/audit.py` | S3 交叉审计：`claims` 逐条 grep，出 already-there / net-new |
 | `scripts/apply.py` | S5–S8：`apply` / `verify` / `install` / `retire` + `taskbook`（按包拼 writer 任务书） |
 | `scripts/skill-mirror.py` | profile 技能 ↔ 外部仓库的对等物：`where` / `same` / `check`（homed / drift / local 三档） |

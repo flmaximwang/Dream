@@ -17,7 +17,7 @@
 | 路径 | 是什么 |
 |---|---|
 | `skills/dream/` | **general 方法主技能**（`SKILL.md` 第一层 + `references/dream-method.md` 细节 + `scripts/sweep-plan.py`） |
-| `skills/dream-hermes-routing/` | Hermes 适配技能（profile 容器判据 / `hermes skills` 安装命令 / JEV 判官接线） |
+| `skills/dream-hermes-routing/` | Hermes 适配技能（profile 容器判据 / `hermes skills` 安装命令 / 可插拔判官接线） |
 | `plans/dream-v3/` | **当前计划**：Dream v3 —— 一轮 ≤20 分钟、砍掉 skill-pack 优化步骤（口径冻结在 `docs/scope.md`） |
 | `plans/dream-perf/` | 执行效率优化计划（2026-10-11 实测基线驱动：上下文瘦身 / 回合数压缩 / 两条硬事实 / 按 profile 拆批） |
 | `plans/dream-upgrade/` | 本项目开发的 loomerto 计划（**计划持久化在项目里**，随项目一起提交） |

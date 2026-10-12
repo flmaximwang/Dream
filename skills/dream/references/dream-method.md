@@ -93,7 +93,9 @@ python3 -B skills/dream/scripts/sweep-plan.py scan \
 
 **走哪条路（判官接线）**：适配层给「用哪条命令判、怎么分块、模型是谁」。v3 是**一条路，没有降级链**：
 跑 `scripts/judge.py --dir <scan 产物>` —— 它把 `judge-input-bodies.json` 按字节分块、**每块一次非流式请求**、
-逐块落盘并断点续跑，落 `verdicts-<model>.jsonl`；`source`/`model` 由脚本写死。
+逐块落盘并断点续跑，落 `verdicts-<backend>.jsonl`；`source`/`model` 由脚本写死。
+**后端不写死在 skill 里**：从 `~/.hermes/dream-judge.json` 读有序后端列表（当前支持 `jev` 与 `openai` 两类），
+按顺序尝试、第一个返回 verdicts 的胜出。统一接口 `judge_chunk(items, answer_space, ...)`。
 （v2 的「探活判官服务 → 不在就每 8–12 条派一个分类子代理」已废除：那条降级链本身是一整次扇出，是本版要砍的成本。）
 
 判据：`merge` 覆盖率必须 100%，且没有任何 `dest.repo` 落在 `answer-space.json` 之外。

@@ -1,6 +1,6 @@
 ---
 name: dream-hermes-routing
-description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与判官（judge.py 分块直调 deepseek-flash）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
+description: "Use when 要给某个 Hermes profile 批量收编没有仓库归属的本地技能（dream 的 Hermes 适配层）：把 general 方法本体接到 profile 的 skill 容器、hermes skills 安装命令与可插拔判官（judge.py 分块调模型，后端从 dream-judge.json 读）上。方法本体在同仓库 skills/dream，本技能只做 Hermes 侧的接口与安装。触发：「一键收编」「sweep profile skills into packs」「Hermes 上跑 dream」"
 ---
 
 # dream-hermes-routing · dream 方法在 Hermes 上的适配层
@@ -62,26 +62,44 @@ hermes skills list                                     # 回读名字与类目
 **扫描闸**：push 之前预测扫描 verdict。非 `safe` 先按扫描闸手册改写形态；`dangerous` 的 revision 在 hub 上
 **永远装不上**，`--force` 也覆盖不了。
 
-## 4 · 判官接线（分块直调 deepseek-flash）
+## 4 · 判官接线（可插拔后端，配置驱动）
+
+后端与分块参数在 `~/.hermes/dream-judge.json` 里配置，按数组顺序尝试。
+目前支持 `jev`（TypeSafe System One，决策模型）和 `openai`（任何 `/chat/completions` 端点）两种类型。
+配置示例：
+
+```json
+{
+  "backends": [
+    {"name": "jev", "type": "jev", "model": "jev-latest",
+     "base_url": "https://api.typesafe.ai/v1/systemone", "key_env": "TYPESAFE_API_KEY"},
+    {"name": "deepseek", "type": "openai", "model": "deepseek-flash",
+     "base_url": "https://api.deepseek.com/v1", "key_env": "DEEPSEEK_API_KEY"}
+  ],
+  "chunk_bytes": 140000,
+  "workers": 2
+}
+```
 
 主 agent 直接跑方法本体的 `skills/dream/scripts/judge.py`：
 
 ```bash
-python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录> [--workers 2] [--chunk-bytes 140000]
-# 只看分块计划：--dry-run ；烟测：--limit 5 --workers 1
+python3 -B skills/dream/scripts/judge.py --dir <scan --out 目录>
+# 只看分块计划：--dry-run ；烟测：--limit 5
 ```
 
-- 它在 `judge-input-bodies.json`（正文内联那份）上按字节分块，**每块一次非流式 deepseek-flash 请求**，
-  落 `verdicts-deepseek-flash.jsonl`；`source` / `model` 由脚本写死（`deepseek` / 实际模型名）。
+- 它在 `judge-input-bodies.json`（正文内联那份）上按字节分块，**每块一次非流式请求**，
+  落 `verdicts-<backend>.jsonl`；`source` / `model` 由脚本写死（实际后端名 / 实际模型名）。
 - **逐块落盘 + 断点续跑**：被打断后重跑同一条命令，已判完的块直接复用。**不要**手写别的判官脚本去绕它。
 - 题面、形状、复核口径：方法本体的 `skills/dream/references/dream-judge-routing.md`。
+- 后端实现在 `scripts/judge_backends.py`，统一接口 `judge_chunk(items, answer_space, ...)`。
+  新增后端 = 实现这个函数 + 配置里加一项。
 
-**为什么不用 JEV**：`TYPESAFE_API_KEY` 在不在都一样 —— 本机对 `api.typesafe.ai` 稳定返回 **451**
-（`Typesafe is not available in your region`）。451 是**区域限制**，不是限流：重试到超时只是白花时间。
-所以 v3 既不探活也不留降级链，**判官只有一个**：`judge.py`。
+**JEV 是决策模型**（choice Q&A），不是生成模型：用两轮 choice 题（轴 + 落点）出 verdict，
+`evidence` / `claims` 由脚本从正文机械抽取。OpenAI 兼容后端则整块 prompt 一次请求、解析 JSONL 输出。
 
 **并发纪律**：实测 3 块 ~140KB 并发时会被 `Connection reset by peer`（Errno 54）打掉，脚本已带 3 次退避
-重试；仍然 reset 就把 `--workers` 降到 1。
+重试；仍然 reset 就把配置里的 `workers` 降到 1。
 
 ## 5 · 回读三件（收工判据）
 

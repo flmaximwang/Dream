@@ -1,0 +1,20 @@
+{
+  "backends": [
+    {
+      "name": "jev",
+      "type": "jev",
+      "model": "jev-latest",
+      "base_url": "https://api.typesafe.ai/v1/systemone",
+      "key_env": "TYPESAFE_API_KEY"
+    },
+    {
+      "name": "deepseek",
+      "type": "openai",
+      "model": "deepseek-flash",
+      "base_url": "https://api.deepseek.com/v1",
+      "key_env": "DEEPSEEK_API_KEY"
+    }
+  ],
+  "chunk_bytes": 140000,
+  "workers": 2
+}
