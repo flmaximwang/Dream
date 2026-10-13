@@ -179,8 +179,7 @@ python3 -B skills/dream/scripts/apply.py install --dir <scan 的 --out 目录> -
 **本包既有成员**（整包重装）。回读三件（同 S6 判据）。适配层的安装命令与坑：`dream-hermes-routing`。
 
 `install` 里带两条**只有 dream 能做**的闸（它才看得到 profile）：**装前总量闸门**（`≤ MAX_AGENT_SKILLS`，
-超了就不装、exit 3，落 `install-gate.json`）与**装后形状断言**（技能都在 `skills/<类目>/<name>/` · 外部仓库列表里找不到对等物的算 `local`（`skill-mirror.py check` 判，不看 `.hub/lock.json`），
-越界只报给 SkillWeave、不自己 `git mv`，落 `install-shape.json`）。判据与命令：`references/dream-method.md` s7；
+超了就不装、exit 3，落 `install-gate.json`）与**装后形状断言**（技能都在 `skills/<类目>/<name>/` · 外部仓库列表里找不到对等物的算 `local`（`skill-mirror.py check` 判，不看 `.hub/lock.json`）· **`skills/` 根下没有 SKILL.md 的孤儿目录与散落文件**（`orphans` / `stray_files`）· 越界只报给 SkillWeave、不自己 `git mv`，落 `install-shape.json`）。判据与命令：`references/dream-method.md` s7；
 上限可用 `--max-skills <n>` 改（给人留的校准旋钮）。
 
 ## S8 · 退役与汇报

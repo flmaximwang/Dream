@@ -195,6 +195,10 @@ python3 -B skills/dream/scripts/apply.py install --dir <scratch>/sweep-<date>   
    注意：上限是**校准旋钮**——撞上它说明该先退役/清退，或者由人改数，不是让脚本自己放松。
 2. **装后形状断言**：① 每个技能路径形如 `skills/<类目>/<name>/`（直接躺在 `skills/` 下 = 无类目，是缺陷）；
    ② `local` = 0 —— **判据已换（2026-10-11）**：skill 管理交给 Skills-Manager 后，`.hub/lock.json` 不再是账本；现在「有归属」= 在**被维护的外部仓库列表**里能找到同名技能且内容一致（`scripts/skill-mirror.py check <profile> --repos-from <仓库清单>` → homed / drift / local 三档）。越界的逐条列名 → `install-shape.json`。
+   ③ `skills/` 根下的**孤儿目录**（没有 SKILL.md 的目录，典型是 `references/` + `scripts/` 的资源残留）与
+   **散落文件**（`_dream_enum.py` 这类子代理泄漏）单独进 `install-shape.json` 的 `orphans` / `stray_files`
+   （2026-10-13 加，issue #2）。`walk_skill_mds` 只收带 SKILL.md 的目录，这两类以前一个都不进清单 ——
+   闸门对它们形同虚设。`.archive` 等已知项按白名单放过（那是真归档，报出来只是噪声）。
    **只报不动手**：归位是仓库侧的动作 → 报给 **SkillWeave**；自己 `git mv` 会再次越界。
 
 ## s8 · 退役与汇报

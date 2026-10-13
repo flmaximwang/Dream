@@ -468,6 +468,41 @@ def walk_skill_mds(root: pathlib.Path) -> list:
     return found
 
 
+# 装后形状断言：`skills/` 根下**本来就不该有**的东西（issue #2，2026-10-13）。
+# `walk_skill_mds` 只收带 SKILL.md 的目录，于是「没有 SKILL.md 的孤儿目录」与「根下散落的文件」
+# 两头都进不了清单 —— 闸门对它们形同虚设（实测 dev-general 的 `software-development/` 只有
+# references/ + scripts/、`_dream_enum.py` 是子代理泄漏；lab-protein-design 的
+# `life-science-research/` 只有 README.md + .DS_Store）。这里补一路裸目录 / 裸文件扫描。
+# 归属（该删 / 该折进哪个技能）仍归 SkillWeave，dream 只报不动。
+KNOWN_ROOT_ENTRIES = {".hub", ".bundled_manifest", ".archive", ".git", ".gitignore", ".DS_Store"}
+
+
+def shape_orphans(prof: pathlib.Path) -> dict:
+    """`skills/` 根下没有 SKILL.md 的目录（orphans）与非目录的散落文件（stray_files）。
+
+    只扫根这一层：类目层下的形状由 `not_under_category` 管（`skills/<名>/SKILL.md` 缺类目），
+    这里管的是「连技能都不是、却躺在根上」的两类。`.archive` 等已知项按白名单放过 ——
+    `.archive/<名>/` 是真归档（多数 profile 都有），把它报成异常只会制造噪声（issue #2 的悬留问题）。
+    """
+    orphans, stray = [], []
+    for e in sorted(prof.iterdir()):
+        if e.name in KNOWN_ROOT_ENTRIES or e.name.startswith("."):
+            continue
+        if e.is_symlink():
+            continue                     # Skills-Manager 部署的形状，不是异常
+        if e.is_dir():
+            if not any(ap for ap in _iter_skill_mds(e)):
+                orphans.append(e.name)
+        else:
+            stray.append(e.name)
+    return dict(orphans=sorted(orphans), stray_files=sorted(stray))
+
+
+def _iter_skill_mds(root: pathlib.Path) -> list:
+    """浅一层就够：孤儿目录里通常只有 references/ scripts/ README，不必深挖。"""
+    return [p for p in root.rglob("SKILL.md") if "__pycache__" not in p.parts]
+
+
 def do_install(args) -> int:
     """S7：装前总量闸门（≤ MAX_AGENT_SKILLS）→ 跑 install-cmds.sh → 装后形状断言（类目层 + local=0）。"""
     d = pathlib.Path(args.dir).expanduser()
@@ -548,7 +583,7 @@ def do_install(args) -> int:
     print(f"[install] exit={r.returncode} · log={d/'install.log'}")
     # 装后回读：① 每个技能都在类目下（skills/<类目>/<name>/）② profile 里 local = 0。
     # 越界只报不动手：归位是仓库侧的动作 → SkillWeave（自己 git mv 会再次越界）。
-    shape = dict(not_under_category=[], local=[])
+    shape = dict(not_under_category=[], local=[], orphans=[], stray_files=[])
     if r.returncode == 0:
         # 「有归属」的判据（Skills-Manager 接管后）：profile 里那一项是**它部署的符号链接**
         # （指向 ~/.skills-manager/skills/<名>），或属于 Hermes 自带的种子（`.bundled_manifest`），
@@ -574,11 +609,19 @@ def do_install(args) -> int:
             except (OSError, ValueError):
                 lock_names = set()
         shape["local"] = sorted(names - deployed - bundled - lock_names)
+        # ③ 根下的孤儿目录 / 散落文件（issue #2）：walk_skill_mds 只收带 SKILL.md 的，这两类
+        # 以前一个都不进清单。非空即打印，归属归 SkillWeave，dream 只报不动。
+        shape.update(shape_orphans(prof))
         (d / "install-shape.json").write_text(json.dumps(shape, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        if shape["not_under_category"] or shape["local"]:
+        bad = shape["not_under_category"] or shape["local"] or shape["orphans"] or shape["stray_files"]
+        if bad:
             print(f"[install] ⚠ 装后形状：{len(shape['not_under_category'])} 个技能不在类目下"
                   f"（{shape['not_under_category'][:3]}…）· local {len(shape['local'])} 个"
                   f"（{shape['local'][:3]}…）→ {d/'install-shape.json'}")
+            if shape["orphans"] or shape["stray_files"]:
+                print(f"[install] ⚠ skills/ 根下 {len(shape['orphans'])} 个无 SKILL.md 的孤儿目录"
+                      f"（{shape['orphans'][:3]}…）· {len(shape['stray_files'])} 个散落文件"
+                      f"（{shape['stray_files'][:3]}…）→ {d/'install-shape.json'}")
             print("[install] 归位是仓库侧的事 → 报给 SkillWeave；dream 不自己 git mv。"
                   "（Skills-Manager 部署的扁平符号链接不算越界）")
         else:
@@ -637,6 +680,21 @@ def self_test() -> int:
         incoming = [(None, None, pack / "skills" / "b-skill", None), (None, None, pack / "skills" / "c-skill", None)]
         dups = desc_dups(pack, incoming)
         assert dups == {"b-skill": "a-skill"}, dups
+    # 装后形状断言：无 SKILL.md 的孤儿目录与根下散落文件必须进 install-shape.json（issue #2）
+    with tempfile.TemporaryDirectory() as td:
+        prof = pathlib.Path(td) / "skills"
+        (prof / "cat" / "good").mkdir(parents=True)
+        (prof / "cat" / "good" / "SKILL.md").write_text("---\nname: good\ndescription: d\n---\n# t\n", encoding="utf-8")
+        (prof / "orphan" / "references").mkdir(parents=True)            # 资源残留，没有 SKILL.md
+        (prof / "orphan" / "references" / "a.md").write_text("x\n", encoding="utf-8")
+        (prof / "orphan" / "scripts").mkdir(parents=True)
+        (prof / "leaked.py").write_text("print(1)\n", encoding="utf-8")  # 子代理泄漏的散落文件
+        (prof / ".DS_Store").write_bytes(b"\x00")                        # 已知项：白名单，不算
+        (prof / ".archive").mkdir()
+        (prof / ".archive" / "old").mkdir()
+        os.symlink(str(prof / "cat" / "good"), prof / "deployed")        # SM 部署的形状：不是异常
+        got = shape_orphans(prof)
+        assert got == {"orphans": ["orphan"], "stray_files": ["leaked.py"]}, got
     print("[apply] self-test OK")
     return 0
 

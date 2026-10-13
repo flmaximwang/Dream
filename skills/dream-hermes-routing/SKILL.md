@@ -14,8 +14,15 @@ description: "Use when 要给某个 Hermes profile 批量收编没有仓库归�
 **装/更/卸的唯一所有者是 Skills-Manager**（用户 2026-10-11 起完全接管 Hermes 的 skill）。所以判据不再是
 「有没有 `.hub/lock.json` 条目」，而是**谁管着它** —— 两边都不管的才是候选：
 
-- **归 Skills-Manager 管**（B 轴 = yes）— 名字在它的库里（`skills-manager-cli --json skills list`）。
-  每个技能在库里都有自己的来源与更新路径 ⇒ 已有归属，跳过。
+- **归 Skills-Manager 管**（B 轴 = yes）— **它管着这个 profile 里的这一份**（2026-10-13 改口径，仓库 issue #1/#3）。
+  两条证据任一成立：① `skills-manager-cli --json skills list` 里这条的 `deployed_to` **含本 profile 的 agent**
+  （`hermes-default` / `hermes-<profile>`）；② profile 里那一项是**指向 `~/.skills-manager/skills/<名>` 的符号链接**
+  （部署的物理形状）。
+  **不是**「它库里有这个名字」：库里有、没部署、profile 里躺真实副本的形态回落成 `mgr=no`，**去向再由 A/D 轴定**
+  （实测 `dev-general/code-wiki`：`deployed_to: []` 却是真实目录，A 轴=official + D 轴=same ⇒ 改口径后 `mgr` 由 yes 改 no、
+  action **仍是 `noop`**；只有本地来源且无可比者才落候选）。旧口径按名字扫 `skills list`，
+  把它算成 `mgr=yes` → `noop`，同一轮里 S7 又反过来报它形状越界、要报给 SkillWeave —— 同一个对象两个阶段
+  给出互斥结论。
   它在某个 profile 里的部署**就是一条符号链接**：`<profile>/skills/<名>` → `~/.skills-manager/skills/<名>`；
   `skills-manager-cli --json skills show <名>` 的 `deployed_to` 列出它装了哪些 agent。
 - **Hermes 自带种子**（A 轴 = bundled）— 名字在 `<profile>/skills/.bundled_manifest`（`名字:md5`）⇒ 不属于用户，跳过。

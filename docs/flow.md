@@ -147,9 +147,10 @@ S4 把 S2 的落点、S3 的重叠证据、S1 的输入快照合成**一行一�
 | 输入指纹 | `scan` → `inputs.json` | 每包 HEAD + 产出文件 sha256；S5 前比对，上游变了跳过整包 |
 | **profile 指纹** | `scan` → `inputs.json`；`merge` 回读 | 每个技能目录的 sha256；树被别的会话改动 → 标 `profile-stale.json`（技能树是会动的，实测 239→237→226） |
 | 同名多份 | `scan` → `inventory.tsv.duplicate_of` / `prescreen.json` | 身份＝相对路径，名字只用于找可比者；同名两份会互相顶替，必须显式处理 |
+| **预筛自报可疑度** | `scan` → console + `prescreen.json.managed_undeployed` | `local=0` 且 `homed=0` 时明写「N 条靠 Skills-Manager 兜住、0 条靠外部仓库匹配」（2026-10-13，issue #3）—— 否则 16 个 profile 连续多轮 4 秒空跑，看不出是真干净还是判据失灵。`managed` 拆成**真部署**（`deployed_to` 命中本 profile 的 agent，或 profile 里是它部署的符号链接）与**库里有但没部署**（`managed_undeployed` 单独列名；名单只报不改去向，落不落候选由 A/D 轴定） |
 | 扫描闸 | `apply` 每行 | 非 `safe` 就回滚不提交（`dangerous`/`caution` 见扫描闸手册） |
 | 装前总量闸 | `install` | 现有 ∪ 新装 ≤ `MAX_AGENT_SKILLS`（300），超了不装 |
-| 装后形状断言 | `install` | 技能都在 `skills/<类目>/<名>/`；外部仓库里找不到对等物的算 `local`（`skill-mirror.py check`，**不看 `.hub/lock.json`**） |
+| 装后形状断言 | `install` | 技能都在 `skills/<类目>/<名>/`；外部仓库里找不到对等物的算 `local`（`skill-mirror.py check`，**不看 `.hub/lock.json`）；**`skills/` 根下没有 SKILL.md 的孤儿目录与散落文件**单独进 `orphans` / `stray_files`（2026-10-13 加，issue #2；`.archive` 等已知项白名单） |
 
 ---
 

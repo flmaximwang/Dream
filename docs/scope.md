@@ -64,7 +64,14 @@
   - `official` = 发行版 `~/.hermes/hermes-agent/optional-skills/`（`hermes skills repair-official --restore` 的来源）
   - `bundled` = `~/.hermes/skills/.bundled_manifest` 的 `名字:md5` 账本
   - `hub` = `~/.hermes/skills/.hub/lock.json`
-- **B 轴**：归 Skills-Manager 管否（它的 CLI `skills list` 里有这个技能名）
+- **B 轴**：归 Skills-Manager 管否。**判据是「它管着这个 profile 里的这一份」**，不是「它库里有这个技能名」
+  （2026-10-13 改，仓库 issue #1/#3）：`skills-manager-cli --json skills list` 的 `deployed_to` 命中本 profile
+  的 agent（`hermes-default` / `hermes-<profile>`），或 profile 里那一项是**指向它中央库的符号链接**。
+  「库里有 + 没部署 + profile 躺真实副本」回落成 `mgr=no`，**去向再由 A/D 轴定** —— 只有「本地来源 + 任何
+  可比者都找不到」那一格才落候选（`local·local·mgr=no·ext=no·fold` ⇒ `judge-destination`）。实测唯一一例
+  `dev-general/code-wiki`（`deployed_to: []` 却是真实目录）：A 轴是 `official`、D 轴是 `same` ⇒ 改口径后 `mgr` 由
+  `yes` 改 `no`，action **仍是 `noop`**（与官方副本一致，没有要收编的东西）。旧口径的错在于**宣称「SM 管着它」**：
+  同一个对象、同一轮里 S7 又报它形状越界、要报给 SkillWeave —— 一个事实陈述与另一个阶段的观测互斥。
 - **C 轴**：归 `external_dirs`（`.env` 的 `DREAM_EXTERNAL_DIRS` 那份 JSON）里的某个包管否（同名且能定位到那份目录）
 - **D 轴**：与**可比者**内容相同/不同。可比者 = external 命中那份 · Skills-Manager 中央库那份 ·
   `.bundled_manifest` 的 md5 · 发行版 `skills/` 那份 · 发行版 `optional-skills/` 那份。
@@ -87,6 +94,13 @@
 | 第三方 · mgr=yes · ext=no · differs | **建 patch 包** → manager 装 patch |
 | 第三方 · mgr=yes · ext=yes · same | 不动 |
 | 第三方 · mgr=yes · ext=yes · differs | 以我的包为源合回 → manager 重装 |
+
+**`mgr=yes` 的两条路（2026-10-13 拆，issue #1/#3）**：上表里 `mgr=yes` 一律指「**真部署**」——
+`deployed_to` 含本 profile 的 agent，或 profile 里是它部署的符号链接。库里有、**没部署**、profile 躺真实副本的
+不落在这张表的 `mgr=yes` 格里，而是回落 `mgr=no`，去向再由 A/D 轴定（本地来源且不可比 ⇒
+`local·local·mgr=no·ext=no·fold` ⇒ `judge-destination`；第三方来源且与可比者一致 ⇒ 仍 `noop`）。
+预筛因此把 `managed` 拆成**真部署**（不进候选）与**库里有但没部署**（`prescreen.json` 的
+`managed_undeployed` 单独列名；**名单只报不改去向**），并在 `local=0` 且 `homed=0` 时自报「N 条靠 managed 兜住、0 条靠外部仓库匹配」。
 
 **装回按归属分三条路**（细节见 `docs/flow.md` §3「S7 装回的三条路」）：
 ① 归 Skills-Manager 管的 → 交它装（`skills-manager-cli skills update` + `deploy`）；

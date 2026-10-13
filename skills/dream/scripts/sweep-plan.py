@@ -274,6 +274,16 @@ def dir_fingerprint(mirror, d: pathlib.Path) -> str:
 # A = hermes 侧来源：local 或「第三方维护」四种子类 built-in / official / bundled / hub
 # B = 归 Skills-Manager 管否 · C = 归 external_dirs 管否 · D = 与可比者内容相同否（无所有者时坍缩）
 # 第三方的权威副本：built-in/optional 在发行版树里、bundled 在 .bundled_manifest、hub 在 .hub/lock.json
+#
+# **B 轴的两档（2026-10-13 拆，见仓库 issue #1/#3）**：B 的判据是「**Skills-Manager 管着这个 profile 里的
+# 这一份**」，不是「它库里有这个技能名」。两条证据任一成立才算 `mgr=yes`：
+#   ① `deployed_to` 里有本 profile 的 agent（`hermes-<profile>` / `hermes-default`）；
+#   ② profile 里那一项是**指向它中央库的符号链接**（部署的物理形状）。
+# 「库里有 + 没部署 + profile 躺真实副本」（实测 dev-general 的 `code-wiki`）回落成 `mgr=no` ——
+# 那一份不是它管的；**去向再由 A/D 轴定**（实测 code-wiki：A 轴=official、D 轴=same ⇒ 改口径后 action
+# 仍是 `noop`，只有「本地来源 + 任何可比者都找不到」那一格才落候选）。旧口径按名字扫 `skills list`，把这种形态也吃成 `mgr=yes` →
+# `noop`，于是 S7 反过来报它形状越界、要报给 SkillWeave，而 SkillWeave 侧什么都没动过：同一个对象、
+# 同一轮里两个阶段给出互斥结论。
 STATE_ACTIONS = {
     # local 组（7 态）
     ("local", "no", "no", "fold"): "judge-destination",       # 真候选：判落点 → 写我的包 → push → 交 manager 装
@@ -332,12 +342,18 @@ def hermes_source(n: str, tp: dict, manifest: dict, lock: set) -> str:
 
 
 def dream_state(r: dict, mirror, index: dict, manager_dirs: dict, tp: dict, manifest: dict,
-                exclude: tuple = ()) -> dict:
+                exclude: tuple = (), deployed: object = frozenset()) -> dict:
     """一条 profile 技能的 16 态归属：source/A/B/C/D + action。
-    exclude 里是技能名前缀：命中的本轮一律不动（`--exclude loomerto`＝这人正在手改，别碰）。"""
+    exclude 里是技能名前缀：命中的本轮一律不动（`--exclude loomerto`＝这人正在手改，别碰）。
+    deployed 是 Skills-Manager **真部署**到本 profile 的技能名（`deployed_to` 命中，见 manager_deployed）——
+    B 轴只看它；profile 里是指向它中央库的符号链接也算部署（那是部署的物理形状）。"""
     n = r["name"]; d = r["_md"].parent
     source = hermes_source(n, tp, manifest, r.get("lock_names", set()))
-    mgr = "yes" if n in manager_dirs else "no"
+    # B 轴（2026-10-13，issue #1）：判「它管着这一份」，不是「它库里有这个名字」。
+    # ① deployed_to 命中本 profile 的 agent；② profile 里是它部署的符号链接。
+    # 库里有、没部署、profile 躺真实副本（dev-general/code-wiki）→ mgr=no。
+    # 「回落候选」只在**本地来源且无任何可比者**时成立；第三方来源且与可比者一致（实测 code-wiki）仍 noop。
+    mgr = "yes" if (n in deployed or (n in manager_dirs and d.is_symlink())) else "no"
     hit = mirror.classify(d, index)
     ext = "yes" if hit["verdict"] in ("homed", "drift") else "no"
     owners, same = [], False
@@ -378,16 +394,54 @@ def find_dups(rows: list) -> dict:
     return dups
 
 
-def prescreen(args, packs, rows, local, mirror) -> None:
+def manager_agents(profile: str) -> tuple:
+    """Skills-Manager 侧这个 profile 的 agent 名。`default` = `hermes-default`，其余 = `hermes-<profile>`。
+
+    与 `cmd_merge` 里生成装回命令用的是同一个公式（`agent = --manager-agent or f"hermes-{args.profile}"`）：
+    B 轴判「它管着这一份」与 S7 决定「交它装」必须认同一个 agent 名，否则一边算已装、一边生成
+    `deploy` 命令。允许 `--manager-agent` 覆盖，但 B 轴这里按 profile 名推（scan 还没有那个参数）。
+    """
+    return ("hermes-default" if profile in ("", "default") else f"hermes-{profile}",)
+
+
+def manager_deployed(manager_rows: list, agents: tuple) -> set:
+    """Skills-Manager 库里**真部署**到本 profile 的技能名（`deployed_to` 命中任一 agent）。
+
+    旧口径只有「在库里」这一档（`manager_skills` 扫 `skills list` 的名字集合），于是
+    「库里有 + 没部署 + profile 躺真实副本」也被算成已装（实测 dev-general 的 `code-wiki`：
+    `deployed_to: []` 却是真实目录）——那一份不是它管的，现在回落成 `mgr=no`（仓库 issue #1）。
+    回落不等于落候选：去向由 A/D 轴定，实测 code-wiki 是 official + same ⇒ 仍 `noop`。
+    """
+    out = set()
+    for x in manager_rows:
+        dep = x.get("deployed_to") or []
+        if isinstance(dep, str):
+            dep = [dep]
+        if any(a in dep for a in agents):
+            out.add(x.get("name", ""))
+    return {n for n in out if n}
+
+
+def prescreen(args, packs, rows, local, mirror) -> dict:
     """S1 预筛（口径 2026-10-11，用户拍板）：profile 技能只要**在外部仓库里找得到**（AgentSkills 那些包），
     或**Skills-Manager 管着**，就算已装 —— 不进候选、不判落点。两边都没有的才是候选。
-    三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。"""
+    三档写进每条：homed（一模一样）/ drift（外部有但内容不同）/ managed / local（候选）。
+
+    2026-10-13（issue #3）：`managed` 拆成 **deployed**（`deployed_to` 命中本 profile 的 agent，或
+    profile 里是它部署的符号链接）与 **undeployed**（库里有、但没部署到本 profile）。前者照旧不进候选；
+    **后者回落 `mgr=no`**，去向再由 A/D 轴定（本地来源且无可比者才走判官判落点；第三方来源且与
+    可比者一致仍 `noop` —— 实测 dev-general/code-wiki 属后者）—— 判据是「它管着这一份」，不是「它库里有这个名字」。
+    另外补一条**自报可疑度**：`local=0` 且 `homed=0` 时打印一行说明「本轮无候选，其中 N 条靠 managed
+    兜住、0 条靠外部仓库匹配」——否则连续多轮空跑也看不出是真干净还是判据失灵（16 个 profile 每轮
+    4 秒、0 候选的那种）。"""
     index = mirror.build_index([p["path"] for p in packs], [])
+    agents = manager_agents(args.profile)
     try:
         mgr_rows = sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager")
-        managed = {s.get("name", "") for s in mgr_rows if s.get("name")}   # 别叫 rows：会盖住传入的 profile 行
     except SystemExit:                      # CLI 不在/报错都不该让一轮挂掉
-        managed = set()
+        mgr_rows = []
+    managed = {s.get("name", "") for s in mgr_rows if s.get("name")}   # 别叫 rows：会盖住传入的 profile 行
+    deployed = manager_deployed(mgr_rows, agents)
     root = profile_root(args.profile)          # A 轴的两份账本按**目标 profile** 读，不按 HERMES_HOME
     tp = third_party_dirs()
     lock_names = set(read_lock(root))
@@ -398,7 +452,7 @@ def prescreen(args, packs, rows, local, mirror) -> None:
             if line.strip() and ":" in line:
                 manifest[line.split(":", 1)[0]] = line.strip().split(":", 1)[1]
     manager_dirs = {}
-    for x in sibling_module("external-dirs.py").manager_skills(pathlib.Path.home() / ".skills-manager"):
+    for x in mgr_rows:
         n = x.get("name")
         if n and pathlib.Path(x.get("path", "")).is_dir():
             manager_dirs[n] = pathlib.Path(x["path"])
@@ -408,18 +462,27 @@ def prescreen(args, packs, rows, local, mirror) -> None:
         r["lock_names"] = lock_names
         ex = tuple(x.strip().lower() for x in (getattr(args, "exclude", None) or []) if x.strip())
         r["excluded"] = any(r["name"].lower().startswith(pfx) for pfx in ex)
-        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest, exclude=ex))
+        r.update(dream_state(r, mirror, index, manager_dirs, tp, manifest, exclude=ex, deployed=deployed))
     off = [r["name"] for r in rows if r.get("excluded")]
     if off:
         print(f"[sweep-plan] --exclude 命中 {len(off)} 条，本轮一律不动：{', '.join(sorted(off))}")
     for r in local:
-        if r["name"] in managed:
+        if r["name"] in deployed or (r["name"] in managed and (r["_md"].parent).is_symlink()):
             r["verdict"], r["matched"] = "managed", "skills-manager"
             continue
         c = mirror.classify(r["_md"].parent, index)
         r["verdict"] = c["verdict"]
         r["matched"] = c["matches"][0] if c["matches"] else ""
-    return None
+    # B 轴两档的名单（给 scan 的 console/prescreen.json 用）：deployed = 真部署到本 profile；
+    # undeployed = 库里有、没部署、且 profile 里躺**真实副本**（符号链接 = 部署的物理形状）。
+    # 名单**不能只扫 `local`**：实测唯一一例 dev-general/code-wiki 的 kind 是 `hub`（名字在 `.hub/lock.json`），
+    # 只扫 kind=local 会让这份名单恒空（16 个 profile 实测全 0，闸门形同虚设）。
+    # 名单只报不改去向：落不落候选仍由 A/D 轴定（本地来源且无可比者 ⇒ judge-destination）。
+    undeployed = sorted(
+        r["name"] for r in rows
+        if r.get("_md") and r["name"] in managed and r["name"] not in deployed
+        and not r["_md"].parent.is_symlink())
+    return dict(deployed=deployed, undeployed=undeployed)
 
 
 def cmd_scan(args) -> int:
@@ -473,7 +536,7 @@ def cmd_scan(args) -> int:
         die(2, "没有候选落点目录：" + (f"--external-dirs {getattr(args, 'external_dirs', '')}"
                if getattr(args, "external_dirs", "") else f"no AgentSkill-* checkout under {args.packs_root}"))
     mirror = sibling_module("skill-mirror.py")
-    prescreen(args, packs, rows, local, mirror)
+    mgr_split = prescreen(args, packs, rows, local, mirror)
     # 候选 = 16 态里 action 为 judge-destination 的那一类（= 三方都没主）。旧的 verdict==local 口径保留
     # 只作对账：两边不一致就报出来，别让两套判据各自漂。
     cands = [r for r in local if r.get("action") == "judge-destination"]
@@ -566,13 +629,21 @@ def cmd_scan(args) -> int:
           f" + topic {len([p for p in packs if not p['repo'].startswith(TOOL_PREFIX)])}）→ answer-space.json")
     n_nocat = sum(1 for r in cands if r["no_category"])
     pre = {v: sum(1 for r in local if r["verdict"] == v) for v in ("homed", "drift", "managed", "local")}
+    # B 轴的两档（issue #3）：库里有 + 部署到本 profile = managed_deployed；库里有 + **没**部署 = managed_undeployed。
+    # 后者是「库里有但没部署」，所以它必须单独报出来 —— 混在一个 managed 数字里就看不出「兜住」了多少。
+    # 名单只报不改去向：落不落候选由 A/D 轴定（prescreen 的 undeployed）。
+    managed_undeployed = mgr_split["undeployed"]
     (out / "prescreen.json").write_text(json.dumps(dict(
         counts=pre,
-        rules="外部仓库里找得到（AgentSkills 各包，同名同内容=homed / 内容不同=drift）或 Skills-Manager 管着（managed）"
-              " = 已装，不进候选；两边都没有（local）才判落点",
+        rules="外部仓库里找得到（AgentSkills 各包，同名同内容=homed / 内容不同=drift）或 Skills-Manager "
+              "**真部署到本 profile**（managed，deployed_to 命中或 profile 里是它部署的符号链接）"
+              " = 已装，不进候选；两边都没有（local）才判落点。库里有但**没部署**的（managed_undeployed）"
+              "单独列名、不再算 managed；去向由 A/D 轴定（本地来源且无可比者 ⇒ 候选；第三方来源且与"
+              "可比者一致 ⇒ 仍 noop）—— 判据是「它管着这一份」，不是「它库里有这个名字」（2026-10-13，issue #1/#3）",
         homed=[r["name"] for r in local if r["verdict"] == "homed"],
         drift=[dict(skill=r["name"], external=r["matched"]) for r in local if r["verdict"] == "drift"],
         managed=[r["name"] for r in local if r["verdict"] == "managed"],
+        managed_undeployed=managed_undeployed,
         candidates=[dict(skill=r["name"], dir=r["dir"], category=r["category"],
                          no_category=r["no_category"], duplicate_of=r.get("duplicate_of", "")) for r in cands],
         duplicates=dups,
@@ -593,6 +664,16 @@ def cmd_scan(args) -> int:
     print(f"[sweep-plan] 逐态去向=" + " · ".join(f"{k}={v}" for k, v in act_counts.most_common()))
     print(f"[sweep-plan] 预筛（已装的不进候选）：homed={pre['homed']} drift={pre['drift']} "
           f"managed={pre['managed']} → 候选={pre['local']}（{out / 'prescreen.json'}）")
+    if managed_undeployed:
+        print(f"[sweep-plan] B 轴两档：库里有、但**没部署到本 profile** 的真实副本 {len(managed_undeployed)} 条："
+              f"{', '.join(managed_undeployed[:8])}{' …' if len(managed_undeployed) > 8 else ''}"
+              f"（prescreen.json 的 managed_undeployed）—— 名单只报不改去向，落不落候选由 A/D 轴定")
+    # 自报可疑度（issue #3）：一条候选都没有、且一条都没靠外部仓库匹配上时，把「这轮为什么是空的」
+    # 讲清楚。否则 16 个 profile 连续多轮 4 秒空跑，也看不出是真干净还是判据失灵。
+    if pre["local"] == 0 and pre["homed"] == 0 and pre["drift"] == 0:
+        print(f"[sweep-plan] ⚠ 本轮无候选：{pre['managed']} 条靠 Skills-Manager 兜住、0 条靠外部仓库匹配上"
+              f"（homed=0 drift=0）。若外部仓库与这个 profile 本该有交集，说明落点池或匹配口径有问题 ——"
+              f" prescreen.json 的 rules 写明了判据，别把连续空跑当成真干净。")
     if dups:
         print(f"[sweep-plan] ⚠ 同名多份 {len(dups)} 组（身份按相对路径区分，名字相同会互相顶替）："
               + " · ".join(f"{n}: {', '.join(ds)}" for n, ds in dups.items()))
@@ -916,8 +997,11 @@ def cmd_merge(args) -> int:
     return 0
 
 
-def self_test() -> int:
-    """Throwaway tree: the three kinds must classify, .archive skipped, merge must refuse a gap."""
+def self_test(parser_override: str = "") -> int:
+    """Throwaway tree: the three kinds must classify, .archive skipped, merge must refuse a gap.
+
+    `parser_override` = 命令行传进来的 `--parser-script`（真实轮次由 round.sh 给；自检里没有兄弟技能，
+    只能借装好的那一份 —— 否则自检在 worktree 里必 exit 2，那不是被测代码的毛病）。"""
     import tempfile
     global HERMES_HOME
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="sweep-selftest-"))
@@ -954,7 +1038,7 @@ def self_test() -> int:
     try:
         assert profile_root("default") == tmp
         assert cmd_scan(argparse.Namespace(profile="default", packs_root=str(packs), out=str(tmp / "out"),
-                                          parser_script="", repo_stem="")) == 0
+                                          parser_script=parser_override, repo_stem="")) == 0
         rows = [ln.split("\t") for ln in (tmp / "out" / "inventory.tsv").read_text().splitlines()[1:]]
         kinds = {r[2]: r[0] for r in rows}
         assert kinds == {"hubskill": "hub", "bundledskill": "bundled", "localskill": "local",
@@ -1100,7 +1184,26 @@ def self_test() -> int:
 
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
-        return self_test()
+        # 自检也要那个兄弟解析器（scan 会调它）——worktree 里没有它时就退回装好的那份，
+        # 否则「self-test 全绿」根本跑不起来（实测：在 worktree 里一跑就 exit 2）。
+        if not any(a.startswith("--parser-script") for a in sys.argv[1:]):
+            # 兄弟解析器的实际布局不固定：`skills/<类目>/<技能>/`、`skills/<技能>/`、以及
+            # 「技能自己带子目录」的嵌套形态（实测只以 using-hermes/references/hermes-ops/... 存在）。
+            # glob 的层数写不穷，用 rglob 搜名字再自己卡深度（上限 6，与 skill-mirror.MAX_DEPTH 同口径）。
+            for root in (HERMES_HOME, pathlib.Path.home() / ".hermes",
+                         pathlib.Path.home() / ".skills-manager" / "skills"):
+                hit = [p for p in sorted(root.rglob(f"{PARSER_SKILL}/scripts/skill-index.py"))
+                       if len(p.relative_to(root).parts) <= 6]
+                if hit:
+                    sys.argv = [sys.argv[0], "--parser-script", str(hit[0]), "--self-test"]
+                    break
+        _ov = ""
+        for i, a in enumerate(sys.argv[1:]):
+            if a == "--parser-script" and i + 1 < len(sys.argv[1:]):
+                _ov = sys.argv[1:][i + 1]
+            elif a.startswith("--parser-script="):
+                _ov = a.split("=", 1)[1]
+        return self_test(_ov)
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan", help="enumerate candidates + packs, freeze the judge input")
